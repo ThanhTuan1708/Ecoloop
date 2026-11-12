@@ -258,6 +258,10 @@ export interface UserLotMeta {
   contact?: string;
   address?: string;
   imageUrl?: string;
+  ownerSignature?: string;
+  claimSignature?: string;
+  proposeSignature?: string;
+  acceptSignature?: string;
 }
 
 const memoryUserMeta = new Map<number, UserLotMeta>();

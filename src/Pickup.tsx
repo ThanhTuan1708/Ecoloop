@@ -1,13 +1,13 @@
 import {useEffect,useRef,useState,type FormEvent} from 'react';
 import {MapPin,Plus,RefreshCw,Navigation,ArrowRight,CheckCircle2,PackageCheck,ShieldCheck,Lock,Star,Coins,SlidersHorizontal,ChevronLeft,ChevronRight,Database,History,ClipboardList,Truck} from 'lucide-react';
 import {isAddress,keccak256,stringToHex,type Address,type Hash} from 'viem';
-import {chain} from './wallet';
+import {chain, assertWallet} from './wallet';
 import {errorMessage,txUrl,publicClient} from './chain';
 import {materials,fmt,short} from './model';
 import {viewEvidence} from './evidence';
 import {pickupAbi} from './generated/pickup';
 import {activatePickup,deployPickup,digest,distanceKm,pendingPickup,pickupDetails,pickupRead,pickupWrite,resumePickup,savePickupPhoto,DEMO_OWNER,DEMO_COLLECTOR,ZERO,type Lot} from './pickupClient';
-import {createCatalogLots,mergeWithCatalogLots,queryProductCards,saveUserLotMeta,loadUserLotsMeta,type ListingStatus,type SortOption,type ShopeeWeb3ProductCard} from './marketplace';
+import {createCatalogLots,mergeWithCatalogLots,queryProductCards,saveUserLotMeta,loadUserLotsMeta,getUserLotMeta,type ListingStatus,type SortOption,type ShopeeWeb3ProductCard} from './marketplace';
 import PickupMap from './PickupMap';
 import './pickup.css';
 
@@ -346,6 +346,51 @@ export default function Pickup({account,demo=false,admin,onConnect,page='home',r
   async function change(fn:string,args:unknown[],status:number){
     if(!current)return;
     const id=current.id;
+
+    if(!account && !demo){
+      onConnect();
+      return;
+    }
+
+    let signature = '';
+    if(account && !demo){
+      const wallet = await assertWallet(account);
+      const actionName = fn==='claimLot' ? 'HỢP ĐỒNG NHẬN THU GOM & KHÓA KÝ QUỸ (ESCROW)'
+        : fn==='proposeLot' ? 'BIÊN BẢN CÂN THỰC TẾ TẠI ĐIỂM BÀN GIAO'
+        : fn==='acceptLot' ? 'CHẤP THUẬN KẾT QUẢ CÂN & GIẢI NGÂN ĐIỂM THƯỞNG ECO'
+        : fn==='cancelLot' ? 'HỦY NIÊM YẾT LÔ PHẾ LIỆU'
+        : 'TRẢ LẠI VIỆC THU GOM';
+      
+      const actionDetails = fn==='proposeLot' 
+        ? `Khối lượng thực tế: ${(args[1] as bigint[]).map((w,i)=>Number(w)>0?`${materials[i].name}: ${(Number(w)/1000).toFixed(2)} kg`:null).filter(Boolean).join(' · ')}`
+        : fn==='acceptLot'
+        ? `Xác nhận giải ngân điểm thưởng ECO cho Lô #${id}`
+        : `Người thu gom: ${account}`;
+
+      try {
+        signature = await wallet.signMessage({
+          account,
+          message: `[ECOLOOP WEB3 ESCROW - ${actionName}]
+Mã lô hàng: #${id}
+Ví thực hiện: ${account}
+${actionDetails}
+Thời gian: ${new Date().toLocaleString('vi-VN')}
+Thỏa thuận được mã hóa và chứng thực mật mã bằng ví trên mạng Avalanche Fuji.`
+        });
+      } catch (err: any) {
+        if (err?.code === 4001 || err?.message?.toLowerCase().includes('reject') || err?.message?.toLowerCase().includes('denied')) {
+          throw new Error('Bạn đã từ chối ký hợp đồng trong ví. Thao tác đã bị hủy.');
+        }
+        throw err;
+      }
+    }
+
+    const currentMeta = getUserLotMeta(id, current.evidence) || { id, evidence: current.evidence };
+    if (fn === 'claimLot') currentMeta.claimSignature = signature;
+    if (fn === 'proposeLot') currentMeta.proposeSignature = signature;
+    if (fn === 'acceptLot') currentMeta.acceptSignature = signature;
+    saveUserLotMeta(currentMeta);
+
     if(demo||!isCurrentOnChain){
       const weights=fn==='proposeLot'?(args[1] as bigint[]).map(Number):current.actual;
       const collectorAddr = fn==='claimLot'?(account||DEMO_COLLECTOR):fn==='releaseLot'?ZERO:current.collector;
@@ -366,6 +411,7 @@ export default function Pickup({account,demo=false,admin,onConnect,page='home',r
             status,
             collector: collectorAddr,
             actual: fn==='disputeLot'||fn==='releaseLot'?[0,0,0,0]:weights,
+            meta: currentMeta,
           }),
           signal: AbortSignal.timeout(4000),
         });
@@ -379,22 +425,51 @@ export default function Pickup({account,demo=false,admin,onConnect,page='home',r
       } catch {}
 
       if(fn==='claimLot')setFilter(page==='orders'?'assigned':'showcase');
-      setMessage('Đã cập nhật trạng thái lô thu gom trên sàn.');
+      const sigMsg = signature ? ` · Đã ký số xác thực ví: ${short(signature)}` : '';
+      setMessage(`🎉 Đã ký hợp đồng và cập nhật trạng thái lô #${id} thành công!${sigMsg}`);
       return;
     }
     if(!account){onConnect();return;}
     if(!address)throw new Error('Chưa kích hoạt thu gom.');
     setHash(await pickupWrite(address,account,fn,args));
-    await refresh();if(fn==='claimLot')setFilter('assigned');setMessage('Đã cập nhật lô thu gom on-chain.');
+    await refresh();if(fn==='claimLot')setFilter('assigned');setMessage('🎉 Đã ký và gửi giao dịch thu gom on-chain thành công lên mạng Fuji.');
   }
   function locate(){run(async()=>{if(!navigator.geolocation)throw new Error('Trình duyệt chưa hỗ trợ vị trí. Chọn khu vực trên bản đồ khi đăng lô.');const p=await new Promise<GeolocationPosition>((resolve,reject)=>navigator.geolocation.getCurrentPosition(resolve,reject,{enableHighAccuracy:false,timeout:15000}));setCenter([p.coords.latitude,p.coords.longitude]);setSort('distance_asc');setMessage('Đã lấy vị trí để lọc khoảng cách. Không lưu vị trí vào hồ sơ hay blockchain; OpenStreetMap cung cấp nền bản đồ.');});}
   async function create(weights:number[],file:File,evidence:Hash,point:[number,number],contact:string,location:string){
+    if(!account && !demo){
+      onConnect();
+      return;
+    }
+
     const lat=Math.round(point[0]*100),lng=Math.round(point[1]*100);
     const dominantIndex = weights.indexOf(Math.max(...weights));
     const sampleImages = ['/sample-scrap-plastic.jpg', '/sample-scrap-paper.jpg', '/sample-scrap-metal.jpg', '/sample-scrap-glass.jpg'];
     const defaultSample = sampleImages[dominantIndex >= 0 ? dominantIndex : 0];
 
     const previewUrl = await compressImageToDataUrl(file, defaultSample);
+
+    let ownerSignature = '';
+    if(account && !demo){
+      try {
+        const wallet = await assertWallet(account);
+        ownerSignature = await wallet.signMessage({
+          account,
+          message: `[ECOLOOP WEB3 SMART ESCROW - CAM KẾT NIÊM YẾT LÔ PHẾ LIỆU]
+Chủ lô: ${account}
+Vật liệu: ${materials.map((m,i)=>weights[i]>0?`${m.name}: ${(weights[i]/1000).toFixed(2)} kg`:null).filter(Boolean).join(' · ')}
+Tổng dự kiến: ${(total(weights)).toFixed(2)} kg
+Địa chỉ bàn giao: ${location || 'TP. Hồ Chí Minh'}
+Bằng chứng SHA-256: ${evidence}
+Thời gian: ${new Date().toLocaleString('vi-VN')}
+Tôi cam kết thông tin phân loại chính xác và đồng ý tham gia hợp đồng ký quỹ EcoLoop.`
+        });
+      } catch (err: any) {
+        if (err?.code === 4001 || err?.message?.toLowerCase().includes('reject') || err?.message?.toLowerCase().includes('denied')) {
+          throw new Error('Bạn đã từ chối ký hợp đồng niêm yết trong ví. Lô phế liệu chưa được tạo.');
+        }
+        throw err;
+      }
+    }
 
     if(demo||!account||!address||includeCatalog){
       const currentCatalog = mergeCatalogLists(catalogLots, loadCatalogLots());
@@ -419,6 +494,7 @@ export default function Pickup({account,demo=false,admin,onConnect,page='home',r
         contact: contact || 'Chủ lô (Liên hệ qua app)',
         address: location || 'TP. Hồ Chí Minh',
         imageUrl: previewUrl,
+        ownerSignature,
       };
       saveUserLotMeta(userMeta);
       saveCatalogLots(updatedCatalog);
@@ -435,7 +511,8 @@ export default function Pickup({account,demo=false,admin,onConnect,page='home',r
       setSort('newest');
       setFilter(page==='orders'?'mine':'showcase');
       setSelected(nextId);
-      setMessage(`🎉 Đã đăng thành công Lô #${nextId}! Lô mới đã xuất hiện ở đầu danh sách.`);
+      const sigMsg = ownerSignature ? ` · Chữ ký ví: ${short(ownerSignature)}` : '';
+      setMessage(`🎉 Đã ký hợp đồng và đăng thành công Lô #${nextId}! Lô mới đã xuất hiện ở đầu danh sách.${sigMsg}`);
 
       // Sync to shared backend server and wait before notifying other tabs
       try {
@@ -467,7 +544,7 @@ export default function Pickup({account,demo=false,admin,onConnect,page='home',r
     setSort('newest');
     setFilter('mine');
     await refresh();
-    setMessage('🎉 Đã gửi giao dịch tạo lô on-chain thành công lên mạng Fuji.');
+    setMessage('🎉 Đã ký và gửi giao dịch tạo lô on-chain thành công lên mạng Fuji.');
   }
   return <section className={`pickup-workspace pickup-page-${page}`}><div className="pickup-page-title"><span className="eyebrow">ECOLOOP · SÀN C2C WEB3 AVALANCHE FUJI</span><h2>{({home:"Sàn phế liệu Web3 gần bạn",orders:"Đơn thu gom & Ký quỹ của bạn",wallet:"Ví xanh của bạn",rewards:"Đổi điểm, nhận điều xanh",settings:"Thiết lập hệ thống"})[page]}</h2><p>{page==='settings'?'Cấu hình contract dùng chung cho tất cả người dùng.':'Dữ liệu on-chain kết hợp IPFS/off-chain. Ký quỹ thông minh bảo vệ hai chiều.'}</p></div>
     {(page==='home'||page==='orders')&&<div className="pickup-intro"><div><span className="eyebrow">TỪ NHÀ BẠN ĐẾN MỘT VÒNG ĐỜI MỚI</span><h2>Thu gom tận nơi</h2><p>Gom nhiều vật liệu trong một lô. Khóa ký quỹ (Escrow), cân thực tế, hai bên xác nhận rồi giải ngân ECO.</p></div><button className="primary" disabled={busy||paused} onClick={()=>setCreating(!creating)}><Plus size={18}/>{creating?'Đóng biểu mẫu':'Đăng lô thu gom'}</button></div>}
@@ -629,6 +706,27 @@ export default function Pickup({account,demo=false,admin,onConnect,page='home',r
               <div><span>IPFS CID / SHA-256:</span> <code>{selectedCard.thumbnail.gatewayUrl.slice(0,28)}…</code> · <code>{short(current.evidence)}</code></div>
               {selectedCard.onChain.escrowLockExpiresAt&&<div><span>Hạn bảo vệ ký quỹ:</span> {new Date(selectedCard.onChain.escrowLockExpiresAt).toLocaleString('vi-VN')}</div>}
             </div>
+            {(() => {
+              const meta = current ? getUserLotMeta(current.id, current.evidence) : undefined;
+              const hasSig = meta?.ownerSignature || meta?.claimSignature || meta?.proposeSignature || meta?.acceptSignature;
+              return hasSig ? (
+                <div className="escrow-signatures-box">
+                  <strong>✍️ HỢP ĐỒNG ĐÃ ĐƯỢC KÝ SỐ MẬT MÃ (EIP-191)</strong>
+                  {meta?.ownerSignature && (
+                    <div><span>Chữ ký Chủ lô:</span> <code>{short(meta.ownerSignature)} (Cam kết niêm yết)</code></div>
+                  )}
+                  {meta?.claimSignature && (
+                    <div><span>Chữ ký Người gom:</span> <code>{short(meta.claimSignature)} (Khóa ký quỹ Escrow)</code></div>
+                  )}
+                  {meta?.proposeSignature && (
+                    <div><span>Chữ ký Biên bản cân:</span> <code>{short(meta.proposeSignature)} (Chứng thực số cân)</code></div>
+                  )}
+                  {meta?.acceptSignature && (
+                    <div><span>Chữ ký Giải ngân:</span> <code>{short(meta.acceptSignature)} (Tất toán hoàn tất)</code></div>
+                  )}
+                </div>
+              ) : null;
+            })()}
             <table><thead><tr><th>Vật liệu</th><th>Dự kiến</th><th>Thực tế</th></tr></thead><tbody>{materials.map((m,i)=><tr key={m.name}><td>{m.symbol} {m.name}</td><td>{fmt(current.estimated[i]/1000)} kg</td><td>{[3,4].includes(current.status)?`${fmt(current.actual[i]/1000)} kg`:'—'}</td></tr>)}</tbody></table>
             <p className="lot-points">
               <strong>+{selectedCard.pricing.amountFormatted} ECO</strong>
@@ -636,10 +734,10 @@ export default function Pickup({account,demo=false,admin,onConnect,page='home',r
             </p>
             <button className="secondary" disabled={busy} onClick={()=>run(async()=>{if(selectedCard.contactPreview&&!isCurrentOnChain){setDetail(selectedCard.contactPreview);return;}if(demo){setDetail({contact:'Liên hệ mẫu · 0903 881 245',address:'Địa chỉ minh họa tại TP.HCM.'});return;}if(!account||!address){if(selectedCard.contactPreview){setDetail(selectedCard.contactPreview);return;}onConnect();return;}const v=detailVersion.current;const d=await pickupDetails(account,address,current);const p=await viewEvidence(account,current.evidence,address,current.id);if(v!==detailVersion.current){URL.revokeObjectURL(p);return;}setDetail(d);setPhoto(p);})}>Xem liên hệ & địa chỉ bàn giao</button>
             {detail&&<div className="pickup-callout"><strong>{detail.contact}</strong><p>{detail.address}</p></div>}
-            {current.status===1&&<button className="primary full-width" disabled={busy||paused} onClick={()=>run(()=>change('claimLot',[BigInt(current.id)],2))}>Nhận thu gom & Khóa ký quỹ (Escrow) <ArrowRight size={16}/></button>}
+            {current.status===1&&<button className="primary full-width" disabled={busy||paused} onClick={()=>run(()=>change('claimLot',[BigInt(current.id)],2))}>Ký hợp đồng nhận thu gom & Khóa ký quỹ (Escrow) <ArrowRight size={16}/></button>}
             {current.status===1&&isOwner&&<button className="secondary" disabled={busy} onClick={()=>run(()=>change('cancelLot',[BigInt(current.id)],5))}>Hủy listing</button>}
-            {current.status===2&&<form onSubmit={e=>{e.preventDefault();run(async()=>{const weights=actual.map(s=>Math.round(Number(s)*1000));if(weights.some(n=>!Number.isSafeInteger(n)||n<0)||total(weights)<=0||total(weights)>1000)throw new Error('Tổng khối lượng thực tế từ 0,001 đến 1.000 kg.');await change('proposeLot',[BigInt(current.id),weights.map(BigInt)],3);});}}><h4>Kết quả cân thực tế tại điểm bàn giao</h4><WeightInputs values={actual} onChange={setActual}/><p>Nhập số cân thực tế trên bàn cân điện tử để gửi đề xuất on-chain cho chủ lô xác nhận.</p><button className="primary" disabled={busy||paused}>Gửi kết quả cân (Đề xuất Escrow)</button></form>}
-            {current.status===3&&<><p>Kiểm tra bảng khối lượng thực tế trước khi xác nhận giải ngân. Đề xuất có hiệu lực 7 ngày.</p><label className="checkbox"><input type="checkbox" checked={consent} onChange={e=>setConsent(e.target.checked)}/>Tôi đã bàn giao vật liệu và đồng ý khối lượng thực tế trên.</label><button className="primary full-width" disabled={busy||paused||!consent||Date.now()>current.updatedAt+7*86400000} onClick={()=>run(()=>change('acceptLot',[BigInt(current.id)],4))}><CheckCircle2 size={16}/>Xác nhận & giải ngân ECO</button><button className="secondary" disabled={busy} onClick={()=>run(()=>change('disputeLot',[BigInt(current.id)],2))}>Chưa đồng ý · yêu cầu cân lại</button></>}
+            {current.status===2&&<form onSubmit={e=>{e.preventDefault();run(async()=>{const weights=actual.map(s=>Math.round(Number(s)*1000));if(weights.some(n=>!Number.isSafeInteger(n)||n<0)||total(weights)<=0||total(weights)>1000)throw new Error('Tổng khối lượng thực tế từ 0,001 đến 1.000 kg.');await change('proposeLot',[BigInt(current.id),weights.map(BigInt)],3);});}}><h4>Kết quả cân thực tế tại điểm bàn giao</h4><WeightInputs values={actual} onChange={setActual}/><p>Nhập số cân thực tế trên bàn cân điện tử để ký số và gửi đề xuất on-chain cho chủ lô xác nhận.</p><button className="primary" disabled={busy||paused}>Ký số & Gửi kết quả cân (Đề xuất Escrow)</button></form>}
+            {current.status===3&&<><p>Kiểm tra bảng khối lượng thực tế trước khi xác nhận giải ngân. Đề xuất có hiệu lực 7 ngày.</p><label className="checkbox"><input type="checkbox" checked={consent} onChange={e=>setConsent(e.target.checked)}/>Tôi đã bàn giao vật liệu và đồng ý khối lượng thực tế trên.</label><button className="primary full-width" disabled={busy||paused||!consent||Date.now()>current.updatedAt+7*86400000} onClick={()=>run(()=>change('acceptLot',[BigInt(current.id)],4))}><CheckCircle2 size={16}/>Ký xác nhận bàn giao & Giải ngân ECO</button><button className="secondary" disabled={busy} onClick={()=>run(()=>change('disputeLot',[BigInt(current.id)],2))}>Chưa đồng ý · yêu cầu cân lại</button></>}
             {[2,3].includes(current.status)&&<button className="text-link" disabled={busy} onClick={()=>run(()=>change('releaseLot',[BigInt(current.id)],1))}>Trả lại việc thu gom (Mở lại listing Active)</button>}
             {current.status===4&&<p className="pickup-success"><CheckCircle2 size={18}/>Hai phía đã xác nhận. ECO đã được giải ngân cho chủ lô.</p>}
           </>:<div className="pickup-empty"><MapPin size={30}/><h3>Chọn một thẻ sản phẩm để xem</h3><p>Xem ảnh chụp thực tế tại bãi cân, dữ liệu on-chain/off-chain, nhận thu gom và thử luồng khóa ký quỹ tại đây.</p></div>}</div>
@@ -952,7 +1050,7 @@ function LotForm({busy,demo,center,onCreate}:{busy:boolean;demo:boolean;center?:
       setHashing(false);
     }
   }
-  return <form className="lot-form" onSubmit={submit}><h3>Một lô, nhiều loại vật liệu</h3><p>Ước lượng khối lượng từng loại. Ảnh minh họa cả lô; ECO cuối cùng tính theo kết quả cân thực tế.</p><WeightInputs values={weights} onChange={setWeights}/><label>Ảnh cả lô (nếu chưa có ảnh sẽ tự dùng ảnh mẫu)<input type="file" accept="image/jpeg,image/png,image/webp" onChange={e=>setFile(e.target.files?.[0])}/></label><div className="pickup-weights"><label>Số điện thoại / cách liên hệ<input name="contact" minLength={3} maxLength={120} required defaultValue="Chủ nhà (0903 881 245)" placeholder="Người nhận việc sẽ dùng thông tin này"/></label><label>Địa chỉ & thời gian bàn giao<input name="address" minLength={5} maxLength={400} required defaultValue="Quận 7, TP. Hồ Chí Minh" placeholder="Số nhà, đường, khung giờ thuận tiện"/></label></div><p>Địa chỉ và liên hệ chỉ chia sẻ với chủ lô và người đã nhận việc. {demo?'Demo không gửi ảnh hay liên hệ lên server.':'Ảnh được lưu riêng trên server local; không đưa ảnh hoặc số điện thoại lên blockchain.'}</p><h4>Vị trí bàn giao trên bản đồ (mặc định: {point[0].toFixed(2)}, {point[1].toFixed(2)})</h4><PickupMap lots={[]} center={point} onPin={setPoint}/><div className="pickup-weights"><label>Vĩ độ<input type="number" step="any" min="-90" max="90" value={point?.[0]??''} onChange={e=>setPoint([Number(e.target.value),point?.[1]??106.69])}/></label><label>Kinh độ<input type="number" step="any" min="-180" max="180" value={point?.[1]??''} onChange={e=>setPoint([point?.[0]??10.78,Number(e.target.value)])}/></label></div><p className="footnote">Chỉ tọa độ làm tròn khoảng 1 km được ghi công khai, vĩnh viễn trên blockchain. Có thể nhập tọa độ nếu bản đồ không tải được.</p><div className="estimate"><span>Tổng dự kiến: {fmt(total(weights.map(v=>Number(v)*1000)))} kg</span><strong>+{fmt(points(weights.map(v=>Number(v)*1000)))} ECO</strong></div>{error&&<p className="form-error" role="alert">{error}</p>}<button className="primary full-width" disabled={busy||hashing}>{hashing?'Đang đọc ảnh & tạo mã băm…':'Đăng lô & tìm người thu gom'}<ArrowRight size={17}/></button></form>;
+  return <form className="lot-form" onSubmit={submit}><h3>Một lô, nhiều loại vật liệu</h3><p>Ước lượng khối lượng từng loại. Ảnh minh họa cả lô; ECO cuối cùng tính theo kết quả cân thực tế.</p><WeightInputs values={weights} onChange={setWeights}/><label>Ảnh cả lô (nếu chưa có ảnh sẽ tự dùng ảnh mẫu)<input type="file" accept="image/jpeg,image/png,image/webp" onChange={e=>setFile(e.target.files?.[0])}/></label><div className="pickup-weights"><label>Số điện thoại / cách liên hệ<input name="contact" minLength={3} maxLength={120} required defaultValue="Chủ nhà (0903 881 245)" placeholder="Người nhận việc sẽ dùng thông tin này"/></label><label>Địa chỉ & thời gian bàn giao<input name="address" minLength={5} maxLength={400} required defaultValue="Quận 7, TP. Hồ Chí Minh" placeholder="Số nhà, đường, khung giờ thuận tiện"/></label></div><p>Địa chỉ và liên hệ chỉ chia sẻ với chủ lô và người đã nhận việc. {demo?'Demo không gửi ảnh hay liên hệ lên server.':'Ảnh được lưu riêng trên server local; không đưa ảnh hoặc số điện thoại lên blockchain.'}</p><h4>Vị trí bàn giao trên bản đồ (mặc định: {point[0].toFixed(2)}, {point[1].toFixed(2)})</h4><PickupMap lots={[]} center={point} onPin={setPoint}/><div className="pickup-weights"><label>Vĩ độ<input type="number" step="any" min="-90" max="90" value={point?.[0]??''} onChange={e=>setPoint([Number(e.target.value),point?.[1]??106.69])}/></label><label>Kinh độ<input type="number" step="any" min="-180" max="180" value={point?.[1]??''} onChange={e=>setPoint([point?.[0]??10.78,Number(e.target.value)])}/></label></div><p className="footnote">Chỉ tọa độ làm tròn khoảng 1 km được ghi công khai, vĩnh viễn trên blockchain. Có thể nhập tọa độ nếu bản đồ không tải được.</p><div className="estimate"><span>Tổng dự kiến: {fmt(total(weights.map(v=>Number(v)*1000)))} kg</span><strong>+{fmt(points(weights.map(v=>Number(v)*1000)))} ECO</strong></div>{error&&<p className="form-error" role="alert">{error}</p>}<button className="primary full-width" disabled={busy||hashing}>{hashing?'Đang đọc ảnh & tạo mã băm…':'Ký hợp đồng & Đăng lô tìm người thu gom'}<ArrowRight size={17}/></button></form>;
 }
 function PickupRewards({address,account,collector,busy,balance,run,onChange,onSpendCatalog}:{address?:Address;account?:Address;collector:boolean;busy:boolean;balance:number;run:(f:()=>Promise<void>)=>Promise<void>;onChange:()=>Promise<void>;onSpendCatalog:(cost:number)=>void}){
   const [onChainRewards,setOnChainRewards]=useState<CatalogRewardItem[]>([]);

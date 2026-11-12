@@ -53,4 +53,9 @@
 .history-substatus{color:#496554;font-weight:600;font-size:11px}
 .history-time{color:#86998a;font-size:10.5px}
 .history-action-btn{padding:8px 12px!important;min-height:34px!important;font-size:11.5px!important;white-space:nowrap}
+.escrow-signatures-box{background:#f0fdf4;border:1px solid #bbf7d0;border-radius:14px;padding:12px 14px;font-size:11.5px;display:grid;gap:6px;color:#166534;margin:6px 0}
+.escrow-signatures-box strong{font-size:12px;color:#15803d;display:flex;align-items:center;gap:6px}
+.escrow-signatures-box div{display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap}
+.escrow-signatures-box span{color:#374151;font-weight:600}
+.escrow-signatures-box code{background:#dcfce7;color:#15803d;padding:2px 6px;border-radius:5px;font-size:11px}
 @media(max-width:950px){.history-kpis{grid-template-columns:repeat(2,minmax(0,1fr))}}
