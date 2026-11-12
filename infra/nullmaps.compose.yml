@@ -1,0 +1,38 @@
+name: ecoloop-nullmaps
+services:
+  martin:
+    image: ghcr.io/maplibre/martin:latest
+    command: ["--route-prefix", "/tiles", "--font", "/fonts", "--sprite", "/sprites", "/data/vietnam.pmtiles"]
+    volumes:
+      - ../.tools/nullmaps/data:/data:ro
+      - ../.tools/nullmaps/services/tiles/fonts:/fonts:ro
+      - ../.tools/nullmaps/services/tiles/sprites:/sprites:ro
+    restart: unless-stopped
+  geocoder:
+    build: ../.tools/nullmaps/services/geocoder
+    environment:
+      GEOCODER_DB: /data/geocoder.db
+    volumes:
+      - ../.tools/nullmaps/data:/data:ro
+    restart: unless-stopped
+  adapter:
+    build: ../.tools/nullmaps/services/adapter
+    environment:
+      API_KEY: ${NULLMAPS_API_KEY:?Run nullmaps-local.ps1 -Action Prepare first}
+      GEOCODER_URL: http://geocoder:2322
+      SEARCH_ENGINE: sqlite
+      MARTIN_URL: http://martin:3000
+      NORMALIZER_URL: http://127.0.0.1:8100
+    volumes:
+      - ../.tools/nullmaps/data:/data
+      - ../.tools/nullmaps/data/fleet:/fleet
+    depends_on: [geocoder]
+    restart: unless-stopped
+  gateway:
+    image: caddy:2-alpine
+    ports: ["127.0.0.1:8088:80"]
+    volumes:
+      - ./nullmaps.Caddyfile:/etc/caddy/Caddyfile:ro
+      - ../.tools/nullmaps/ecoloop-style:/srv:ro
+    depends_on: [martin, adapter]
+    restart: unless-stopped

@@ -1,0 +1,92 @@
+================================================================================
+                    ECOLOOP - SÀN C2C WEB3 THU GOM PHẾ LIỆU TÁI CHẾ
+                 (Bản giới thiệu tính năng & Hồ sơ kỹ thuật dự án)
+================================================================================
+
+1. TỔNG QUAN DỰ ÁN
+--------------------------------------------------------------------------------
+EcoLoop là nền tảng thương mại điện tử C2C Web3 đầu tiên tại Việt Nam kết nối trực
+tiếp người có phế liệu tái chế (hộ gia đình, văn phòng, nhà xưởng) với lực lượng thu
+gom (ve chai công nghệ, đơn vị tái chế, trạm thu mua), vận hành trên mạng lưới
+blockchain Avalanche Fuji C-Chain.
+
+Nền tảng giải quyết 3 bài toán lớn của ngành thu gom truyền thống:
+- Minh bạch khối lượng & giá trị: Cơ chế ký quỹ thông minh (Smart Escrow).
+- Tối ưu hóa chi phí di chuyển: Bản đồ radar định vị tìm điểm gom phế liệu gần nhất.
+- Khuyến khích phân loại rác: Thưởng token ECO đổi quà tặng xanh, voucher sinh hoạt.
+
+
+2. CÁC TÍNH NĂNG CỐT LÕI CỦA ỨNG DỤNG
+--------------------------------------------------------------------------------
+A. ĐĂNG LÔ PHẾ LIỆU ĐA VẬT LIỆU (MULTI-MATERIAL LOT)
+   - Cho phép gom nhiều loại phế liệu trong 1 lần đăng: Nhựa (PET/HDPE), Giấy carton,
+     Kim loại (Nhôm, đồng, sắt), Thủy tinh.
+   - Tự động ước lượng khối lượng (kg) và quy đổi trước điểm thưởng ECO & VNĐ.
+   - Nén ảnh trực tiếp trên trình duyệt (< 30KB) và tạo mã băm mật mã (Keccak256 /
+     IPFS CID) để lưu vết chứng cứ trên blockchain mà không làm nặng mạng lưới.
+
+B. HỢP ĐỒNG KÝ QUỸ THÔNG MINH 4 BƯỚC (WEB3 SMART ESCROW)
+   - Bước 1 (ACTIVE - Đang mở bán): Lô hàng được niêm yết công khai trên sàn.
+   - Bước 2 (IN ESCROW - Đang ký quỹ): Người thu gom bấm nhận đơn, khóa quyền thu gom,
+     mở khóa thông tin liên hệ và số nhà người bán.
+   - Bước 3 (PROPOSE - Cân thực tế tại chỗ): Người thu gom đến tận nơi, cân thực tế
+     trên cân điện tử và nhập số liệu gửi đề xuất on-chain.
+   - Bước 4 (SOLD - Đồng thuận & Giải ngân): Người bán kiểm tra bảng đối chiếu
+     (Dự kiến vs. Thực tế), tích xác nhận đồng ý -> Smart contract tự động giải ngân
+     điểm thưởng ECO về ví người bán. Hỗ trợ nút "Yêu cầu cân lại" nếu có sai lệch.
+
+C. KỆ HÀNG GIAO DỊCH PHONG CÁCH SHOPEE C2C WEB3
+   - Giao diện dạng thẻ trực quan (Shopee-style feed) hiển thị hình ảnh, danh mục,
+     khoảng cách, điểm uy tín người bán (Reputation Score), số đơn thành công.
+   - Bộ lọc đa chiều: Lọc theo vật liệu, token thanh toán (ECO, USDT, AVAX),
+     sắp xếp theo "Mới nhất", "Gần bạn nhất", "Bán chạy", "Giá cao/thấp".
+
+D. BẢN ĐỒ RADAR ĐỊNH VỊ THU GOM (INTERACTIVE MAP)
+   - Tích hợp bản đồ số (OpenStreetMap & Leaflet/MapLibre) hiển thị các lô phế liệu
+     đang chờ gom xung quanh.
+   - Lọc bán kính linh hoạt (500m, 1km, 2km, 5km... đến 50km), giúp người thu gom
+     dễ dàng gom các đơn gần nhau trên cùng tuyến đường.
+   - Bảo mật thông tin riêng tư: Tọa độ công khai trên blockchain chỉ làm tròn ~1km;
+     địa chỉ chính xác chỉ hiển thị cho người đã nhận đơn.
+
+E. SỔ CÁI THEO DÕI ĐƠN HÀNG & LỊCH SỬ GIAO DỊCH (HISTORY LEDGER)
+   - Bảng quản lý 3 tab chuyên biệt:
+     + Tab 1: "Đã đăng lô" (Dành cho chủ nguồn phế liệu theo dõi đơn của mình).
+     + Tab 2: "Đã thu gom lô" (Dành cho người thu gom theo dõi đơn đã nhận/đã cân).
+     + Tab 3: "Lô mới & Vừa giao dịch" (Hiển thị các giao dịch tức thì giữa 2 bên).
+   - Dashboard 5 chỉ số KPI: Tổng số lô, Đơn đang xử lý, Đơn hoàn tất, Tổng kg phế liệu
+     đã thu gom, Tổng điểm ECO đã tích lũy.
+
+F. CỬA HÀNG ĐỔI THƯỞNG XANH (ECOLOOP REWARDS STORE)
+   - Dùng điểm ECO đổi lấy các phần thưởng thiết thực:
+     + Voucher đồ uống Highlands Coffee 50.000đ.
+     + Túi vải Canvas tái chế, Bình giữ nhiệt vỏ tre, Bộ muỗng ống hút inox.
+     + Chậu sen đá văn phòng thanh lọc không khí.
+     + Thẻ nạp điện thoại đa mạng, Vé xe buýt điện thông minh VinBus, Phiếu Co.opmart.
+   - Biên nhận đổi thưởng minh bạch, hỗ trợ trạm thu gom xác nhận giao quà trực tiếp.
+
+
+3. ĐIỂM ĐỘT PHÁ VỀ CÔNG NGHỆ (TECH STACK & ARCHITECTURE)
+--------------------------------------------------------------------------------
+- Blockchain: Avalanche Fuji C-Chain (Sub-second finality, chi phí giao dịch thấp).
+- Kiến trúc Hybrid (On-chain + Off-chain):
+  + On-chain: Trạng thái ký quỹ (Escrow State), Mã băm bằng chứng (Keccak256 hash),
+    Logic giải ngân ECO token.
+  + Off-chain: Ảnh nén bằng chứng, thông tin liên hệ chi tiết, bản đồ số.
+- Trải nghiệm chuyển tiếp Web2 sang Web3:
+  + Hỗ trợ chế độ ví nhúng mô phỏng (Demo Wallet) cho người dùng phổ thông trải nghiệm
+    toàn bộ luồng mà không cần cài ví Web3 hay nạp AVAX làm phí gas.
+  + Hỗ trợ kết nối ví Web3 thật (Core Wallet, MetaMask) cho người dùng nâng cao.
+- Đồng bộ đa thiết bị thời gian thực (Real-time Cross-browser Sync):
+  + Kết hợp BroadcastChannel và Backend Catalog Hub, giúp 2 tài khoản (1 bên đăng lô,
+    1 bên nhận thu gom) thấy ngay lập tức biến động trạng thái của nhau.
+
+
+4. GIÁ TRỊ XÃ HỘI & MÔ HÌNH KINH TẾ TUẦN HOÀN (ESG)
+--------------------------------------------------------------------------------
+- Hỗ trợ lực lượng lao động yếu thế: Giúp người thu gom ve chai truyền thống tiếp cận
+  nguồn hàng dồi dào, giảm thời gian rong ruổi ngoài đường, tăng thu nhập.
+- Thúc đẩy phân loại rác tại nguồn: Biến rác thải tái chế thành tài sản có giá trị
+  kinh tế thông qua cơ chế tích lũy điểm thưởng ECO.
+- Đóng góp vào mục tiêu phát triển bền vững (Net Zero & Circular Economy).
+================================================================================

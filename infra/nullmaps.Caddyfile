@@ -1,0 +1,6 @@
+:80 {
+  reverse_proxy /tiles/* martin:3000
+  reverse_proxy /maps/api/* adapter:8000
+  root * /srv
+  file_server
+}
