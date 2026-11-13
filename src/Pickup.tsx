@@ -168,7 +168,7 @@ export default function Pickup({account,demo=false,admin,onConnect,page='home',r
 
   // Browser notification when one of my lots (posted or collected) changes status while the tab is in the background.
   const watchedStatus=lots.filter(l=>same(l.owner,user)||same(l.collector,user)).map(l=>`${l.id}:${l.status}`).join(',');
-  const lastStatus=useRef<{wallet:string;map:Map<number,number>}>();
+  const lastStatus=useRef<{wallet:string;map:Map<number,number>}|undefined>(undefined);
   useEffect(()=>{
     const map=new Map(watchedStatus?watchedStatus.split(',').map(x=>x.split(':').map(Number) as [number,number]):[]);
     const prev=lastStatus.current;
