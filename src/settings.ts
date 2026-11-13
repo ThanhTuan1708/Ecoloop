@@ -10,6 +10,8 @@ export type ThemePref='light'|'dark'|'system';
 export type FontSize='small'|'medium'|'large'|'xlarge';
 export type WeightUnit='kg'|'lb';
 export type NumberFormat='auto'|'vi'|'en';
+export type LayoutPref='auto'|'desktop'|'mobile';
+export type Layout='desktop'|'mobile';
 
 export interface Settings{
   language:LanguagePref;
@@ -19,9 +21,10 @@ export interface Settings{
   numberFormat:NumberFormat;
   notifications:boolean;
   reduceMotion:boolean;
+  layout:LayoutPref;
 }
 
-export const DEFAULT_SETTINGS:Settings={language:'vi',theme:'light',fontSize:'medium',weightUnit:'kg',numberFormat:'auto',notifications:false,reduceMotion:false};
+export const DEFAULT_SETTINGS:Settings={language:'vi',theme:'light',fontSize:'medium',weightUnit:'kg',numberFormat:'auto',notifications:false,reduceMotion:false,layout:'auto'};
 export const SETTINGS_KEY='ecoloop-settings-v1';
 export const FONT_SCALE:Record<FontSize,number>={small:.9,medium:1,large:1.12,xlarge:1.25};
 const LB_PER_KG=2.20462;
@@ -56,6 +59,14 @@ export function currentLanguage():Language{return state.language==='system'?syst
 export function prefersDark(){return !!globalThis.matchMedia?.('(prefers-color-scheme: dark)').matches;}
 export function resolvedTheme():'light'|'dark'{return state.theme==='system'?(prefersDark()?'dark':'light'):state.theme;}
 
+/** Phone layout on narrow screens, and on touch screens held sideways (landscape phones).
+ *  Rotating a phone or resizing a window switches live. */
+export const MOBILE_QUERY='(max-width: 767px), (max-height: 500px) and (pointer: coarse)';
+export function isNarrowScreen(){return !!globalThis.matchMedia?.(MOBILE_QUERY).matches;}
+export function resolvedLayout():Layout{return state.layout==='auto'?(isNarrowScreen()?'mobile':'desktop'):state.layout;}
+/** Current layout; components re-render when the screen crosses the breakpoint or the setting changes. */
+export function useLayout():Layout{useSettings();return resolvedLayout();}
+
 /** Translate a Vietnamese UI string. `{name}` placeholders are filled from vars. */
 export function tr(text:string,vars?:Record<string,string|number>):string{
   let out=text;
@@ -85,6 +96,9 @@ export function applySettings(){
   root.lang=currentLanguage();
   root.dataset.theme=resolvedTheme();
   root.dataset.motion=state.reduceMotion?'reduce':'full';
+  root.dataset.layout=resolvedLayout();
+  // a phone layout forced on a wide screen is shown as a centred phone-width column
+  root.dataset.viewport=isNarrowScreen()?'narrow':'wide';
   root.style.setProperty('--ecoloop-zoom',String(FONT_SCALE[state.fontSize]));
   root.style.colorScheme=resolvedTheme();
   document.title=tr('EcoLoop — Gom điều cũ, gieo điều xanh');
@@ -92,6 +106,8 @@ export function applySettings(){
 
 if(typeof window!=='undefined'){
   applySettings();
+  // new state object so useSyncExternalStore subscribers re-render when the breakpoint is crossed
+  window.matchMedia?.(MOBILE_QUERY).addEventListener?.('change',()=>{state={...state};applySettings();listeners.forEach(fn=>fn());});
   window.matchMedia?.('(prefers-color-scheme: dark)').addEventListener?.('change',()=>{if(state.theme==='system'){applySettings();listeners.forEach(fn=>fn());}});
   window.addEventListener('languagechange',()=>{if(state.language==='system'){applySettings();listeners.forEach(fn=>fn());}});
   window.addEventListener('storage',e=>{if(e.key===SETTINGS_KEY){state=read();applySettings();listeners.forEach(fn=>fn());}});

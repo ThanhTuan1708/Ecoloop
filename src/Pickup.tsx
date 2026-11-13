@@ -134,7 +134,7 @@ export default function Pickup({account,demo=false,admin,onConnect,page='home',r
   const [address,setAddress]=useState<Address>();const [onChainLots,setOnChainLots]=useState<Lot[]>([]);const [catalogLots,setCatalogLots]=useState<Lot[]>(()=>loadCatalogLots());const [includeCatalog,setIncludeCatalog]=useState(true);const [count,setCount]=useState(0);const [limit,setLimit]=useState(100);
   const [balance,setBalance]=useState(0);const [spentCatalogEco,setSpentCatalogEco]=useState(()=>loadCatalogRewardsState().spent);const [view,setView]=useState<'grid'|'map'>('grid');const [v2Admin,setV2Admin]=useState(false);const [loading,setLoading]=useState(true);const [category,setCategory]=useState(-1);const [query,setQuery]=useState('');const [collector,setCollector]=useState(false);const [paused,setPaused]=useState(false);
   const [selected,setSelected]=useState<number>();const [creating,setCreating]=useState(false);const [filter,setFilter]=useState('showcase');const [radius,setRadius]=useState(0);const [center,setCenter]=useState<[number,number]>();
-  const [sort,setSort]=useState<SortOption>('newest');const [tokenFilter,setTokenFilter]=useState<string>('ALL');const [pageNum,setPageNum]=useState(1);const [pageSize,setPageSize]=useState(12);
+  const [filtersOpen,setFiltersOpen]=useState(false);const [sort,setSort]=useState<SortOption>('newest');const [tokenFilter,setTokenFilter]=useState<string>('ALL');const [pageNum,setPageNum]=useState(1);const [pageSize,setPageSize]=useState(12);
   const [demoRole,setDemoRole]=useState('owner');const [busy,setBusy]=useState(false);const lock=useRef(false);const version=useRef(0);const detailVersion=useRef(0);
   const [message,setMessage]=useState('');const [failure,setFailure]=useState(false);const [hash,setHash]=useState<Hash>();const [detail,setDetail]=useState<{contact:string;address:string}>();const [photo,setPhoto]=useState('');
   const [actual,setActual]=useState(['0','0','0','0']);const [consent,setConsent]=useState(false);const [deployConsent,setDeployConsent]=useState(false);
@@ -214,6 +214,7 @@ export default function Pickup({account,demo=false,admin,onConnect,page='home',r
     {chainId:chain.id,contractAddress:address,role}
   );
 
+  const activeFilters=(filter!=='showcase'&&filter!=='mine'&&filter!=='assigned'?1:0)+(tokenFilter!=='ALL'?1:0)+(radius>0?1:0);
   const cards=marketplaceResult.items;
   const facets=marketplaceResult.meta.facets.statusCounts;
   const pagination=marketplaceResult.meta.pagination;
@@ -329,6 +330,8 @@ export default function Pickup({account,demo=false,admin,onConnect,page='home',r
   useEffect(()=>{if(!createRequest)return;setCreating(true);setSelected(undefined);},[createRequest]);
   useEffect(()=>{detailVersion.current++;setDetail(undefined);setPhoto('');setConsent(false);setActual((current?.estimated||[0,0,0,0]).map(n=>String(n/1000)));},[selected,user,current?.status]);
   useEffect(()=>()=>{if(photo)URL.revokeObjectURL(photo);},[photo]);
+  // Esc closes the lot detail (a bottom sheet on phones)
+  useEffect(()=>{if(selected===undefined)return;const onKey=(e:KeyboardEvent)=>{if(e.key==='Escape')setSelected(undefined);};window.addEventListener('keydown',onKey);return()=>window.removeEventListener('keydown',onKey);},[selected]);
 
   function resetCatalog(){
     try {
@@ -583,8 +586,9 @@ ${tr('Tôi cam kết thông tin phân loại chính xác và đồng ý tham gia
       </div>}
       {creating&&(page==='home'||page==='orders')&&<LotForm busy={busy} demo={demo} center={center} onCreate={(...args)=>run(()=>create(...args))}/>}
       {!creating&&(page==='home'||page==='orders')&&<>
-        <div className="pickup-toolbar">
-          <label>{tr('Tìm sản phẩm / cửa hàng / khu vực')}<input value={query} onChange={e=>setQuery(e.target.value)} placeholder={tr("VD: đồng, nhôm, PET, carton, Quận 7, Thủ Đức, Hà Nội…")}/></label>
+        <div className={filtersOpen?'pickup-toolbar filters-open':'pickup-toolbar'}>
+          <label className="pickup-search">{tr('Tìm sản phẩm / cửa hàng / khu vực')}<input type="search" value={query} onChange={e=>setQuery(e.target.value)} placeholder={tr("VD: đồng, nhôm, PET, carton, Quận 7, Thủ Đức, Hà Nội…")}/></label>
+          <button type="button" className="pickup-filter-toggle" aria-expanded={filtersOpen} onClick={()=>setFiltersOpen(o=>!o)}><SlidersHorizontal size={16}/>{tr('Bộ lọc')}{activeFilters>0&&<b>{activeFilters}</b>}</button>
           <label>{tr('Trạng thái Web3')}<select value={filter} onChange={e=>setFilter(e.target.value)}>
             <option value="showcase">{tr('Kệ hàng (Đang bán & Ký quỹ · {n})',{n:facets.ACTIVE+facets.IN_ESCROW})}</option>
             <option value="open">{tr('🟢 Đang mở bán (Active · {n})',{n:facets.ACTIVE})}</option>
@@ -649,6 +653,7 @@ ${tr('Tôi cam kết thông tin phân loại chính xác và đồng ý tham gia
         </div>
         {view==='map'&&<PickupMap lots={visible} center={center} onSelect={setSelected}/>}
         <div className={`pickup-columns ${current?'has-selection':''}`}>
+          {current&&<div className="lot-sheet-backdrop" aria-hidden="true" onClick={()=>setSelected(undefined)}/>}
           <div className="pickup-list">
             {cards.map(card=>{
               const st=card.uiState.status;
@@ -707,7 +712,7 @@ ${tr('Tôi cam kết thông tin phân loại chính xác và đồng ý tham gia
               </div>
             </div>
           </div>
-          <div className="lot-detail">{current&&selectedCard?<><button className="text-link" onClick={()=>setSelected(undefined)}>{tr('Đóng chi tiết ×')}</button>
+          <div className="lot-detail" role={current?'dialog':undefined} aria-label={current?selectedCard?.title:undefined}>{current&&selectedCard?<><span className="lot-sheet-handle" aria-hidden="true"/><button className="text-link" onClick={()=>setSelected(undefined)}>{tr('Đóng chi tiết ×')}</button>
             <span className="eyebrow">{tr('BIÊN NHẬN WEB3 #{id}',{id:current.id})} · {selectedCard.uiState.status}</span>
             <h3>{selectedCard.title}</h3>
             <img className="pickup-evidence" src={photo||selectedCard.thumbnail.previewUrl} alt={selectedCard.title}/>

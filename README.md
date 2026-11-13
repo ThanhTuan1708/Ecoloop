@@ -131,6 +131,8 @@ Trang **Thiết lập** (menu bên trái hoặc nút cuối thanh điều hướ
 - **Thông báo trình duyệt**: báo khi lô của bạn đổi trạng thái lúc đang ở tab khác, có nút gửi thử.
 - **Tài khoản & mạng**, **Dữ liệu & bộ nhớ** (xóa dữ liệu lưu trên máy, đặt lại thiết lập), **Giới thiệu** (phiên bản, mã nguồn, báo lỗi).
 
+**Giao diện điện thoại**: app tự chuyển giữa giao diện máy tính và điện thoại theo kích thước màn hình (dưới 768px, hoặc điện thoại xoay ngang), đổi ngay khi xoay máy hay kéo cửa sổ. Trên điện thoại có thanh tab dưới cùng với nút **Đăng lô** ở giữa, ô tìm kiếm + nút **Bộ lọc** thu gọn, thẻ sản phẩm 2 cột, chi tiết lô và tài khoản mở dạng bảng trượt từ dưới lên, lịch sử dạng thẻ. Có thể chọn cố định trong **Thiết lập → Giao diện → Bố cục** (Tự động / Máy tính / Điện thoại). CSS điện thoại nằm ở `src/mobile.css`, áp dụng khi `<html data-layout="mobile">`.
+
 Thiết lập được lưu trong trình duyệt (`localStorage`, khóa `ecoloop-settings-v1`).
 
 Cách thêm chữ mới cho giao diện:
