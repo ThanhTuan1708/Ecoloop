@@ -657,7 +657,7 @@ export function createMarketplaceHandler({ client, chainId = 43113, configFile, 
     if (client.getCode) {
       const code = await client.getCode({ address: pickupContract });
       if (!code || (pickupArtifact?.runtimeHash && keccak256(code) !== pickupArtifact.runtimeHash)) {
-        json(400, { error: 'Contract không phải phiên bản EcoLoopPickup V2.' });
+        json(400, { error: 'Contract không phải phiên bản EcoLoopPickup V3.' });
         return true;
       }
     }

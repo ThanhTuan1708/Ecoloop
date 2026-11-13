@@ -6,7 +6,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 
 const src = path.resolve(import.meta.dirname, '../src');
-const inputs = ['web.css', 'pickup.css', 'mobile.css'];
+const inputs = ['web.css', 'pickup.css', 'mobile.css', 'onchain.css'];
 const PREFIX = ':root[data-theme=dark]';
 
 const NAMED = { white: '#ffffff', black: '#000000' };

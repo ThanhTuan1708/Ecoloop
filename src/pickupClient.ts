@@ -1,15 +1,19 @@
-import { formatEther, keccak256, stringToHex, type Address, type Hash } from 'viem';
+import { encodeFunctionData, formatEther, keccak256, stringToHex, type Address, type Hash } from 'viem';
 import { publicClient } from './chain';
 import { assertWallet, chain } from './wallet';
-import { pickupAbi, pickupBytecode, pickupRuntimeHash } from './generated/pickup';
+import { pickupAbi, pickupBytecode, pickupRuntimeHash, forwarderAbi, forwarderBytecode, forwarderRuntimeHash, certificateAbi } from './generated/pickup';
 import { authorize, uploadEvidence } from './evidence';
 
-export type Lot = {id:number; owner:Address; collector:Address; estimated:number[]; actual:number[]; evidence:Hash; latitude:number; longitude:number; updatedAt:number; status:number};
+export type Lot = {id:number; owner:Address; collector:Address; estimated:number[]; actual:number[]; evidence:Hash; latitude:number; longitude:number; updatedAt:number; status:number; deposit?:number; paid?:number};
 export const lotStatuses=['Không tồn tại','Chờ thu gom','Đã nhận việc','Chờ chủ lô xác nhận','Hoàn tất','Đã hủy'];
 export const ZERO='0x0000000000000000000000000000000000000000' as Address;
 export const DEMO_OWNER='0x0000000000000000000000000000000000000001' as Address;
 export const DEMO_COLLECTOR='0x0000000000000000000000000000000000000002' as Address;
+/** Household actions the EcoLoop relayer pays gas for. Collectors lock AVAX and pay their own gas. */
+export const GASLESS_FUNCTIONS=new Set(['createLot','acceptLot','disputeLot','cancelLot','releaseLot','redeemReward']);
+const RELAY_GAS:Record<string,bigint>={createLot:450_000n,acceptLot:800_000n,disputeLot:150_000n,cancelLot:120_000n,releaseLot:200_000n,redeemReward:250_000n};
 const pendingKey=`ecoloop-pickup-pending-${chain.id}`;
+const forwarderKey=`ecoloop-forwarder-${chain.id}`;
 export function pendingPickup():Hash|undefined {return localStorage.getItem(pendingKey) as Hash||undefined;}
 async function receipt(hash:Hash){
   let replaced=false;
@@ -20,35 +24,81 @@ async function receipt(hash:Hash){
   return r;
 }
 export async function resumePickup(){const hash=pendingPickup();if(!hash)return;return receipt(hash);}
+export async function pickupVersion(address:Address):Promise<'v3'|'legacy'>{
+  const code=await publicClient.getCode({address});
+  return code&&keccak256(code)===pickupRuntimeHash?'v3':'legacy';
+}
 export async function validatePickup(address:Address){
   if(await publicClient.getChainId()!==chain.id)throw new Error('RPC đang trỏ sai mạng.');
-  const code=await publicClient.getCode({address});
-  if(!code||keccak256(code)!==pickupRuntimeHash)throw new Error('Địa chỉ không phải contract Thu gom EcoLoop V2.');
+  if(await pickupVersion(address)!=='v3')throw new Error('Địa chỉ không phải contract Thu gom EcoLoop V3.');
 }
+const readFrom=(address:Address)=>(functionName:string,args:unknown[]=[])=>publicClient.readContract({address,abi:pickupAbi,functionName,args} as never) as Promise<any>;
 export async function pickupRead(address:Address,account?:Address,limit=100){
   await validatePickup(address);
-  const read=(functionName:string,args:unknown[]=[])=>publicClient.readContract({address,abi:pickupAbi,functionName,args} as never) as Promise<any>;
-  const [count,balance,collector,paused,admin]=await Promise.all([read('lotCount'),account?read('balanceOf',[account]):0n,account?read('hasRole',[keccak256(stringToHex('COLLECTOR_ROLE')),account]):false,read('paused'),account?read('hasRole',['0x'+'0'.repeat(64),account]):false]);
+  const read=readFrom(address);
+  const [count,balance,collector,paused,admin,prices,certificate,forwarder,pending]=await Promise.all([
+    read('lotCount'),account?read('balanceOf',[account]):0n,account?read('hasRole',[keccak256(stringToHex('COLLECTOR_ROLE')),account]):false,read('paused'),account?read('hasRole',['0x'+'0'.repeat(64),account]):false,
+    Promise.all([0,1,2,3].map(i=>read('pricePerKg',[BigInt(i)]))),read('certificate'),read('trustedForwarder'),account?read('pendingWithdrawals',[account]):0n]);
   const lots:Lot[]=[];
   for(let i=0;i<Math.min(Number(count),limit);i+=10){
     lots.push(...await Promise.all(Array.from({length:Math.min(10,Number(count)-i,limit-i)},async(_,j)=>{
       const id=Number(count)-i-j;const l=await read('getLot',[BigInt(id)]);
-      return {...l,id,estimated:l.estimated.map(Number),actual:l.actual.map(Number),latitude:l.latitude/100,longitude:l.longitude/100,updatedAt:Number(l.updatedAt)*1000} as Lot;
+      return {...l,id,estimated:l.estimated.map(Number),actual:l.actual.map(Number),latitude:l.latitude/100,longitude:l.longitude/100,updatedAt:Number(l.updatedAt)*1000,deposit:Number(formatEther(l.deposit)),paid:Number(formatEther(l.paid))} as Lot;
     })));
   }
-  return {lots,count:Number(count),balance:Number(formatEther(balance)),collector:!!collector,paused:!!paused,admin:!!admin};
+  return {lots,count:Number(count),balance:Number(formatEther(balance)),collector:!!collector,paused:!!paused,admin:!!admin,
+    prices:(prices as bigint[]).map(p=>Number(formatEther(p))),certificate:certificate as Address,forwarder:forwarder as Address,pending:Number(formatEther(pending))};
 }
-export async function pickupWrite(address:Address,account:Address,functionName:string,args:unknown[]=[]){
+/** AVAX (wei) the collector must lock to claim this lot (estimate value + 20%). */
+export async function requiredDeposit(address:Address,id:number):Promise<bigint>{return readFrom(address)('requiredDeposit',[BigInt(id)]);}
+/** AVAX (wei) the household receives for the proposed weights, capped at the locked deposit. */
+export async function payoutPreview(address:Address,lot:Lot):Promise<bigint>{
+  const value:bigint=await readFrom(address)('quote',[lot.actual.map(BigInt)]);
+  const deposit:bigint=(await readFrom(address)('getLot',[BigInt(lot.id)])).deposit;
+  return value<deposit?value:deposit;
+}
+export async function pickupWrite(address:Address,account:Address,functionName:string,args:unknown[]=[],value?:bigint){
   if(pendingPickup())throw new Error('Có giao dịch thu gom đang chờ. Kiểm tra giao dịch trước khi gửi tiếp.');
   const wallet=await assertWallet(account);
-  const {request}=await publicClient.simulateContract({address,abi:pickupAbi,functionName,args,account} as never);
+  const {request}=await publicClient.simulateContract({address,abi:pickupAbi,functionName,args,account,...(value!==undefined?{value}:{})} as never);
   const hash=await wallet.writeContract(request as never);localStorage.setItem(pendingKey,hash);
   await receipt(hash);return hash;
 }
+/** Gas-free household action: the wallet signs an EIP-712 request, the EcoLoop relayer pays the gas. */
+export async function relayWrite(address:Address,account:Address,functionName:string,args:unknown[]=[]){
+  if(!GASLESS_FUNCTIONS.has(functionName))throw new Error('Thao tác này không hỗ trợ miễn phí gas.');
+  if(pendingPickup())throw new Error('Có giao dịch thu gom đang chờ. Kiểm tra giao dịch trước khi gửi tiếp.');
+  // Simulate as the household first so contract errors show before anything is signed.
+  await publicClient.simulateContract({address,abi:pickupAbi,functionName,args,account} as never);
+  const forwarder=await readFrom(address)('trustedForwarder') as Address;
+  const nonce=await publicClient.readContract({address:forwarder,abi:forwarderAbi,functionName:'nonces',args:[account]}) as bigint;
+  const data=encodeFunctionData({abi:pickupAbi,functionName,args} as never);
+  const gas=RELAY_GAS[functionName];const deadline=Math.floor(Date.now()/1000)+600;
+  const wallet=await assertWallet(account);
+  const signature=await wallet.signTypedData({account,domain:{name:'EcoLoopForwarder',version:'1',chainId:chain.id,verifyingContract:forwarder},
+    types:{ForwardRequest:[{name:'from',type:'address'},{name:'to',type:'address'},{name:'value',type:'uint256'},{name:'gas',type:'uint256'},{name:'nonce',type:'uint256'},{name:'deadline',type:'uint48'},{name:'data',type:'bytes'}]},
+    primaryType:'ForwardRequest',message:{from:account,to:address,value:0n,gas,nonce,deadline,data}});
+  const {hash}=await api('/api/relay',{request:{from:account,to:address,value:'0',gas:gas.toString(),deadline,data,signature}}) as {hash:Hash};
+  localStorage.setItem(pendingKey,hash);
+  await receipt(hash);return hash;
+}
+/** Household actions go through the relayer when it is available; otherwise the wallet pays gas. */
+export async function householdWrite(address:Address,account:Address,functionName:string,args:unknown[],gasless:boolean){
+  return gasless&&GASLESS_FUNCTIONS.has(functionName)?relayWrite(address,account,functionName,args):pickupWrite(address,account,functionName,args);
+}
+/** Deploys the V3 suite: forwarder (gas-free relay) then pickup (which creates the certificate NFT contract). */
 export async function deployPickup(account:Address){
   if(pendingPickup())throw new Error('Kiểm tra giao dịch đang chờ trước.');
   const wallet=await assertWallet(account);
-  const hash=await wallet.deployContract({abi:pickupAbi,bytecode:pickupBytecode,args:[account]});
+  let forwarder=localStorage.getItem(forwarderKey) as Address|null;
+  const code=forwarder?await publicClient.getCode({address:forwarder}):undefined;
+  if(!forwarder||!code||keccak256(code)!==forwarderRuntimeHash){
+    const fHash=await wallet.deployContract({abi:forwarderAbi,bytecode:forwarderBytecode,args:[]} as never);
+    localStorage.setItem(pendingKey,fHash);
+    const fr=await receipt(fHash);if(!fr.contractAddress)throw new Error('Chưa nhận được địa chỉ contract.');
+    forwarder=fr.contractAddress as Address;localStorage.setItem(forwarderKey,forwarder);
+  }
+  const hash=await wallet.deployContract({abi:pickupAbi,bytecode:pickupBytecode,args:[account,forwarder]} as never);
   localStorage.setItem(pendingKey,hash);
   const r=await receipt(hash);if(!r.contractAddress)throw new Error('Chưa nhận được địa chỉ contract.');
   localStorage.setItem(`ecoloop-pickup-deployed-${chain.id}`,r.contractAddress);
@@ -59,8 +109,19 @@ export async function activatePickup(account:Address,address:Address){
   const auth=await authorize('configure-pickup',account,keccak256(stringToHex(address)),address);
   await api('/api/pickup/configure',auth);
 }
+export type CertificateView={image:string;name:string;attributes:{trait_type:string;value:string|number}[];contract:Address;id:number};
+/** Reads the on-chain certificate NFT (metadata and SVG are stored on-chain). */
+export async function readCertificate(certificate:Address,id:number):Promise<CertificateView|undefined>{
+  try{
+    const uri=await publicClient.readContract({address:certificate,abi:certificateAbi,functionName:'tokenURI',args:[BigInt(id)]}) as string;
+    const json=JSON.parse(new TextDecoder().decode(Uint8Array.from(atob(uri.split(',')[1]),c=>c.charCodeAt(0))));
+    return {image:json.image,name:json.name,attributes:json.attributes||[],contract:certificate,id};
+  }catch{return undefined;}
+}
+export function certificateUrl(certificate:Address,id:number){return `${chain.blockExplorers?.default.url||'https://testnet.snowtrace.io'}/nft/${certificate}/${id}`;}
+export function addressUrl(address:Address){return `${chain.blockExplorers?.default.url||'https://testnet.snowtrace.io'}/address/${address}`;}
 export async function api(path:string,data:unknown){
-  const response=await fetch(path,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(data),signal:AbortSignal.timeout(30000)});
+  const response=await fetch(path,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(data),signal:AbortSignal.timeout(60000)});
   const result=await response.json();if(!response.ok)throw new Error(result.error||'Không kết nối được server.');return result;
 }
 export async function digest(bytes:ArrayBuffer){return '0x'+Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256',bytes))).map(b=>b.toString(16).padStart(2,'0')).join('') as Hash;}

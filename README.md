@@ -142,3 +142,25 @@ Cách thêm chữ mới cho giao diện:
 3. Chạy `npm run i18n:check` để xem còn chữ nào chưa dịch.
 
 Nếu sửa màu trong `src/web.css` hoặc `src/pickup.css`, chạy `npm run theme:dark` để tạo lại `src/theme-dark.css`.
+
+## Hợp đồng thu gom V3: ký quỹ thật, miễn phí gas, chứng nhận NFT
+
+**Ký quỹ AVAX thật.** Khi nhận một lô, người thu gom phải khóa AVAX vào contract, bằng giá ước tính cộng thêm 20%.
+- Người thu gom gửi số cân thực tế, chủ lô xác nhận. Contract tự trả AVAX cho chủ lô theo số cân thực tế và hoàn phần dư cho người thu gom.
+- Nếu người thu gom trả việc, hoặc quá 7 ngày không xong, toàn bộ AVAX được hoàn lại người thu gom.
+- Giá thu mua (AVAX/kg cho từng loại vật liệu) do quản trị viên chỉnh trong **Thiết lập**.
+
+**Miễn phí gas cho hộ gia đình.** Các thao tác đăng lô, xác nhận, yêu cầu cân lại, hủy lô và đổi quà được ký bằng EIP-712. Server EcoLoop gửi giao dịch qua forwarder ERC-2771 và trả phí gas. Contract vẫn ghi nhận đúng ví của hộ gia đình là người thực hiện.
+- Cách bật: đặt `RELAYER_PRIVATE_KEY` trong `.env`, dùng **một ví Fuji riêng** có ít AVAX test. Không dùng chung khóa của ví quản trị.
+- Server tự giới hạn số lượt: `RELAY_DAILY_LIMIT` (cả ngày) và `RELAY_HOURLY_PER_WALLET` (mỗi ví mỗi giờ).
+- Người thu gom vẫn tự trả gas, vì họ phải khóa AVAX.
+
+**Chứng nhận tái chế NFT.** Mỗi lô hoàn tất tạo một NFT (contract `EcoLoopCertificate`, ký hiệu ECOREC) cho chủ lô. NFT ghi số kg của từng vật liệu, ví người thu gom và số AVAX đã trả. Hình ảnh và dữ liệu nằm hoàn toàn trên chain, xem được trên Snowtrace và trong trang **Ví xanh**.
+
+**Dữ liệu mẫu tách riêng.** App có nút chuyển **Dữ liệu thật (on-chain) / Dữ liệu mẫu**, không bao giờ trộn hai loại. Ở chế độ mẫu, app hiện băng cảnh báo vàng và nhãn **MẪU** trên từng lô: không có giao dịch, tiền ký quỹ hay chứng nhận thật.
+
+**Triển khai V3**, chọn một trong hai cách:
+- Qua giao diện: vào **Thiết lập** bằng ví quản trị → **Triển khai bằng ví quản trị** (2 giao dịch: forwarder, rồi contract thu gom) → **Kích hoạt dùng chung**. Nếu đang dùng contract V2, app cho phép nâng cấp. Lô và ECO trên V2 không tự chuyển sang V3.
+- Qua dòng lệnh: chạy `npm run deploy:pickup:fuji` (cần `DEPLOYER_PRIVATE_KEY` trong `.env`). Script tự ghi địa chỉ mới vào `config/app.json`.
+- Sau đó cấp quyền thu gom (`COLLECTOR_ROLE`) cho các ví người thu gom trong **Thiết lập**.
+- Nếu chạy trên **Vercel**: server không ghi được `config/app.json`, nên nút **Kích hoạt dùng chung** không dùng được. Hãy chạy `npm run deploy:pickup:fuji` trên máy, commit file `config/app.json` rồi deploy lại. Đặt `RELAYER_PRIVATE_KEY` trong mục **Environment Variables** của Vercel.
