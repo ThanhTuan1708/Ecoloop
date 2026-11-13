@@ -8,8 +8,8 @@ export type Lot = {id:number; owner:Address; collector:Address; estimated:number
 export const lotStatuses=['Không tồn tại','Chờ thu gom','Đã nhận việc','Chờ chủ lô xác nhận','Hoàn tất','Đã hủy'];
 export const ZERO='0x0000000000000000000000000000000000000000' as Address;
 /** Household actions the EcoLoop relayer pays gas for. Collectors lock AVAX and pay their own gas. */
-export const GASLESS_FUNCTIONS=new Set(['createLot','acceptLot','disputeLot','cancelLot','releaseLot','redeemReward']);
-const RELAY_GAS:Record<string,bigint>={createLot:450_000n,acceptLot:800_000n,disputeLot:150_000n,cancelLot:120_000n,releaseLot:200_000n,redeemReward:250_000n};
+export const GASLESS_FUNCTIONS=new Set(['createLot','acceptLot','disputeLot','cancelLot','releaseLot','redeemReward','transfer']);
+const RELAY_GAS:Record<string,bigint>={createLot:450_000n,acceptLot:800_000n,disputeLot:150_000n,cancelLot:120_000n,releaseLot:200_000n,redeemReward:250_000n,transfer:150_000n};
 const pendingKey=`ecoloop-pickup-pending-${chain.id}`;
 const forwarderKey=`ecoloop-forwarder-${chain.id}`;
 export function pendingPickup():Hash|undefined {return localStorage.getItem(pendingKey) as Hash||undefined;}
@@ -107,12 +107,15 @@ export async function deployPickup(account:Address){
   localStorage.setItem(pendingKey,hash);
   const r=await receipt(hash);if(!r.contractAddress)throw new Error('Chưa nhận được địa chỉ contract.');
   localStorage.setItem(`ecoloop-pickup-deployed-${chain.id}`,r.contractAddress);
+  // The deploy block lets the server index this contract's history (wallet card) from the start.
+  localStorage.setItem(`ecoloop-pickup-deployblock-${chain.id}`,String(r.blockNumber));
   return r.contractAddress;
 }
 export async function activatePickup(account:Address,address:Address){
   await validatePickup(address);
   const auth=await authorize('configure-pickup',account,keccak256(stringToHex(address)),address);
-  await api('/api/pickup/configure',auth);
+  const deployBlock=Number(localStorage.getItem(`ecoloop-pickup-deployblock-${chain.id}`)||0);
+  await api('/api/pickup/configure',{...auth,...(deployBlock>0&&localStorage.getItem(`ecoloop-pickup-deployed-${chain.id}`)?.toLowerCase()===address.toLowerCase()?{deployBlock}:{})});
 }
 export type CertificateView={image:string;name:string;attributes:{trait_type:string;value:string|number}[];contract:Address;id:number};
 /** Reads the on-chain certificate NFT (metadata and SVG are stored on-chain). */

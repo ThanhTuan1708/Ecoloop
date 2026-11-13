@@ -164,3 +164,14 @@ Nếu sửa màu trong `src/web.css` hoặc `src/pickup.css`, chạy `npm run th
 - Qua dòng lệnh: chạy `npm run deploy:pickup:fuji` (cần `DEPLOYER_PRIVATE_KEY` trong `.env`). Script tự ghi địa chỉ mới vào `config/app.json`.
 - Sau đó cấp quyền thu gom (`COLLECTOR_ROLE`) cho các ví người thu gom trong **Thiết lập**.
 - Nếu chạy trên **Vercel**: server không ghi được `config/app.json`, nên nút **Kích hoạt dùng chung** không dùng được. Hãy chạy `npm run deploy:pickup:fuji` trên máy, commit file `config/app.json` rồi deploy lại. Đặt `RELAYER_PRIVATE_KEY` trong mục **Environment Variables** của Vercel.
+
+## Thẻ ví EcoLoop (EcoLoop Card)
+
+Địa chỉ ví của người dùng hiện như một thẻ thanh toán: trong hộp **Tài khoản & ví** (thẻ gọn) và ở đầu trang **Ví xanh** (thẻ đầy đủ). Thẻ hiện địa chỉ chia nhóm 4 ký tự, tên chủ thẻ, mạng Avalanche Fuji, số dư AVAX và ECO. Đây là ví tự quản lý trên testnet, không phải thẻ ngân hàng và không liên kết với tổ chức thẻ nào.
+
+- **Nhận**: mã QR theo chuẩn EIP-681 (`ethereum:<ví>@43113?value=…` cho AVAX, `ethereum:<ECO>@43113/transfer?address=…&uint256=…` cho ECO). Có thể đặt số tiền và nội dung để tạo yêu cầu thanh toán; ví Core cũng đọc được.
+- **Chuyển**: nhập hoặc quét địa chỉ, chọn AVAX/ECO, xem màn hình xác nhận rồi mới ký. ECO chuyển miễn phí gas qua relayer (hàm `transfer` đã nằm trong danh sách cho phép). AVAX trả phí mạng từ ví người gửi.
+- **Quét QR trả tiền**: dùng camera (BarcodeDetector, hoặc jsQR khi trình duyệt không hỗ trợ), chọn ảnh có mã QR, hoặc dán link. Mã của mạng khác hay token khác ECO bị từ chối. Không có khoản nào được gửi khi chưa bấm xác nhận.
+- **Lịch sử**: `GET /api/history?address=` đọc sự kiện của contract V3 (ECO nhận/chuyển/thưởng/đổi quà, khóa và hoàn ký quỹ, tiền bán lô, khoản chờ rút) từ khối triển khai (`pickupDeployBlock` trong `config/app.json`). AVAX gửi từ thiết bị này được ghi lại cục bộ; AVAX nhận từ ví khác xem trên Snowtrace qua liên kết trong lịch sử.
+
+Thư viện QR nằm sẵn trong `src/vendor/` (qrcode-generator, MIT; jsQR, Apache-2.0) kèm giấy phép.

@@ -25,10 +25,12 @@ const wallet = createWalletClient({ account, chain, transport: http(rpc) });
 compile();
 const pickup = JSON.parse(fs.readFileSync('artifacts/EcoLoopPickup.json', 'utf8'));
 const forwarderArtifact = JSON.parse(fs.readFileSync('artifacts/EcoLoopForwarder.json', 'utf8'));
+let deployBlock = 0;
 async function deploy(artifact, args) {
   const hash = await wallet.deployContract({ abi: artifact.abi, bytecode: artifact.bytecode, args });
   const receipt = await publicClient.waitForTransactionReceipt({ hash });
   if (receipt.status !== 'success' || !receipt.contractAddress) throw new Error('Deployment failed: ' + hash);
+  deployBlock = Number(receipt.blockNumber);
   return getAddress(receipt.contractAddress);
 }
 const forwarder = await deploy(forwarderArtifact, []);
@@ -37,7 +39,7 @@ const certificate = await publicClient.readContract({ address, abi: pickup.abi, 
 const configFile = 'config/app.json';
 const config = JSON.parse(fs.readFileSync(configFile, 'utf8'));
 if (config.chainId === chain.id || local) {
-  fs.writeFileSync(configFile, JSON.stringify({ ...config, chainId: chain.id, pickupContract: address }, null, 2));
+  fs.writeFileSync(configFile, JSON.stringify({ ...config, chainId: chain.id, pickupContract: address, pickupDeployBlock: deployBlock }, null, 2));
 }
 console.log(`EcoLoop pickup V3 deployed on chain ${chain.id}
   Pickup (escrow): ${address}
