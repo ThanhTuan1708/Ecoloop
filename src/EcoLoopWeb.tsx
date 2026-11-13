@@ -11,6 +11,7 @@ import SettingsPanel from './SettingsPanel';
 import {tr,num,useSettings} from './settings';
 import './web.css';
 import './mobile.css';
+import './onchain.css';
 import './theme-dark.css';
 import './settings.css';
 

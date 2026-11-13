@@ -8,6 +8,9 @@ const messages: Record<string, string> = {
   AccessControlUnauthorizedAccount: 'Ví này chưa có quyền thực hiện thao tác. Nhờ quản trị cấp quyền phù hợp cho đúng địa chỉ ví.',
   ERC20InsufficientBalance: 'Bạn chưa đủ ECO để đổi phần thưởng này. Hãy chọn quà ít điểm hơn hoặc tiếp tục tái chế.',
   UnavailableReward: 'Phần thưởng đã hết hoặc tạm ngừng đổi. Hãy chọn món quà khác.',
+  InsufficientDeposit: 'Số AVAX gửi kèm ít hơn mức ký quỹ cần khóa. Làm mới dữ liệu rồi thử lại.',
+  NothingToWithdraw: 'Không có AVAX nào chờ rút.',
+  OnlyMinter: 'Chỉ contract thu gom được tạo chứng nhận.',
 };
 export function errorMessage(error: unknown): string {
   const seen = new Set<unknown>();
