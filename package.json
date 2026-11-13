@@ -17,7 +17,9 @@
     "deploy:local": "node scripts/deploy.mjs --local",
     "deploy:fuji": "node --env-file=.env scripts/deploy.mjs",
     "deploy:pickup:local": "node scripts/deploy-pickup.mjs --local",
-    "deploy:pickup:fuji": "node --env-file=.env scripts/deploy-pickup.mjs"
+    "deploy:pickup:fuji": "node --env-file=.env scripts/deploy-pickup.mjs",
+    "seed:local": "node scripts/seed-fuji.mjs --local",
+    "seed:fuji": "node --env-file=.env scripts/seed-fuji.mjs"
   },
   "dependencies": {
     "@openzeppelin/contracts": "^5.4.0",

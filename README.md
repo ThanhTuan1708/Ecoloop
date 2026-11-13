@@ -157,7 +157,7 @@ Nếu sửa màu trong `src/web.css` hoặc `src/pickup.css`, chạy `npm run th
 
 **Chứng nhận tái chế NFT.** Mỗi lô hoàn tất tạo một NFT (contract `EcoLoopCertificate`, ký hiệu ECOREC) cho chủ lô. NFT ghi số kg của từng vật liệu, ví người thu gom và số AVAX đã trả. Hình ảnh và dữ liệu nằm hoàn toàn trên chain, xem được trên Snowtrace và trong trang **Ví xanh**.
 
-**Dữ liệu mẫu tách riêng.** App có nút chuyển **Dữ liệu thật (on-chain) / Dữ liệu mẫu**, không bao giờ trộn hai loại. Ở chế độ mẫu, app hiện băng cảnh báo vàng và nhãn **MẪU** trên từng lô: không có giao dịch, tiền ký quỹ hay chứng nhận thật.
+**Chỉ dữ liệu thật.** App đã bỏ hẳn 28 lô mẫu, phần quà mẫu và chế độ demo. Mọi lô, số dư, phần thưởng và chứng nhận đều đọc từ contract V3 trên Avalanche. Lô mới bắt buộc có ảnh thật, và chỉ mã băm của ảnh được ghi lên chain. Cách tạo dữ liệu thật và dữ liệu thử xem ở [docs/DU-LIEU-THAT.md](docs/DU-LIEU-THAT.md).
 
 **Triển khai V3**, chọn một trong hai cách:
 - Qua giao diện: vào **Thiết lập** bằng ví quản trị → **Triển khai bằng ví quản trị** (2 giao dịch: forwarder, rồi contract thu gom) → **Kích hoạt dùng chung**. Nếu đang dùng contract V2, app cho phép nâng cấp. Lô và ECO trên V2 không tự chuyển sang V3.
