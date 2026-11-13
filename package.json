@@ -11,6 +11,8 @@
     "preview": "vite preview --host 127.0.0.1",
     "contracts:compile": "node scripts/compile.mjs",
     "test": "npm run contracts:compile && node --test tests/*.test.mjs",
+    "i18n:check": "node scripts/i18n-check.mjs",
+    "theme:dark": "node scripts/gen-dark-theme.mjs",
     "chain": "hardhat node",
     "deploy:local": "node scripts/deploy.mjs --local",
     "deploy:fuji": "node --env-file=.env scripts/deploy.mjs"
