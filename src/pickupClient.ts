@@ -1,14 +1,12 @@
 import { encodeFunctionData, formatEther, keccak256, stringToHex, type Address, type Hash } from 'viem';
 import { publicClient } from './chain';
 import { assertWallet, chain } from './wallet';
-import { pickupAbi, pickupBytecode, pickupRuntimeHash, forwarderAbi, forwarderBytecode, forwarderRuntimeHash, certificateAbi } from './generated/pickup';
+import { pickupAbi, pickupBytecode, pickupRuntimeHash, pickupImmutables, forwarderAbi, forwarderBytecode, forwarderRuntimeHash, forwarderImmutables, certificateAbi } from './generated/pickup';
 import { authorize, uploadEvidence } from './evidence';
 
 export type Lot = {id:number; owner:Address; collector:Address; estimated:number[]; actual:number[]; evidence:Hash; latitude:number; longitude:number; updatedAt:number; status:number; deposit?:number; paid?:number};
 export const lotStatuses=['Không tồn tại','Chờ thu gom','Đã nhận việc','Chờ chủ lô xác nhận','Hoàn tất','Đã hủy'];
 export const ZERO='0x0000000000000000000000000000000000000000' as Address;
-export const DEMO_OWNER='0x0000000000000000000000000000000000000001' as Address;
-export const DEMO_COLLECTOR='0x0000000000000000000000000000000000000002' as Address;
 /** Household actions the EcoLoop relayer pays gas for. Collectors lock AVAX and pay their own gas. */
 export const GASLESS_FUNCTIONS=new Set(['createLot','acceptLot','disputeLot','cancelLot','releaseLot','redeemReward']);
 const RELAY_GAS:Record<string,bigint>={createLot:450_000n,acceptLot:800_000n,disputeLot:150_000n,cancelLot:120_000n,releaseLot:200_000n,redeemReward:250_000n};
@@ -24,9 +22,16 @@ async function receipt(hash:Hash){
   return r;
 }
 export async function resumePickup(){const hash=pendingPickup();if(!hash)return;return receipt(hash);}
+/** keccak256 of deployed code with immutable values (set at deploy time) zeroed, comparable to the compiled runtime hash. */
+export function codeHash(code:Hash|undefined,immutables:[number,number][]){
+  if(!code||code==='0x')return undefined;
+  let hex=code.slice(2);
+  for(const [start,length] of immutables)hex=hex.slice(0,start*2)+'0'.repeat(length*2)+hex.slice((start+length)*2);
+  return keccak256(`0x${hex}`);
+}
 export async function pickupVersion(address:Address):Promise<'v3'|'legacy'>{
   const code=await publicClient.getCode({address});
-  return code&&keccak256(code)===pickupRuntimeHash?'v3':'legacy';
+  return codeHash(code,pickupImmutables)===pickupRuntimeHash?'v3':'legacy';
 }
 export async function validatePickup(address:Address){
   if(await publicClient.getChainId()!==chain.id)throw new Error('RPC đang trỏ sai mạng.');
@@ -92,7 +97,7 @@ export async function deployPickup(account:Address){
   const wallet=await assertWallet(account);
   let forwarder=localStorage.getItem(forwarderKey) as Address|null;
   const code=forwarder?await publicClient.getCode({address:forwarder}):undefined;
-  if(!forwarder||!code||keccak256(code)!==forwarderRuntimeHash){
+  if(!forwarder||codeHash(code,forwarderImmutables)!==forwarderRuntimeHash){
     const fHash=await wallet.deployContract({abi:forwarderAbi,bytecode:forwarderBytecode,args:[]} as never);
     localStorage.setItem(pendingKey,fHash);
     const fr=await receipt(fHash);if(!fr.contractAddress)throw new Error('Chưa nhận được địa chỉ contract.');

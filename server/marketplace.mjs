@@ -1,6 +1,7 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { isAddress, keccak256 } from 'viem';
+import { codeHash } from './codehash.mjs';
 
 const ZERO = '0x0000000000000000000000000000000000000000';
 const ECO_USD_RATE = 0.05;
@@ -514,6 +515,8 @@ export function queryMarketplaceCards(lots, query = {}, { chainId = 43113, contr
 }
 
 export function createMarketplaceHandler({ client, chainId = 43113, configFile, pickupArtifact }) {
+  // The old shared sample catalog is gone: only on-chain lots are served. Remove its leftover file.
+  fs.unlink(SHARED_CATALOG_FILE).catch(() => {});
   return async (req, res, url) => {
     const json = (status, data) => {
       res.writeHead(status, {
@@ -522,102 +525,6 @@ export function createMarketplaceHandler({ client, chainId = 43113, configFile, 
       });
       res.end(JSON.stringify(data));
     };
-
-    if (
-      url.pathname === '/api/marketplace/catalog' ||
-      url.pathname === '/api/v1/marketplace/catalog'
-    ) {
-      try {
-        if (req.method === 'GET') {
-          let catalogData = { lots: null, userMeta: [] };
-          try {
-            catalogData = JSON.parse(await fs.readFile(SHARED_CATALOG_FILE, 'utf8'));
-          } catch (e) {
-            if (e.code !== 'ENOENT') throw e;
-          }
-          json(200, { ok: true, lots: catalogData.lots, userMeta: catalogData.userMeta || [] });
-          return true;
-        }
-
-        if (req.method === 'POST') {
-          const body = await parseJsonBody(req);
-          let catalogData = { lots: [], userMeta: [] };
-          try {
-            catalogData = JSON.parse(await fs.readFile(SHARED_CATALOG_FILE, 'utf8'));
-          } catch (e) {
-            if (e.code !== 'ENOENT') throw e;
-          }
-          if (!Array.isArray(catalogData.lots)) catalogData.lots = [];
-          if (!Array.isArray(catalogData.userMeta)) catalogData.userMeta = [];
-
-          if (body.action === 'init' || body.action === 'sync') {
-            if (Array.isArray(body.lots)) {
-              const map = new Map();
-              for (const item of catalogData.lots) {
-                if (item && typeof item.id === 'number') map.set(item.id, item);
-              }
-              for (const item of body.lots) {
-                if (!item || typeof item.id !== 'number') continue;
-                const existing = map.get(item.id);
-                if (!existing || (item.updatedAt || 0) >= (existing.updatedAt || 0)) {
-                  map.set(item.id, item);
-                }
-              }
-              catalogData.lots = Array.from(map.values()).sort((a, b) => b.id - a.id);
-            }
-            if (Array.isArray(body.userMeta)) {
-              const metaMap = new Map();
-              for (const m of body.userMeta) if (m && typeof m.id === 'number') metaMap.set(m.id, m);
-              for (const m of catalogData.userMeta) if (m && typeof m.id === 'number') metaMap.set(m.id, m);
-              catalogData.userMeta = Array.from(metaMap.values());
-            }
-          } else if (body.action === 'create') {
-            if (Array.isArray(body.baseLots) && catalogData.lots.length === 0) {
-              catalogData.lots = body.baseLots;
-            }
-            if (body.lot) {
-              catalogData.lots = [body.lot, ...catalogData.lots.filter(l => l.id !== body.lot.id)];
-            }
-            if (body.meta) {
-              catalogData.userMeta = [body.meta, ...catalogData.userMeta.filter(m => m.id !== body.meta.id)];
-            }
-          } else if (body.action === 'change') {
-            const id = Number(body.id);
-            catalogData.lots = catalogData.lots.map(l => {
-              if (l.id === id) {
-                const next = { ...l };
-                if (typeof body.status === 'number') next.status = body.status;
-                if (body.collector !== undefined) next.collector = body.collector;
-                if (body.actual !== undefined) next.actual = body.actual;
-                next.updatedAt = Date.now();
-                return next;
-              }
-              return l;
-            });
-          } else if (body.action === 'reset') {
-            catalogData = { lots: null, userMeta: [] };
-            try {
-              await fs.unlink(SHARED_CATALOG_FILE);
-            } catch (err) {
-              if (err.code !== 'ENOENT') throw err;
-            }
-            json(200, { ok: true, lots: null, userMeta: [] });
-            return true;
-          }
-
-          await fs.mkdir(path.dirname(SHARED_CATALOG_FILE), { recursive: true });
-          await fs.writeFile(SHARED_CATALOG_FILE, JSON.stringify(catalogData, null, 2), 'utf8');
-          json(200, { ok: true, lots: catalogData.lots, userMeta: catalogData.userMeta });
-          return true;
-        }
-
-        json(405, { error: 'Chỉ hỗ trợ GET và POST.' });
-        return true;
-      } catch (err) {
-        json(500, { error: err.message || 'Lỗi xử lý catalog chia sẻ.' });
-        return true;
-      }
-    }
 
     if (
       url.pathname !== '/api/marketplace/listings' &&
@@ -656,7 +563,7 @@ export function createMarketplaceHandler({ client, chainId = 43113, configFile, 
 
     if (client.getCode) {
       const code = await client.getCode({ address: pickupContract });
-      if (!code || (pickupArtifact?.runtimeHash && keccak256(code) !== pickupArtifact.runtimeHash)) {
+      if (!code || (pickupArtifact?.runtimeHash && codeHash(code, pickupArtifact.immutables) !== pickupArtifact.runtimeHash)) {
         json(400, { error: 'Contract không phải phiên bản EcoLoopPickup V3.' });
         return true;
       }

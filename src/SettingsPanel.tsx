@@ -97,7 +97,7 @@ export default function SettingsPanel({account,network,chainId,chainName,walletN
     </Card>
 
     <Card icon={<Database size={18}/>} title={tr('Dữ liệu & bộ nhớ')}>
-      <Row title={tr('Dữ liệu lưu trên máy này')} desc={tr('{n} mục · {size}. Gồm lô mẫu, phần thưởng, ví đã chọn và giao dịch đang chờ. Không ảnh hưởng dữ liệu trên blockchain.',{n:dataKeys,size:kb(dataSize)})}>
+      <Row title={tr('Dữ liệu lưu trên máy này')} desc={tr('{n} mục · {size}. Gồm ví đã chọn, giao dịch đang chờ và thiết lập hiển thị. Không ảnh hưởng dữ liệu trên blockchain.',{n:dataKeys,size:kb(dataSize)})}>
         <button type="button" className={confirmClear?'set-danger confirm':'set-danger'} onClick={clearData}><Trash2 size={15}/>{confirmClear?tr('Nhấn lần nữa để xóa'):tr('Xóa dữ liệu')}</button>
       </Row>
       <Row title={tr('Đặt lại thiết lập')} desc={tr('Đưa ngôn ngữ, giao diện, đơn vị và thông báo về mặc định.')}>

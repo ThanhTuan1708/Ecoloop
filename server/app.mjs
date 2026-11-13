@@ -6,6 +6,7 @@ import path from 'node:path';
 import { createHash, randomUUID } from 'node:crypto';
 import { createPublicClient, createWalletClient, http as rpcHttp, isAddress, isHex, keccak256, stringToHex, toFunctionSelector, verifyMessage } from 'viem';
 import { privateKeyToAccount } from 'viem/accounts';
+import { codeHash } from './codehash.mjs';
 import { avalancheFuji, hardhat } from 'viem/chains';
 
 const MAX_IMAGE = 10 * 1024 * 1024;
@@ -43,7 +44,7 @@ export async function createApp({dataDir=path.resolve(process.env.DATA_DIR||'.da
   async function isCurrentPickup(address){
     if(!address)return false;
     const key=address.toLowerCase();if(v3Cache.has(key))return v3Cache.get(key);
-    const code=await client.getCode({address}).catch(()=>undefined);const ok=!!code&&keccak256(code)===pickupArtifact.runtimeHash;
+    const code=await client.getCode({address}).catch(()=>undefined);const ok=codeHash(code,pickupArtifact.immutables)===pickupArtifact.runtimeHash;
     v3Cache.set(key,ok);return ok;
   }
   const challenges=new Map();
@@ -72,7 +73,7 @@ export async function createApp({dataDir=path.resolve(process.env.DATA_DIR||'.da
   async function compatible(contract){
     if(await client.getChainId()!==chainId)fail(503,'Server cấu hình sai mạng.');
     const code=await client.getCode({address:contract});
-    if(!code||![artifact.runtimeHash,pickupArtifact.runtimeHash].includes(keccak256(code)))fail(400,'Contract không phải phiên bản EcoLoop đang chạy trên server.');
+    if(!code||(keccak256(code)!==artifact.runtimeHash&&codeHash(code,pickupArtifact.immutables)!==pickupArtifact.runtimeHash))fail(400,'Contract không phải phiên bản EcoLoop đang chạy trên server.');
   }
   const mapsHandler=createMapsHandler();
   const marketplaceHandler=createMarketplaceHandler({client,chainId,configFile,pickupArtifact});
@@ -130,14 +131,14 @@ export async function createApp({dataDir=path.resolve(process.env.DATA_DIR||'.da
           activatingPickup=true;
           try{
           await compatible(identity.contract);
-          if(keccak256(await client.getCode({address:identity.contract}))!==pickupArtifact.runtimeHash)fail(400,'Cần contract thu gom V3.');
+          if(codeHash(await client.getCode({address:identity.contract}),pickupArtifact.immutables)!==pickupArtifact.runtimeHash)fail(400,'Cần contract thu gom V3.');
           const config=JSON.parse(await fs.readFile(configFile,'utf8'));
           const legacy=process.env.ECOLOOP_ADDRESS||process.env.VITE_ECOLOOP_ADDRESS||config.contract;
           for(const address of [legacy,identity.contract]){
             if(!isAddress(address||'')||!await client.readContract({address,abi:artifact.abi,functionName:'hasRole',args:['0x'+'0'.repeat(64),identity.account]}))fail(403,'Chỉ quản trị của cả hai contract được kích hoạt.');
           }
           // An older pickup version (V2, no real escrow) can be upgraded; a current V3 cannot be replaced from the UI.
-          if(config.pickupContract&&config.pickupContract.toLowerCase()!==identity.contract&&keccak256(await client.getCode({address:config.pickupContract})||'0x')===pickupArtifact.runtimeHash)fail(409,'Đã có contract thu gom chung. Không thể ghi đè bằng giao diện.');
+          if(config.pickupContract&&config.pickupContract.toLowerCase()!==identity.contract&&codeHash(await client.getCode({address:config.pickupContract}),pickupArtifact.immutables)===pickupArtifact.runtimeHash)fail(409,'Đã có contract thu gom chung. Không thể ghi đè bằng giao diện.');
           v3Cache.clear();
           const temp=configFile+'.'+randomUUID()+'.tmp';
           await fs.writeFile(temp,JSON.stringify({...config,chainId,pickupContract:identity.contract},null,2));await fs.rename(temp,configFile);
@@ -159,7 +160,7 @@ export async function createApp({dataDir=path.resolve(process.env.DATA_DIR||'.da
           const used=w&&w.hour===hour?w.count:0;
           if(relayUsage.total>=relayDailyLimit||used>=relayHourlyPerWallet)fail(429,'Đã hết lượt miễn phí gas. Thử lại sau hoặc dùng AVAX của ví.');
           const forwarder=await client.readContract({address:pickup,abi:pickupArtifact.abi,functionName:'trustedForwarder'});
-          if(keccak256(await client.getCode({address:forwarder})||'0x')!==forwarderArtifact.runtimeHash)fail(503,'Forwarder của contract không đúng phiên bản.');
+          if(codeHash(await client.getCode({address:forwarder}),forwarderArtifact.immutables)!==forwarderArtifact.runtimeHash)fail(503,'Forwarder của contract không đúng phiên bản.');
           const data={from:r.from,to:pickup,value:0n,gas:BigInt(r.gas),deadline:r.deadline,data:r.data,signature:r.signature};
           if(!await client.readContract({address:forwarder,abi:forwarderArtifact.abi,functionName:'verify',args:[data]}))fail(400,'Chữ ký yêu cầu không hợp lệ hoặc đã dùng.');
           let request;
@@ -205,7 +206,7 @@ export async function createApp({dataDir=path.resolve(process.env.DATA_DIR||'.da
             await compatible(identity.contract);
             const allowed=await client.readContract({address:identity.contract,abi:artifact.abi,functionName:'hasRole',args:[collectorRole,identity.account]});
             if(!allowed)fail(403,'Chỉ chủ ảnh hoặc ví thu gom có quyền xem ảnh.');
-            if(keccak256(await client.getCode({address:identity.contract}))===pickupArtifact.runtimeHash){
+            if(codeHash(await client.getCode({address:identity.contract}),pickupArtifact.immutables)===pickupArtifact.runtimeHash){
               if(!Number.isSafeInteger(data.id)||data.id<1)fail(403,'Thiếu mã lô thu gom.');
               const lot=await client.readContract({address:identity.contract,abi:pickupArtifact.abi,functionName:'getLot',args:[BigInt(data.id)]});
               if(lot.evidence.toLowerCase()!==identity.hash||lot.owner.toLowerCase()!==meta.account||lot.collector.toLowerCase()!==identity.account||![2,3].includes(lot.status))fail(403,'Chỉ người được giao thu gom được xem ảnh của lô.');
