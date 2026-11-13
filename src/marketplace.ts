@@ -1,4 +1,5 @@
-import { materials, fmt, short } from './model';
+import { materials, short } from './model';
+import { tr, num as fmt, wt } from './settings';
 import { distanceKm, DEMO_COLLECTOR, DEMO_OWNER, ZERO, type Lot } from './pickupClient';
 
 export type ListingStatus =
@@ -984,8 +985,8 @@ export function resolveArea(lat: number, lng: number): { province: string; distr
   }
   if (bestDist <= 18) return { province: best.province, district: best.district };
   return {
-    province: lat >= 19 ? 'Khu vực phía Bắc' : lat >= 14 ? 'Khu vực miền Trung' : 'Khu vực phía Nam',
-    district: `Tọa độ ${lat.toFixed(2)}, ${lng.toFixed(2)}`,
+    province: lat >= 19 ? tr('Khu vực phía Bắc') : lat >= 14 ? tr('Khu vực miền Trung') : tr('Khu vực phía Nam'),
+    district: tr('Tọa độ {lat}, {lng}', { lat: lat.toFixed(2), lng: lng.toFixed(2) }),
   };
 }
 
@@ -1071,9 +1072,9 @@ export function lotToProductCard(
   const catalogMeta = userMeta
     ? {
         id: lot.id,
-        title: userMeta.title ?? `Phế liệu phân loại sạch #${lot.id}`,
-        description: `Thu gom tận nơi tại ${userMeta.address || 'TP. Hồ Chí Minh'}. Tổng khối lượng ${fmt(weights.reduce((a, b) => a + b, 0) / 1000)} kg, bảo vệ bởi hợp đồng ký quỹ Avalanche.`,
-        sellerName: 'Bạn (Chủ lô)',
+        title: userMeta.title ?? tr('Phế liệu phân loại sạch #{id}', { id: lot.id }),
+        description: tr('Thu gom tận nơi tại {place}. Tổng khối lượng {kg}, bảo vệ bởi hợp đồng ký quỹ Avalanche.', { place: userMeta.address || 'TP. Hồ Chí Minh', kg: wt(weights.reduce((a, b) => a + b, 0) / 1000) }),
+        sellerName: tr('Bạn (Chủ lô)'),
         owner: lot.owner,
         collector: lot.collector,
         estimated: lot.estimated as [number, number, number, number],
@@ -1081,11 +1082,11 @@ export function lotToProductCard(
         status: lot.status,
         latitude: lot.latitude,
         longitude: lot.longitude,
-        district: userMeta.address ? userMeta.address.split(',')[0].trim() : 'Khu vực của bạn',
+        district: userMeta.address ? userMeta.address.split(',')[0].trim() : tr('Khu vực của bạn'),
         province: 'TP. Hồ Chí Minh',
         imageUrl: userMeta.imageUrl || '',
-        contact: userMeta.contact || 'Liên hệ qua ứng dụng',
-        address: userMeta.address || 'Địa chỉ do bạn cung cấp',
+        contact: userMeta.contact || tr('Liên hệ qua ứng dụng'),
+        address: userMeta.address || tr('Địa chỉ do bạn cung cấp'),
         hoursAgo: 0,
         salesBoost: 0,
         rating: 5.0,
@@ -1138,13 +1139,13 @@ export function lotToProductCard(
     : Number((4.7 + ((seedNum % 4) * 0.1)).toFixed(1));
   const totalReviews = Math.max(1, Math.floor(completedSalesCount * 0.65));
 
-  const namesList = materialTags.map(m => `${m.name} ${fmt(m.kilograms)}kg`).join(' + ');
+  const namesList = materialTags.map(m => `${tr(m.name)} ${wt(m.kilograms)}`).join(' + ');
   const title = catalogMeta
-    ? `Lô #${lot.id} · ${catalogMeta.title}`
-    : `Lô #${lot.id} · ${namesList || 'Phế liệu phân loại sạch'}`;
+    ? tr('Lô #{id} · {title}', { id: lot.id, title: catalogMeta.title })
+    : tr('Lô #{id} · {title}', { id: lot.id, title: namesList || tr('Phế liệu phân loại sạch') });
   const shortDescription = catalogMeta
     ? catalogMeta.description
-    : `Thu gom tận nơi tại ${area.district}, ${area.province}. Tổng khối lượng ${fmt(totalKilograms)} kg, thanh toán & ký quỹ minh bạch trên Avalanche.`;
+    : tr('Thu gom tận nơi tại {place}. Tổng khối lượng {kg}, thanh toán & ký quỹ minh bạch trên Avalanche.', { place: `${area.district}, ${area.province}`, kg: wt(totalKilograms) });
 
   const status = mapPickupStatusToWeb3(lot.status);
   const uiState = buildUiState(lot.status, options.role);
@@ -1219,7 +1220,7 @@ export function lotToProductCard(
     uiState,
     seller: {
       walletAddress: lot.owner as `0x${string}`,
-      displayName: catalogMeta?.sellerName ?? `Trạm Xanh ${short(lot.owner)}`,
+      displayName: catalogMeta?.sellerName ?? tr('Trạm Xanh {wallet}', { wallet: short(lot.owner) }),
       isVerifiedCollector: completedOnChain >= 1 || (catalogMeta?.salesBoost ?? 0) >= 30,
       reputationScore,
       totalReviews,

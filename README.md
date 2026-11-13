@@ -120,3 +120,23 @@ EcoLoop là app tái chế và nhận thưởng: tổng quan ví ECO, tạo yêu
 ## Cập nhật theo mentor: Thu gom tận nơi
 
 Đã bổ sung lô nhiều vật liệu, bản đồ khu vực, xác nhận hai phía, thông tin bàn giao riêng tư và chuẩn bị Google/ví nhúng. Xem [hướng dẫn kích hoạt V2, dùng demo và cấu hình thirdweb](docs/MENTOR-UPGRADE.md). Contract cũ và ECO cũ được giữ nguyên; V2 cần ví quản trị triển khai và kích hoạt, Google cần Client ID.
+
+## Thiết lập: ngôn ngữ, giao diện, đơn vị, thông báo
+
+Trang **Thiết lập** (menu bên trái hoặc nút cuối thanh điều hướng điện thoại) có:
+
+- **Ngôn ngữ**: Tiếng Việt / English / Theo hệ thống. Đổi là áp dụng ngay cho toàn app, kể cả thông báo lỗi từ ví, contract và server.
+- **Giao diện**: Sáng / Tối / Theo hệ thống; cỡ chữ Nhỏ → Rất lớn; giảm hiệu ứng chuyển động.
+- **Đơn vị & định dạng**: hiển thị khối lượng bằng kg hoặc lb (ô nhập và hợp đồng vẫn dùng kg); định dạng số `1.234,5` hoặc `1,234.5`.
+- **Thông báo trình duyệt**: báo khi lô của bạn đổi trạng thái lúc đang ở tab khác, có nút gửi thử.
+- **Tài khoản & mạng**, **Dữ liệu & bộ nhớ** (xóa dữ liệu lưu trên máy, đặt lại thiết lập), **Giới thiệu** (phiên bản, mã nguồn, báo lỗi).
+
+Thiết lập được lưu trong trình duyệt (`localStorage`, khóa `ecoloop-settings-v1`).
+
+Cách thêm chữ mới cho giao diện:
+
+1. Viết chữ tiếng Việt trong `tr('…')` (import từ `src/settings.ts`). Phần thay đổi dùng `{tên}`: `tr('Đã bán {n}', {n: 5})`.
+2. Thêm bản tiếng Anh vào `src/i18n.en.ts`.
+3. Chạy `npm run i18n:check` để xem còn chữ nào chưa dịch.
+
+Nếu sửa màu trong `src/web.css` hoặc `src/pickup.css`, chạy `npm run theme:dark` để tạo lại `src/theme-dark.css`.
