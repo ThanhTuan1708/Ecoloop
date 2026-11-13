@@ -1,0 +1,145 @@
+/* Phone layout. Active when <html data-layout="mobile"> — set by settings.ts from the screen width
+   (max-width 767px, switches live when rotating or resizing) or from Settings → Layout.
+   Colours are literal so scripts/gen-dark-theme.mjs can derive the dark version. */
+
+/* Phone-only controls are hidden on desktop */
+.web-header-settings,.pickup-filter-toggle,.lot-sheet-backdrop,.lot-sheet-handle{display:none}
+
+:root[data-layout=mobile] .ecoloop-web .web-main{height:calc(100dvh / var(--ecoloop-zoom,1))}
+:root[data-layout=mobile] input,:root[data-layout=mobile] select,:root[data-layout=mobile] textarea{font-size:16px}
+
+/* ---- App bar ---- */
+:root[data-layout=mobile] .web-header{display:grid;grid-template-columns:1fr auto auto;grid-template-areas:"brand set acc" "roles roles roles";gap:10px 8px;align-items:center;padding:10px 14px;background:white;border-bottom:1px solid #eef3ee}
+:root[data-layout=mobile] .web-header .web-brand{grid-area:brand;font-size:22px}
+:root[data-layout=mobile] .web-header .web-brand>svg{width:30px;height:30px;padding:6px;border-radius:10px}
+:root[data-layout=mobile] .web-header-settings{display:grid;place-items:center;grid-area:set;width:40px;height:40px;border-radius:50%;background:#f3f7f4;color:#3d5b49}
+:root[data-layout=mobile] .web-header-settings[aria-current=page]{background:#e3f2e8;color:#08785e}
+:root[data-layout=mobile] .web-account{position:static;grid-area:acc;height:40px;padding:0 12px;font-size:12px}
+:root[data-layout=mobile] .web-roles{grid-area:roles;width:100%;padding:3px;border-radius:11px}
+:root[data-layout=mobile] .web-roles button{flex:1;padding:7px 8px;font-size:12px}
+:root[data-layout=mobile] .web-roles small{display:none}
+:root[data-layout=mobile] .web-network:not(.warn){display:none}
+:root[data-layout=mobile] .web-network.warn{display:flex;justify-content:space-between;padding:8px 14px;background:#fff7e3;color:#9a5b00;font-size:11px}
+:root[data-layout=mobile] .web-content{padding:14px 14px 24px}
+/* keep every block inside the screen width; wide rows scroll inside themselves */
+:root[data-layout=mobile] .web-content{overflow-x:hidden}
+:root[data-layout=mobile] .ecoloop-web .pickup-workspace{grid-template-columns:minmax(0,1fr)}
+:root[data-layout=mobile] .ecoloop-web .pickup-workspace>*,:root[data-layout=mobile] .pickup-history-panel>*{min-width:0;max-width:100%}
+:root[data-layout=mobile] .ecoloop-web select{width:100%;min-width:0;text-overflow:ellipsis}
+:root[data-layout=mobile] .web-footer{font-size:10px;padding-bottom:4px}
+
+/* ---- Tab bar with centre action ---- */
+:root[data-layout=mobile] .web-bottom{display:grid;grid-template-columns:repeat(5,1fr);align-items:end;padding:4px 4px max(8px,env(safe-area-inset-bottom));background:#ffffffef;backdrop-filter:blur(12px);border-top:1px solid #e6eee1;box-shadow:0 -6px 20px #1d332b0d;position:relative;z-index:40}
+:root[data-layout=mobile] .web-bottom button{position:relative;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;min-height:54px;padding:6px 0 2px;font-size:10.5px;font-weight:650;color:#8a9a8d}
+:root[data-layout=mobile] .web-bottom button:nth-child(n){color:#8a9a8d}
+:root[data-layout=mobile] .web-bottom button:nth-child(n)[aria-current=page]{color:#08785e}
+:root[data-layout=mobile] .web-bottom button[aria-current=page]::before{content:"";position:absolute;top:-4px;width:26px;height:3px;border-radius:0 0 3px 3px;background:#08785e}
+:root[data-layout=mobile] .web-bottom button span{max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+:root[data-layout=mobile] .web-bottom .web-bottom-post:nth-child(n){color:#e36d06}
+:root[data-layout=mobile] .web-bottom-post i{display:grid;place-items:center;width:54px;height:54px;margin-top:-28px;border-radius:18px;background:#ff7d0a;color:white;border:4px solid white;box-shadow:0 8px 20px #ff7d0a55}
+:root[data-layout=mobile] .web-bottom-post:active i{transform:scale(.94)}
+
+/* ---- Home ---- */
+:root[data-layout=mobile] .web-hero{min-height:0;padding:22px 20px;border-radius:20px}
+:root[data-layout=mobile] .web-hero h1{font-size:28px}
+:root[data-layout=mobile] .web-rates{flex-wrap:nowrap;overflow-x:auto;white-space:nowrap;scrollbar-width:none;margin-bottom:16px}
+:root[data-layout=mobile] .ecoloop-web .pickup-page-title h2{font-size:21px}
+:root[data-layout=mobile] .ecoloop-web .pickup-page-title p{font-size:12px}
+:root[data-layout=mobile] .ecoloop-web .pickup-workspace{gap:14px}
+:root[data-layout=mobile] .ecoloop-web .pickup-intro{flex-direction:row;align-items:center;gap:12px}
+:root[data-layout=mobile] .ecoloop-web .pickup-intro .primary{flex-shrink:0}
+:root[data-layout=mobile] .ecoloop-web .pickup-steps{display:flex;overflow-x:auto;gap:8px;padding:8px;border-radius:14px;scrollbar-width:none;scroll-snap-type:x proximity}
+:root[data-layout=mobile] .ecoloop-web .pickup-steps span{flex:0 0 auto;display:flex;gap:8px;align-items:center;padding:6px 12px 6px 6px;border-radius:999px;background:white;white-space:nowrap;scroll-snap-align:start}
+
+/* stats become a swipeable row */
+:root[data-layout=mobile] .ecoloop-web .pickup-summary{flex-wrap:nowrap;overflow-x:auto;gap:8px;padding:10px;scrollbar-width:none}
+:root[data-layout=mobile] .ecoloop-web .pickup-summary>span{flex:0 0 auto;display:flex;flex-direction:column;gap:2px;min-width:96px;padding:8px 12px;border-radius:12px;background:white;font-size:11px}
+:root[data-layout=mobile] .ecoloop-web .pickup-summary strong{font-size:19px}
+:root[data-layout=mobile] .ecoloop-web .pickup-summary .text-link{flex:0 0 auto;margin:0;padding:0 6px;white-space:nowrap}
+
+/* ---- Search + collapsible filters ---- */
+:root[data-layout=mobile] .ecoloop-web .pickup-toolbar{display:grid;grid-template-columns:1fr auto;gap:10px;align-items:end}
+:root[data-layout=mobile] .ecoloop-web .pickup-toolbar>:not(.pickup-search):not(.pickup-filter-toggle){display:none}
+:root[data-layout=mobile] .ecoloop-web .pickup-toolbar label{min-width:0;margin:0}
+:root[data-layout=mobile] .ecoloop-web .pickup-search{display:grid;font-size:0;gap:0}
+:root[data-layout=mobile] .ecoloop-web .pickup-search input{height:44px;border-radius:12px;padding:0 14px}
+:root[data-layout=mobile] .pickup-filter-toggle{display:inline-flex;gap:6px;align-items:center;height:44px;padding:0 14px;border-radius:12px;border:1px solid #dce6da;background:white;color:#254633;font-size:13px;font-weight:700}
+:root[data-layout=mobile] .pickup-filter-toggle[aria-expanded=true]{border-color:#08785e;background:#e8f3eb;color:#08785e}
+:root[data-layout=mobile] .pickup-filter-toggle b{display:grid;place-items:center;min-width:18px;height:18px;padding:0 5px;border-radius:99px;background:#ff7d0a;color:white;font-size:10px}
+:root[data-layout=mobile] .ecoloop-web .pickup-toolbar.filters-open>label:not(.pickup-search){display:grid;gap:6px;grid-column:1/-1}
+:root[data-layout=mobile] .ecoloop-web .pickup-toolbar.filters-open>button:not(.pickup-filter-toggle){display:inline-flex;justify-content:center}
+:root[data-layout=mobile] .ecoloop-web .pickup-toolbar.filters-open{padding:12px;border-radius:16px;background:#f2f7ef;border:1px solid #dce7dc}
+
+:root[data-layout=mobile] .shopee-sort-bar{flex-wrap:nowrap;gap:8px;padding:8px;border-radius:14px}
+:root[data-layout=mobile] .shopee-sort-left{display:flex;flex:1;min-width:0;flex-wrap:nowrap;gap:6px;overflow-x:auto;scrollbar-width:none}
+:root[data-layout=mobile] .shopee-sort-label{display:none}
+:root[data-layout=mobile] .shopee-sort-btn,:root[data-layout=mobile] .shopee-price-select{flex:0 0 auto;white-space:nowrap}
+:root[data-layout=mobile] .shopee-sort-right{flex:0 0 auto;flex-wrap:nowrap}
+:root[data-layout=mobile] .shopee-page-counter{display:none}
+:root[data-layout=mobile] .ecoloop-web .pickup-view-controls{flex-direction:column;align-items:stretch;gap:8px}
+:root[data-layout=mobile] .ecoloop-web .pickup-view-controls .filter-tabs{flex-wrap:nowrap;overflow-x:auto;scrollbar-width:none}
+:root[data-layout=mobile] .ecoloop-web .pickup-view-controls .filter-tabs button{flex:0 0 auto;white-space:nowrap}
+
+/* ---- Product cards: compact 2-column grid ---- */
+:root[data-layout=mobile] .ecoloop-web .pickup-list,:root[data-layout=mobile] .ecoloop-web .has-selection .pickup-list{grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+:root[data-layout=mobile] .ecoloop-web .lot-card{border-radius:16px;gap:6px;padding-bottom:10px}
+:root[data-layout=mobile] .ecoloop-web .lot-card .lot-illustration{height:116px}
+:root[data-layout=mobile] .ecoloop-web .lot-card>span:not(.lot-illustration),:root[data-layout=mobile] .ecoloop-web .lot-card>small{margin-left:10px;margin-right:10px}
+:root[data-layout=mobile] .lot-card-title{font-size:12.5px!important;min-height:34px}
+:root[data-layout=mobile] .ecoloop-web .lot-card .lot-materials{min-height:0;font-size:10.5px;display:-webkit-box;-webkit-line-clamp:1;-webkit-box-orient:vertical;overflow:hidden}
+:root[data-layout=mobile] .ecoloop-web .lot-card .shopee-shop-row,:root[data-layout=mobile] .ecoloop-web .lot-card .lot-card-action,:root[data-layout=mobile] .ecoloop-web .lot-card .escrow-tag{display:none}
+:root[data-layout=mobile] .ecoloop-web .lot-card .shopee-location-row{font-size:10.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+:root[data-layout=mobile] .shopee-pagination-footer{padding:12px;flex-direction:column;align-items:stretch;text-align:center}
+:root[data-layout=mobile] .shopee-pagination-controls{display:grid;gap:8px}
+
+/* ---- Lot detail: bottom sheet ---- */
+:root[data-layout=mobile] .ecoloop-web .pickup-columns.has-selection>.lot-detail{position:fixed;left:0;right:0;bottom:0;top:auto;z-index:80;display:grid;gap:14px;max-height:88dvh;overflow-y:auto;overscroll-behavior:contain;padding:6px 18px calc(24px + env(safe-area-inset-bottom));border:0;border-radius:24px 24px 0 0;background:white;box-shadow:0 -12px 40px #142b3033;animation:ecoloop-sheet-up .26s ease-out}
+:root[data-layout=mobile] .lot-sheet-backdrop{display:block;position:fixed;inset:0;z-index:79;background:#0f1f1a73;animation:ecoloop-fade-in .2s ease-out}
+:root[data-layout=mobile] .lot-sheet-handle{display:block;position:sticky;top:0;width:44px;height:5px;margin:4px auto 0;border-radius:99px;background:#d5ded6}
+:root[data-layout=mobile] .ecoloop-web .lot-detail .web3-metadata-box,:root[data-layout=mobile] .ecoloop-web .lot-detail code{overflow-wrap:anywhere}
+:root[data-layout=mobile] .ecoloop-web .lot-detail .pickup-evidence{border-radius:14px;max-height:240px;width:100%;object-fit:cover}
+:root[data-layout=mobile] .ecoloop-web .lot-detail .primary,:root[data-layout=mobile] .ecoloop-web .lot-detail .secondary{width:100%}
+:root[data-layout=mobile] .web-content:has(.has-selection){overflow:hidden}
+
+/* ---- History: table becomes cards ---- */
+:root[data-layout=mobile] .pickup-history-header{flex-direction:column;align-items:stretch}
+:root[data-layout=mobile] .history-tabs{display:flex;width:100%;flex-wrap:nowrap;overflow-x:auto;scrollbar-width:none}
+:root[data-layout=mobile] .history-tab-btn{flex:0 0 auto}
+:root[data-layout=mobile] .history-kpis{display:flex;overflow-x:auto;gap:8px;scrollbar-width:none}
+:root[data-layout=mobile] .history-kpi-card{flex:0 0 138px}
+:root[data-layout=mobile] .history-table-wrap{overflow:visible;border:0;border-radius:0}
+:root[data-layout=mobile] .history-table{display:block;min-width:0;width:100%}
+:root[data-layout=mobile] .history-table thead{display:none}
+:root[data-layout=mobile] .history-table tbody{display:grid;gap:10px}
+:root[data-layout=mobile] .history-table tr{display:grid;grid-template-columns:1fr 1fr;gap:10px 12px;padding:14px;border:1px solid #e2ece2;border-radius:16px;background:white}
+:root[data-layout=mobile] .history-table td{display:block;padding:0;border:0}
+:root[data-layout=mobile] .history-table td:first-child,:root[data-layout=mobile] .history-table td:nth-child(2),:root[data-layout=mobile] .history-table td:last-child{grid-column:1/-1}
+:root[data-layout=mobile] .history-action-btn{width:100%}
+
+/* ---- Forms, wallet, rewards ---- */
+:root[data-layout=mobile] .ecoloop-web .lot-form>.primary.full-width{position:sticky;bottom:8px;z-index:5;box-shadow:0 8px 24px #08785e40}
+:root[data-layout=mobile] .ecoloop-web .wallet-live h2{font-size:30px}
+:root[data-layout=mobile] .ecoloop-web .wallet-live code{overflow-wrap:anywhere}
+:root[data-layout=mobile] .ecoloop-web .pickup-reward-list{grid-template-columns:1fr}
+:root[data-layout=mobile] .ecoloop-web .pickup-receipt{flex-direction:column;align-items:stretch}
+
+/* ---- Account dialog: bottom sheet ---- */
+:root[data-layout=mobile] .web-dialog{margin:auto 0 0;width:100%;max-width:100%;max-height:92dvh;border-radius:24px 24px 0 0;padding-bottom:env(safe-area-inset-bottom)}
+:root[data-layout=mobile] .web-dialog[open]{animation:ecoloop-sheet-up .26s ease-out}
+
+/* ---- Settings ---- */
+:root[data-layout=mobile] .set-panel{grid-template-columns:1fr;gap:12px}
+:root[data-layout=mobile] .set-card{padding:16px}
+:root[data-layout=mobile] .set-row{flex-direction:column;align-items:stretch;gap:10px}
+:root[data-layout=mobile] .set-row-control{justify-content:flex-start}
+:root[data-layout=mobile] .set-segmented{width:100%}
+:root[data-layout=mobile] .set-segmented button{flex:1;justify-content:center}
+:root[data-layout=mobile] .set-facts{grid-template-columns:1fr;gap:2px}
+:root[data-layout=mobile] .set-facts dd{margin-bottom:8px}
+
+/* ---- Phone layout chosen on a wide screen: show a centred phone-width column ---- */
+:root[data-layout=mobile][data-viewport=wide] body{background:#e4ece5}
+:root[data-layout=mobile][data-viewport=wide] .ecoloop-web{max-width:430px;margin:0 auto;transform:translateZ(0);overflow:hidden;height:calc(100dvh / var(--ecoloop-zoom,1));min-height:0;box-shadow:0 0 0 1px #dfe9df,0 20px 60px #142b3022}
+
+@keyframes ecoloop-sheet-up{from{transform:translateY(100%)}to{transform:none}}
+@keyframes ecoloop-fade-in{from{opacity:0}to{opacity:1}}

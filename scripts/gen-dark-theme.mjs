@@ -6,7 +6,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 
 const src = path.resolve(import.meta.dirname, '../src');
-const inputs = ['web.css', 'pickup.css'];
+const inputs = ['web.css', 'pickup.css', 'mobile.css'];
 const PREFIX = ':root[data-theme=dark]';
 
 const NAMED = { white: '#ffffff', black: '#000000' };
@@ -73,7 +73,9 @@ function transformDecls(body) {
   return out.join(';');
 }
 function prefix(selectors) {
-  return selectors.split(',').map(s => s.trim()).filter(Boolean).map(s => `${PREFIX} ${s}`).join(',');
+  // `:root[data-layout=mobile] .x` → `:root[data-theme=dark][data-layout=mobile] .x`
+  return selectors.split(',').map(s => s.trim()).filter(Boolean)
+    .map(s => s.startsWith(':root[') ? PREFIX + s.slice(5) : `${PREFIX} ${s}`).join(',');
 }
 // Minimal CSS walker: handles flat rules and one level of @media / @supports.
 function walk(css) {
@@ -92,7 +94,12 @@ function walk(css) {
       continue;
     }
     const close = css.indexOf('}', open);
-    if (head.startsWith('@')) { i = close + 1; continue; } // keyframes etc.
+    if (head.startsWith('@')) { // @keyframes etc.: skip the whole block
+      let depth = 1, j = open + 1;
+      while (j < css.length && depth) { if (css[j] === '{') depth++; else if (css[j] === '}') depth--; j++; }
+      i = j;
+      continue;
+    }
     const decls = transformDecls(css.slice(open + 1, close));
     if (decls) out += `${prefix(head)}{${decls}}\n`;
     i = close + 1;

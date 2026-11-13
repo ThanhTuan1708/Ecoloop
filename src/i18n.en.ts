@@ -519,6 +519,12 @@ export const en:Record<string,string>={
  "Đã hủy listing":"Listing cancelled",
  "Chủ lô đã đóng niêm yết trên chain":"Owner closed the listing on-chain",
  "Đã ngừng bán":"No longer for sale",
+ "Bố cục":"Layout",
+ "Tự động":"Automatic",
+ "Máy tính":"Desktop",
+ "Điện thoại":"Phone",
+ "Bộ lọc":"Filters",
+ "Tự động: điện thoại dùng giao diện điện thoại, máy tính dùng giao diện máy tính, đổi ngay khi xoay máy hoặc kéo cửa sổ. Đang dùng: {mode}.":"Automatic: phones get the phone layout, computers get the desktop layout, switching instantly when you rotate or resize. In use: {mode}.",
 };
 
 // Messages with a dynamic part (from wallet/server errors).

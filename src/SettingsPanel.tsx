@@ -1,7 +1,7 @@
 import {useEffect,useState,type ReactNode} from 'react';
 import {Languages,Palette,Ruler,Bell,Wallet,Database,Info,Check,ExternalLink,RotateCcw,Trash2,Send} from 'lucide-react';
 import {version} from '../package.json';
-import {tr,num,wt,useSettings,updateSettings,resetSettings,enableNotifications,notificationSupport,notify,systemLanguage,localDataKeys,localDataSize,clearLocalData,type Settings} from './settings';
+import {tr,num,wt,useSettings,useLayout,updateSettings,resetSettings,enableNotifications,notificationSupport,notify,systemLanguage,localDataKeys,localDataSize,clearLocalData,type Settings} from './settings';
 import './settings.css';
 
 const REPO='https://github.com/ThanhTuan1708/Ecoloop';
@@ -21,7 +21,7 @@ function Card({icon,title,children}:{icon:ReactNode;title:string;children:ReactN
 }
 
 export default function SettingsPanel({account,network,chainId,chainName,walletName}:{account?:string;network?:number;chainId:number;chainName:string;walletName?:string}){
-  const s=useSettings();
+  const s=useSettings();const layout=useLayout();
   const set=<K extends keyof Settings>(key:K)=>(value:Settings[K])=>updateSettings({[key]:value} as Partial<Settings>);
   const [permission,setPermission]=useState(notificationSupport());
   const [dataSize,setDataSize]=useState(0);const [dataKeys,setDataKeys]=useState(0);
@@ -59,6 +59,9 @@ export default function SettingsPanel({account,network,chainId,chainName,walletN
     <Card icon={<Palette size={18}/>} title={tr('Giao diện')}>
       <Row title={tr('Chủ đề')} desc={tr('Chế độ tối dễ nhìn hơn vào ban đêm và tiết kiệm pin màn hình OLED.')}>
         <Segmented label={tr('Chủ đề')} value={s.theme} onChange={set('theme')} options={[{value:'light',label:tr('Sáng')},{value:'dark',label:tr('Tối')},{value:'system',label:tr('Theo hệ thống')}]}/>
+      </Row>
+      <Row title={tr('Bố cục')} desc={tr('Tự động: điện thoại dùng giao diện điện thoại, máy tính dùng giao diện máy tính, đổi ngay khi xoay máy hoặc kéo cửa sổ. Đang dùng: {mode}.',{mode:layout==='mobile'?tr('Điện thoại'):tr('Máy tính')})}>
+        <Segmented label={tr('Bố cục')} value={s.layout} onChange={set('layout')} options={[{value:'auto',label:tr('Tự động')},{value:'desktop',label:tr('Máy tính')},{value:'mobile',label:tr('Điện thoại')}]}/>
       </Row>
       <Row title={tr('Cỡ chữ')} desc={tr('Phóng to hoặc thu nhỏ chữ và nút bấm.')}>
         <Segmented label={tr('Cỡ chữ')} value={s.fontSize} onChange={set('fontSize')} options={[{value:'small',label:tr('Nhỏ')},{value:'medium',label:tr('Vừa')},{value:'large',label:tr('Lớn')},{value:'xlarge',label:tr('Rất lớn')}]}/>
