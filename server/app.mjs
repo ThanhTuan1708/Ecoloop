@@ -4,7 +4,7 @@ import {createMarketplaceHandler} from './marketplace.mjs';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { createHash, randomUUID } from 'node:crypto';
-import { createPublicClient, createWalletClient, http as rpcHttp, isAddress, isHex, keccak256, stringToHex, toFunctionSelector, verifyMessage } from 'viem';
+import { createPublicClient, createWalletClient, decodeEventLog, http as rpcHttp, isAddress, isHex, keccak256, stringToHex, toFunctionSelector, verifyMessage } from 'viem';
 import { privateKeyToAccount } from 'viem/accounts';
 import { codeHash } from './codehash.mjs';
 import { avalancheFuji, hardhat } from 'viem/chains';
@@ -13,7 +13,7 @@ const MAX_IMAGE = 10 * 1024 * 1024;
 const hashPattern = /^0x[\da-f]{64}$/i;
 const collectorRole = keccak256(stringToHex('COLLECTOR_ROLE'));
 // Household actions the relayer pays gas for (collectors lock AVAX and pay their own gas).
-const GASLESS_FUNCTIONS = ['createLot','acceptLot','disputeLot','cancelLot','releaseLot','redeemReward'];
+const GASLESS_FUNCTIONS = ['createLot','acceptLot','disputeLot','cancelLot','releaseLot','redeemReward','transfer'];
 export function imageType(bytes) {
   if(bytes.length>=8&&bytes.subarray(0,8).equals(Buffer.from([137,80,78,71,13,10,26,10])))return 'image/png';
   if(bytes.length>=3&&bytes[0]===255&&bytes[1]===216&&bytes[2]===255)return 'image/jpeg';
@@ -41,6 +41,40 @@ export async function createApp({dataDir=path.resolve(process.env.DATA_DIR||'.da
   const relayDailyLimit=Number(process.env.RELAY_DAILY_LIMIT||300),relayHourlyPerWallet=Number(process.env.RELAY_HOURLY_PER_WALLET||20);
   const relayUsage={day:'',total:0,wallets:new Map()};
   const v3Cache=new Map();
+  // ---- Wallet-card history: an in-memory index of the pickup contract's money events ----
+  const HISTORY_EVENTS=new Set(['Transfer','EscrowLocked','EscrowReleased','EscrowRefunded','PaymentDeferred']);
+  const historyAbi=pickupArtifact.abi.filter(x=>x.type==='event'&&HISTORY_EVENTS.has(x.name));
+  const history={contract:'',next:0,events:[],times:new Map(),collectors:new Map(),busy:null,reset(){this.contract='';this.next=0;this.events=[];this.collectors.clear();}};
+  async function indexHistory(contract,deployBlock){
+    if(history.contract!==contract.toLowerCase()){history.reset();history.contract=contract.toLowerCase();}
+    const latest=Number(await client.getBlockNumber());
+    if(!history.next)history.next=deployBlock>0?deployBlock:Math.max(0,latest-50000);
+    const step=2048;let rounds=0;
+    while(history.next<=latest&&rounds++<150){
+      const to=Math.min(latest,history.next+step-1);
+      const logs=await client.getLogs({address:contract,fromBlock:BigInt(history.next),toBlock:BigInt(to)});
+      for(const log of logs){
+        let ev;try{ev=decodeEventLog({abi:historyAbi,data:log.data,topics:log.topics});}catch{continue;}
+        const a=ev.args;const base={tx:log.transactionHash,block:Number(log.blockNumber),index:log.logIndex};
+        if(ev.eventName==='Transfer')history.events.push({...base,kind:'eco',from:a.from.toLowerCase(),to:a.to.toLowerCase(),amount:a.value.toString()});
+        else if(ev.eventName==='EscrowLocked')history.events.push({...base,kind:'lock',lot:Number(a.id),from:a.collector.toLowerCase(),amount:a.amount.toString()});
+        else if(ev.eventName==='EscrowReleased'){
+          let collector=history.collectors.get(Number(a.id));
+          if(!collector&&a.refunded>0n){collector=(await client.readContract({address:contract,abi:pickupArtifact.abi,functionName:'getLot',args:[a.id]})).collector.toLowerCase();history.collectors.set(Number(a.id),collector);}
+          history.events.push({...base,kind:'paid',lot:Number(a.id),to:a.owner.toLowerCase(),amount:a.paid.toString()});
+          if(a.refunded>0n)history.events.push({...base,index:base.index+0.5,kind:'refund',lot:Number(a.id),to:collector,amount:a.refunded.toString()});
+        }
+        else if(ev.eventName==='EscrowRefunded')history.events.push({...base,kind:'refund',lot:Number(a.id),to:a.collector.toLowerCase(),amount:a.amount.toString()});
+        else if(ev.eventName==='PaymentDeferred')history.events.push({...base,kind:'deferred',to:a.to.toLowerCase(),amount:a.amount.toString()});
+      }
+      history.next=to+1;
+    }
+    return {latest,complete:history.next>latest};
+  }
+  async function blockTime(block){
+    if(!history.times.has(block))history.times.set(block,Number((await client.getBlock({blockNumber:BigInt(block)})).timestamp));
+    return history.times.get(block);
+  }
   async function isCurrentPickup(address){
     if(!address)return false;
     const key=address.toLowerCase();if(v3Cache.has(key))return v3Cache.get(key);
@@ -125,7 +159,8 @@ export async function createApp({dataDir=path.resolve(process.env.DATA_DIR||'.da
           send(201,{hash:digest,stored:true});return;
         }
         if(url.pathname==='/api/pickup/configure'&&req.method==='POST'){
-          const identity=await authenticate(JSON.parse((await readBody(req,8192)).toString()));
+          const body=JSON.parse((await readBody(req,8192)).toString());
+          const identity=await authenticate(body);
           if(identity.action!=='configure-pickup')fail(403,'Sai loại xác thực.');
           if(activatingPickup)fail(409,'Đang kích hoạt contract. Hãy tải lại cấu hình sau ít giây.');
           activatingPickup=true;
@@ -141,9 +176,27 @@ export async function createApp({dataDir=path.resolve(process.env.DATA_DIR||'.da
           if(config.pickupContract&&config.pickupContract.toLowerCase()!==identity.contract&&codeHash(await client.getCode({address:config.pickupContract}),pickupArtifact.immutables)===pickupArtifact.runtimeHash)fail(409,'Đã có contract thu gom chung. Không thể ghi đè bằng giao diện.');
           v3Cache.clear();
           const temp=configFile+'.'+randomUUID()+'.tmp';
-          await fs.writeFile(temp,JSON.stringify({...config,chainId,pickupContract:identity.contract},null,2));await fs.rename(temp,configFile);
+          // Optional deploy block (from the admin's deploy receipt) lets the history index start at the contract's creation.
+          const latest=Number.isSafeInteger(body.deployBlock)&&body.deployBlock>0?Number(await Promise.resolve().then(()=>client.getBlockNumber()).catch(()=>0n)):0;
+          const sameContract=config.pickupContract?.toLowerCase()===identity.contract;
+          const deployBlock=latest&&body.deployBlock<=latest?body.deployBlock:sameContract?config.pickupDeployBlock:undefined;
+          await fs.writeFile(temp,JSON.stringify({...config,chainId,pickupContract:identity.contract,...(deployBlock?{pickupDeployBlock:deployBlock}:{pickupDeployBlock:undefined})},null,2));history.reset();await fs.rename(temp,configFile);
           send(200,{configured:true});return;
           }finally{activatingPickup=false;}
+        }
+        if(url.pathname==='/api/history'&&req.method==='GET'){
+          const address=String(url.searchParams.get('address')||'').toLowerCase();
+          if(!isAddress(address))fail(400,'Địa chỉ ví không hợp lệ.');
+          let config={};try{config=JSON.parse(await fs.readFile(configFile,'utf8'));}catch{/* none */}
+          const pickup=config.chainId===chainId?config.pickupContract:null;
+          if(!pickup||!await isCurrentPickup(pickup)){send(200,{items:[],complete:true});return;}
+          // One scan at a time; concurrent requests wait for it.
+          history.busy||=indexHistory(pickup,Number(config.pickupDeployBlock||0)).finally(()=>{history.busy=null;});
+          const {complete}=await history.busy;
+          const mine=history.events.filter(e=>e.from===address||e.to===address).sort((a,b)=>b.block-a.block||b.index-a.index).slice(0,100);
+          const items=[];
+          for(const e of mine)items.push({...e,direction:e.to===address&&e.from!==address?'in':'out',time:await blockTime(e.block).catch(()=>null)});
+          send(200,{items,complete,contract:pickup});return;
         }
         if(url.pathname==='/api/relay'&&req.method==='POST'){
           if(!relayWallet||!forwarderArtifact)fail(503,'Server chưa bật miễn phí gas. Giao dịch sẽ dùng AVAX của ví bạn.');
