@@ -1,5 +1,10 @@
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
+import {mkdtemp,readFile,rm} from 'node:fs/promises';
+import {tmpdir} from 'node:os';
+import {join} from 'node:path';
+import {createHash,randomUUID} from 'node:crypto';
+import {DatabaseSync} from 'node:sqlite';
 import {createMapsHandler,rewriteMapResource} from '../server/maps.mjs';
 
 async function call(handler,path,method='GET'){
@@ -35,4 +40,39 @@ test('Nullmaps proxies binary tiles without altering bytes and rejects external 
  const empty=await call(handler,'/api/maps/assets/tiles/vietnam/0/0/0');assert.equal(empty.status,204);
  const bad=createMapsHandler({fetchImpl:async()=>Response.json({glyphs:'https://not-allowed.example/tiles/font'})});
  assert.equal((await call(bad,'/api/maps/assets/style.json')).status,503);
+});
+
+test('Vercel Nullmaps serves the Blob-backed style and searches the SQLite dataset once per instance',async()=>{
+ const dir=await mkdtemp(join(tmpdir(),'ecoloop-nullmaps-test-'));
+ const databasePath=join(dir,'test.db');
+ const origin='https://example.public.blob.vercel-storage.com';
+ const archiveUrl=`${origin}/vietnam.pmtiles`;
+ const geocoderUrl=`${origin}/${randomUUID()}.db`;
+ const cache=join(tmpdir(),`nullmaps-${createHash('sha256').update(geocoderUrl).digest('hex')}.db`);
+ try{
+  const db=new DatabaseSync(databasePath);
+  try{db.exec(`CREATE TABLE features(id INTEGER PRIMARY KEY,osm_id,name,folded,lat,lon,extra,importance,category,housenumber,street,district,city,region);
+   CREATE VIRTUAL TABLE features_fts USING fts5(folded);
+   INSERT INTO features VALUES(1,'n1','Bến Thành','ben thanh',10.77,106.69,NULL,100,NULL,NULL,NULL,NULL,'Hồ Chí Minh',NULL);
+   INSERT INTO features_fts(rowid,folded) VALUES(1,'ben thanh');`);}finally{db.close();}
+  const data=await readFile(databasePath);
+  let downloads=0;
+  const handler=createMapsHandler({hosted:true,archiveUrl,geocoderUrl,fetchImpl:async url=>{
+   assert.equal(url,geocoderUrl);
+   downloads++;
+   return new Response(data);
+  }});
+  assert.equal((await call(handler,'/api/maps/config')).json().searchAvailable,true);
+  const style=(await call(handler,'/api/maps/assets/style.json')).json();
+  assert.equal(style.sources.vn.url,`pmtiles://${archiveUrl}`);
+  const search=await Promise.all(['Bến Thành','Ben Tha'].map(query=>call(handler,`/api/maps/geocode?q=${encodeURIComponent(query)}`)));
+  for(const result of search){
+   assert.equal(result.status,200);
+   assert.deepEqual(result.json().results,[{label:'Bến Thành, Hồ Chí Minh',lat:10.77,lng:106.69}]);
+  }
+  assert.equal(downloads,1);
+ }finally{
+  await rm(dir,{recursive:true,force:true});
+  await rm(cache,{force:true});
+ }
 });

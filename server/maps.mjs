@@ -1,3 +1,5 @@
+import {createVercelNullmaps} from './nullmaps-vercel.mjs';
+
 // Nullmaps stays behind EcoLoop: shared API keys never enter browser bundles.
 const assetPrefix='/api/maps/assets';
 export function rewriteMapResource(value,upstream){
@@ -19,8 +21,11 @@ export function rewriteMapResource(value,upstream){
  }
  return walk(value);
 }
-export function createMapsHandler({baseUrl=process.env.NULLMAPS_URL,apiKey=process.env.NULLMAPS_API_KEY||'',hosted=process.env.VERCEL==='1',fetchImpl=fetch}={}){
- const missingUpstream=hosted&&!baseUrl;
+export function createMapsHandler({baseUrl=process.env.NULLMAPS_URL,apiKey=process.env.NULLMAPS_API_KEY||'',hosted=process.env.VERCEL==='1',archiveUrl=process.env.NULLMAPS_PMTILES_URL,geocoderUrl=process.env.NULLMAPS_GEOCODER_DB_URL,fetchImpl=fetch}={}){
+ let native;
+ let invalidDataset=false;
+ try{native=createVercelNullmaps({archiveUrl,geocoderUrl,fetchImpl});}catch{invalidDataset=true;}
+ const missingUpstream=hosted&&!baseUrl&&!native;
  baseUrl ||= 'http://127.0.0.1:8088';
  const base=new URL(baseUrl);if(!['http:','https:'].includes(base.protocol)||base.username||base.password)throw new Error('Invalid NULLMAPS_URL');
  const requests=new Map();
@@ -28,19 +33,22 @@ export function createMapsHandler({baseUrl=process.env.NULLMAPS_URL,apiKey=proce
   if(!url.pathname.startsWith('/api/maps/'))return false;
   const json=(status,data)=>{res.writeHead(status,{'Content-Type':'application/json; charset=utf-8','Cache-Control':'no-store'});res.end(JSON.stringify(data));};
   if(req.method!=='GET'){json(405,{error:'Chỉ hỗ trợ GET.'});return true;}
+  if(invalidDataset){json(503,{error:'URL dữ liệu Nullmaps trên Vercel không hợp lệ.'});return true;}
   if(missingUpstream){json(503,{error:'Chưa cấu hình URL máy chủ Nullmaps trên Vercel.'});return true;}
   const address=req.socket.remoteAddress;const now=Date.now();for(const [k,v]of requests)if(v.until<now)requests.delete(k);
   const quota=requests.get(address)||{count:0,until:now+60000};requests.set(address,quota);if(++quota.count>1200){json(429,{error:'Quá nhiều yêu cầu bản đồ.'});return true;}
-  if(url.pathname==='/api/maps/config'){json(200,{provider:'Nullmaps',styleUrl:assetPrefix+'/style.json',searchAvailable:!!apiKey});return true;}
+  if(url.pathname==='/api/maps/config'){json(200,{provider:'Nullmaps',styleUrl:assetPrefix+'/style.json',searchAvailable:native?native.searchAvailable:!!apiKey});return true;}
   try{
+   if(native&&url.pathname===assetPrefix+'/style.json'){json(200,native.style);return true;}
    let path;let search='';let asset=false;
    if(url.pathname.startsWith(assetPrefix+'/')){
     path=decodeURIComponent(url.pathname.slice(assetPrefix.length));asset=true;
     if(path.includes('..')||path.includes('\\')||(!path.startsWith('/tiles/')&&path!=='/style.json')){json(400,{error:'Tài nguyên bản đồ không hợp lệ.'});return true;}
     const params=new URLSearchParams();for(const k of ['v'])if(url.searchParams.has(k))params.set(k,url.searchParams.get(k));search=params.toString();
    }else if(url.pathname==='/api/maps/geocode'){
-    if(!apiKey){json(503,{error:'Chưa cấu hình API key Nullmaps trên server EcoLoop.'});return true;}
+    if(native?!native.searchAvailable:!apiKey){json(503,{error:'Chưa cấu hình tìm địa chỉ Nullmaps trên server EcoLoop.'});return true;}
     const query=url.searchParams.get('q')?.trim();if(!query||query.length<3||query.length>200){json(400,{error:'Nhập địa điểm từ 3 đến 200 ký tự.'});return true;}
+    if(native){json(200,{results:await native.geocode(query)});return true;}
     path='/maps/api/geocode/json';search=new URLSearchParams({address:query}).toString();
    }else{json(404,{error:'Không có API bản đồ này.'});return true;}
    const target=new URL(path,base);target.search=search;
