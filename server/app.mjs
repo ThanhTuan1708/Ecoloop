@@ -122,7 +122,7 @@ export async function createApp({dataDir=path.resolve(process.env.DATA_DIR||'.da
     const identity=fields(data||{});
     if(storage){
       const parts=String(data.nonce||'').match(/^([\da-f-]{36})\.(\d{13})\.([\da-f]{64})$/);
-      if(!parts||Number(parts[2])<Date.now()||Number(parts[2])>Date.now()+180000)fail(401,'Yêu cầu ký đã hết hạn hoặc được sử dụng.');
+      if(!parts||Number(parts[2])<Date.now())fail(401,'Yêu cầu ký đã hết hạn hoặc được sử dụng.');
       const message=challengeMessage(identity,parts[1],Number(parts[2]));
       if(!timingSafeEqual(Buffer.from(challengeMac(message),'hex'),Buffer.from(parts[3],'hex')))fail(401,'Thông tin ký không khớp.');
       const signed={address:identity.account,message,signature:data.signature};
