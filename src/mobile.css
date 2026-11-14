@@ -29,7 +29,7 @@
 :root[data-layout=mobile] .web-footer{font-size:10px;padding-bottom:4px}
 
 /* ---- Tab bar with centre action ---- */
-:root[data-layout=mobile] .web-bottom{display:grid;grid-template-columns:repeat(5,1fr);align-items:end;padding:4px 4px max(8px,env(safe-area-inset-bottom));background:#ffffffef;backdrop-filter:blur(12px);border-top:1px solid #e6eee1;box-shadow:0 -6px 20px #1d332b0d;position:relative;z-index:40}
+:root[data-layout=mobile] .web-bottom{display:grid;grid-auto-flow:column;grid-auto-columns:minmax(0,1fr);align-items:end;padding:4px 4px max(8px,env(safe-area-inset-bottom));background:#ffffffef;backdrop-filter:blur(12px);border-top:1px solid #e6eee1;box-shadow:0 -6px 20px #1d332b0d;position:relative;z-index:40}
 :root[data-layout=mobile] .web-bottom button{position:relative;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;min-height:54px;padding:6px 0 2px;font-size:10.5px;font-weight:650;color:#8a9a8d}
 :root[data-layout=mobile] .web-bottom button:nth-child(n){color:#8a9a8d}
 :root[data-layout=mobile] .web-bottom button:nth-child(n)[aria-current=page]{color:#08785e}
