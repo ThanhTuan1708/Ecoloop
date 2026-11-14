@@ -17,13 +17,16 @@ export function rewriteMapResource(value,upstream){
  }
  return walk(value);
 }
-export function createMapsHandler({baseUrl=process.env.NULLMAPS_URL||'http://127.0.0.1:8088',apiKey=process.env.NULLMAPS_API_KEY||'',fetchImpl=fetch}={}){
+export function createMapsHandler({baseUrl=process.env.NULLMAPS_URL,apiKey=process.env.NULLMAPS_API_KEY||'',hosted=process.env.VERCEL==='1',fetchImpl=fetch}={}){
+ const missingUpstream=hosted&&!baseUrl;
+ baseUrl ||= 'http://127.0.0.1:8088';
  const base=new URL(baseUrl);if(!['http:','https:'].includes(base.protocol)||base.username||base.password)throw new Error('Invalid NULLMAPS_URL');
  const requests=new Map();
  return async(req,res,url)=>{
   if(!url.pathname.startsWith('/api/maps/'))return false;
   const json=(status,data)=>{res.writeHead(status,{'Content-Type':'application/json; charset=utf-8','Cache-Control':'no-store'});res.end(JSON.stringify(data));};
   if(req.method!=='GET'){json(405,{error:'Chỉ hỗ trợ GET.'});return true;}
+  if(missingUpstream){json(503,{error:'Chưa cấu hình URL máy chủ Nullmaps trên Vercel.'});return true;}
   const address=req.socket.remoteAddress;const now=Date.now();for(const [k,v]of requests)if(v.until<now)requests.delete(k);
   const quota=requests.get(address)||{count:0,until:now+60000};requests.set(address,quota);if(++quota.count>1200){json(429,{error:'Quá nhiều yêu cầu bản đồ.'});return true;}
   if(url.pathname==='/api/maps/config'){json(200,{provider:'Nullmaps',styleUrl:assetPrefix+'/style.json',searchAvailable:!!apiKey});return true;}
@@ -54,7 +57,7 @@ export function createMapsHandler({baseUrl=process.env.NULLMAPS_URL||'http://127
    const body=isJson?JSON.stringify(rewriteMapResource(JSON.parse(bytes.toString()),base)):bytes;
    res.writeHead(200,{'Content-Type':isJson?'application/json':type,'Cache-Control':'private, max-age=300'});
    res.end(body);
-  }catch{if(!res.headersSent)json(503,{error:'Không kết nối được Nullmaps local. Khởi động Docker và Nullmaps rồi thử lại.'});else res.end();}
+  }catch{if(!res.headersSent)json(503,{error:hosted?'Không kết nối được máy chủ Nullmaps từ Vercel.':'Không kết nối được Nullmaps local. Khởi động Docker và Nullmaps rồi thử lại.'});else res.end();}
   return true;
  };
 }

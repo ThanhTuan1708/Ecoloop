@@ -12,6 +12,7 @@ COPY --from=build /app/node_modules ./node_modules
 COPY --from=build /app/dist ./dist
 COPY --from=build /app/artifacts ./artifacts
 COPY --from=build /app/server ./server
+COPY --from=build /app/src/generated ./src/generated
 COPY --from=build /app/config ./config
 COPY package.json ./
 RUN mkdir /data && chown node:node /data

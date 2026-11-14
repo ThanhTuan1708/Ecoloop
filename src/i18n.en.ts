@@ -1,6 +1,8 @@
 // English translations. Keys are the Vietnamese source strings used with tr() in the UI.
 // Add a line here whenever you add a new tr('…') string. `npm run i18n:check` lists any that are missing.
 export const en:Record<string,string>={
+ "Chưa cấu hình URL máy chủ Nullmaps trên Vercel.":"The Nullmaps server URL has not been configured on Vercel.",
+ "Không kết nối được máy chủ Nullmaps từ Vercel.":"Vercel could not reach the Nullmaps server.",
  "Tìm lô":"Find lots",
  "Đơn của tôi":"My orders",
  "Tài khoản":"Account",

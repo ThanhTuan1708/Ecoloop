@@ -60,6 +60,14 @@ Node server ở `server/` lưu ảnh tại `.data/<chainId>/<contract>/` cùng m
 
 Khi host public: chạy Node sau HTTPS reverse proxy, đặt `APP_ORIGIN=https://ten-mien-cua-ban`, dùng một server/volume dữ liệu dùng chung. Không host frontend riêng mà thiếu route `/api`. `HOST` mặc định `127.0.0.1`; có thể đặt `HOST=0.0.0.0` trên host/container. `API_PORT` mặc định 4174. `.env.example` có các thiết lập.
 
+### Vercel
+
+- Dùng Node.js 24 và build command `npm run build`. Kiểm tra `/api/config` trả HTTP 200 sau khi deploy.
+- Google: đặt `VITE_THIRDWEB_CLIENT_ID` cho môi trường Production bằng Client ID của dự án thirdweb đã dùng ở local. Thêm tên miền production vào Allowed Domains trên thirdweb rồi redeploy Vercel.
+- Core: mở trực tiếp URL production trong Chrome đã cài và mở khóa Core. Cho phép extension truy cập tên miền đó, tải lại trang rồi chọn Core trong hộp thoại ví.
+- Nullmaps: đặt `NULLMAPS_URL` trỏ tới máy chủ Nullmaps có HTTPS và Vercel truy cập được. Thêm `NULLMAPS_API_KEY` ở phía server nếu dùng tìm địa điểm. Kiểm tra `/api/maps/assets/style.json` sau khi redeploy.
+- Config contract trên Vercel lấy từ `config/app.json` tại lúc deploy. Vercel dùng vùng lưu tạm để chạy API. Dùng Node với ổ đĩa bền vững để lưu ảnh, địa chỉ và thông tin bàn giao giữa các lần deploy.
+
 ## Smart contract
 
 `contracts/EcoLoop.sol`: ERC-20 ECO + AccessControl + Pausable từ OpenZeppelin.

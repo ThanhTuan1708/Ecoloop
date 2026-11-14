@@ -8,6 +8,9 @@ import { createPublicClient, createWalletClient, decodeEventLog, http as rpcHttp
 import { privateKeyToAccount } from 'viem/accounts';
 import { codeHash } from './codehash.mjs';
 import previousPickup from '../config/pickup-v3.json' with {type:'json'};
+import {abi} from '../src/generated/abi.ts';
+import {runtimeHash} from '../src/generated/deployment.ts';
+import {pickupAbi,pickupRuntimeHash,pickupImmutables,forwarderAbi,forwarderRuntimeHash,forwarderImmutables} from '../src/generated/pickup.ts';
 import { avalancheFuji, hardhat } from 'viem/chains';
 
 const MAX_IMAGE = 10 * 1024 * 1024;
@@ -27,11 +30,16 @@ async function readBody(req, limit) {
   return Buffer.concat(parts);
 }
 function fail(status,message){const error=new Error(message);error.status=status;throw error;}
-export async function createApp({dataDir=path.resolve(process.env.DATA_DIR||'.data'),staticDir=path.resolve('dist'),client,chainId=Number(process.env.VITE_CHAIN_ID||43113),configFile=path.resolve('config/app.json'),relayerKey=process.env.RELAYER_PRIVATE_KEY,relayWallet}={}) {
+export async function createApp({dataDir=path.resolve(process.env.DATA_DIR||'.data'),staticDir=path.resolve('dist'),client,chainId=Number(process.env.VITE_CHAIN_ID||43113),configFile=path.resolve('config/app.json'),deploymentConfig,relayerKey=process.env.RELAYER_PRIVATE_KEY,relayWallet}={}) {
   dataDir=path.join(path.resolve(dataDir),String(chainId));
-  const artifact=JSON.parse(await fs.readFile('artifacts/EcoLoop.json','utf8'));
-  const pickupArtifact=JSON.parse(await fs.readFile('artifacts/EcoLoopPickup.json','utf8'));
-  let forwarderArtifact;try{forwarderArtifact=JSON.parse(await fs.readFile('artifacts/EcoLoopForwarder.json','utf8'));}catch{/* compiled by contracts:compile */}
+  const artifact={abi,runtimeHash};
+  const pickupArtifact={abi:pickupAbi,runtimeHash:pickupRuntimeHash,immutables:pickupImmutables};
+  const forwarderArtifact={abi:forwarderAbi,runtimeHash:forwarderRuntimeHash,immutables:forwarderImmutables};
+  async function readConfig(){
+    if(deploymentConfig)return deploymentConfig;
+    try{return JSON.parse(await fs.readFile(configFile,'utf8'));}
+    catch(error){if(error.code==='ENOENT')return {};throw error;}
+  }
   const chain=chainId===31337?hardhat:avalancheFuji;
   const rpcUrl=process.env.VITE_RPC_URL||process.env.FUJI_RPC_URL||chain.rpcUrls.default.http[0];
   client ||= createPublicClient({chain,transport:rpcHttp(rpcUrl,{timeout:15000,retryCount:1})});
@@ -115,7 +123,7 @@ export async function createApp({dataDir=path.resolve(process.env.DATA_DIR||'.da
     return 'legacy';
   }
   const mapsHandler=createMapsHandler();
-  const marketplaceHandler=createMarketplaceHandler({client,chainId,configFile,pickupArtifact});
+  const marketplaceHandler=createMarketplaceHandler({client,chainId,readConfig,pickupArtifact});
   return http.createServer(async(req,res)=>{
     res.setHeader('X-Content-Type-Options','nosniff');res.setHeader('Referrer-Policy','same-origin');
     const send=(status,data)=>{res.writeHead(status,{'Content-Type':'application/json; charset=utf-8','Cache-Control':'no-store'});res.end(JSON.stringify(data));};
@@ -125,7 +133,7 @@ export async function createApp({dataDir=path.resolve(process.env.DATA_DIR||'.da
       if(await marketplaceHandler(req,res,url))return;
       if(url.pathname==='/api/health'){send(200,{ok:true,chainId,evidence:true});return;}
       if(url.pathname==='/api/config'&&req.method==='GET'){
-        let config={};try{config=JSON.parse(await fs.readFile(configFile,'utf8'));}catch(error){if(error.code!=='ENOENT')throw error;}
+        const config=await readConfig();
         const contract=process.env.ECOLOOP_ADDRESS||process.env.VITE_ECOLOOP_ADDRESS||(config.chainId===chainId?config.contract:null);
         if(contract&&!isAddress(contract))fail(503,'Cấu hình contract trên server không hợp lệ.');
         const pickupContract=config.chainId===chainId?config.pickupContract:null;
@@ -164,6 +172,7 @@ export async function createApp({dataDir=path.resolve(process.env.DATA_DIR||'.da
           send(201,{hash:digest,stored:true});return;
         }
         if(url.pathname==='/api/pickup/configure'&&req.method==='POST'){
+          if(deploymentConfig)fail(503,'Cập nhật contract trong config/app.json rồi triển khai lại.');
           const body=JSON.parse((await readBody(req,8192)).toString());
           const identity=await authenticate(body);
           if(identity.action!=='configure-pickup')fail(403,'Sai loại xác thực.');
@@ -199,7 +208,7 @@ export async function createApp({dataDir=path.resolve(process.env.DATA_DIR||'.da
         if(url.pathname==='/api/history'&&req.method==='GET'){
           const address=String(url.searchParams.get('address')||'').toLowerCase();
           if(!isAddress(address))fail(400,'Địa chỉ ví không hợp lệ.');
-          let config={};try{config=JSON.parse(await fs.readFile(configFile,'utf8'));}catch{/* none */}
+          const config=await readConfig();
           const pickup=config.chainId===chainId?config.pickupContract:null;
           if(!pickup||!await isCurrentPickup(pickup)){send(200,{items:[],complete:true});return;}
           // One scan at a time; concurrent requests wait for it.
@@ -213,7 +222,7 @@ export async function createApp({dataDir=path.resolve(process.env.DATA_DIR||'.da
         if(url.pathname==='/api/relay'&&req.method==='POST'){
           if(!relayWallet||!forwarderArtifact)fail(503,'Server chưa bật miễn phí gas. Giao dịch sẽ dùng AVAX của ví bạn.');
           const {request:r}=JSON.parse((await readBody(req,16384)).toString());
-          let config={};try{config=JSON.parse(await fs.readFile(configFile,'utf8'));}catch{/* no pickup configured */}
+          const config=await readConfig();
           const pickup=config.chainId===chainId?config.pickupContract:null;
           if(!r||!isAddress(r.from||'')||!pickup||String(r.to||'').toLowerCase()!==pickup.toLowerCase())fail(400,'Yêu cầu miễn phí gas không hợp lệ.');
           if(r.value!=='0'||!/^\d{1,7}$/.test(String(r.gas))||BigInt(r.gas)>900000n||!Number.isSafeInteger(r.deadline))fail(400,'Yêu cầu miễn phí gas không hợp lệ.');

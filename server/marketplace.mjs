@@ -515,7 +515,7 @@ export function queryMarketplaceCards(lots, query = {}, { chainId = 43113, contr
   };
 }
 
-export function createMarketplaceHandler({ client, chainId = 43113, configFile, pickupArtifact }) {
+export function createMarketplaceHandler({ client, chainId = 43113, configFile, readConfig, pickupArtifact }) {
   // The old shared sample catalog is gone: only on-chain lots are served. Remove its leftover file.
   fs.unlink(SHARED_CATALOG_FILE).catch(() => {});
   return async (req, res, url) => {
@@ -541,7 +541,7 @@ export function createMarketplaceHandler({ client, chainId = 43113, configFile, 
 
     let config = {};
     try {
-      config = JSON.parse(await fs.readFile(configFile, 'utf8'));
+      config = readConfig ? await readConfig() : JSON.parse(await fs.readFile(configFile, 'utf8'));
     } catch (error) {
       if (error.code !== 'ENOENT') throw error;
     }

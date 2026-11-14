@@ -21,7 +21,10 @@ export default function PickupMap({lots,center,onSelect,onPin}:{lots:Lot[];cente
  useEffect(()=>{
   if(!root.current)return;const controller=new AbortController();let disposed=false;let m:LibreMap|undefined;let resize:ResizeObserver|undefined;setReady(false);setError('');
   void(async()=>{try{
-   const configResponse=await fetch('/api/maps/config',{signal:controller.signal});if(!configResponse.ok)throw new Error(tr('Chưa tải được cấu hình Nullmaps. Khởi động lại server EcoLoop.'));const config=await configResponse.json();if(disposed)return;setSearchEnabled(!!config.searchAvailable);
+   const configResponse=await fetch('/api/maps/config',{signal:controller.signal});
+   const config=await configResponse.json().catch(()=>null);
+   if(!configResponse.ok||!config?.styleUrl)throw new Error(tr(config?.error||'Chưa tải được cấu hình Nullmaps. Khởi động lại server EcoLoop.'));
+   if(disposed)return;setSearchEnabled(!!config.searchAvailable);
    const response=await fetch(config.styleUrl,{signal:controller.signal});if(!response.ok){const detail=await response.json();throw new Error(detail.error||tr('Nullmaps chưa sẵn sàng.'));}const style=resolveStyleUrls(await response.json()) as maplibregl.StyleSpecification;if(disposed||!root.current)return;
    m=new maplibregl.Map({container:root.current,style,transformRequest:url=>({url:toAbsoluteUrl(url)}),center:center?[center[1],center[0]]:[106.7,10.776],zoom:center?13:11,attributionControl:{compact:true,customAttribution:'Map data © OpenStreetMap contributors · Overture Maps · Nullmaps'}});map.current=m;
    m.addControl(new maplibregl.NavigationControl(),'top-right');m.addControl(new maplibregl.ScaleControl({unit:'metric'}));
