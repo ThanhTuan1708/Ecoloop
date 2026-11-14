@@ -19,7 +19,7 @@ test('owner can restore a missing address across server instances with a single-
    if(data.has(id))return false;
    data.set(id,Buffer.from(value));return true;
  }};
- const client={getChainId:async()=>43113,getCode:async()=>artifact.runtimeBytecode,readContract:async()=>({owner:owner.address,collector:collector.address,evidence,status:3})};
+ const client={getChainId:async()=>43113,getCode:async()=>artifact.runtimeBytecode,readContract:async()=>({owner:owner.address,collector:collector.address,evidence,status:4})};
  const servers=[];
  async function start(){
    const server=await createApp({dataDir:dir,client,pickupStorage,pickupStorageKey:'ab'.repeat(32)});
@@ -81,7 +81,17 @@ test('pickup contacts are signed, immutable, persisted, and visible only to owne
   assert.equal((await read(owner)).status,200);assert.equal((await read(collector)).status,200);assert.equal((await read(outsider)).status,403);
   const photo=await post('/api/evidence/read',{...await auth(collector,'read'),id:1});assert.equal(photo.status,200);
   assert.equal((await post('/api/evidence/read',await auth(collector,'read'))).status,403);
-  status=4;assert.equal((await read(collector)).status,403);assert.equal((await read(owner)).status,200);
+  status=4;
+  assert.equal((await read(collector)).status,200);
+  assert.equal((await read(owner)).status,200);
+  assert.equal((await read(outsider)).status,403);
+  const completedPhoto=await post('/api/evidence/read',{...await auth(collector,'read'),id:1});
+  assert.equal(completedPhoto.status,200);
+  assert.deepEqual(Buffer.from(await completedPhoto.arrayBuffer()),image);
+  assert.equal((await post('/api/evidence/read',{...await auth(outsider,'read'),id:1})).status,403);
+  status=1;
+  assert.equal((await read(collector)).status,403);
+  assert.equal((await post('/api/evidence/read',{...await auth(collector,'read'),id:1})).status,403);
   status=2;role=false;assert.equal((await read(collector)).status,200);
   assert.equal((await post('/api/evidence/read',{...await auth(collector,'read'),id:1})).status,200);
   assert.equal((await post('/api/evidence/read',{...await auth(outsider,'read'),id:1})).status,403);

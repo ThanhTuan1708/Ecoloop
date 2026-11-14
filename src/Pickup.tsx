@@ -476,7 +476,7 @@ export default function Pickup({account,admin,onConnect,page='home',role='seller
                 });
               }}/>
             </label>}
-            {isOwner&&account&&address&&[1,2,3].includes(current.status)&&!detail&&<button type="button" className="text-link" onClick={()=>setRestoreDetails(value=>!value)}>{tr('Bổ sung thông tin bàn giao')}</button>}
+            {isOwner&&account&&address&&[1,2,3,4].includes(current.status)&&!detail&&<button type="button" className="text-link" onClick={()=>setRestoreDetails(value=>!value)}>{tr('Bổ sung thông tin bàn giao')}</button>}
             {isOwner&&account&&address&&restoreDetails&&!detail&&<form className="pickup-callout" onSubmit={event=>{
               event.preventDefault();
               const fields=new FormData(event.currentTarget);

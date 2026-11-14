@@ -14,6 +14,8 @@ import { avalancheFuji, hardhat } from 'viem/chains';
 const MAX_IMAGE = 10 * 1024 * 1024;
 const hashPattern = /^0x[\da-f]{64}$/i;
 const collectorRole = keccak256(stringToHex('COLLECTOR_ROLE'));
+const canReadPickupAsCollector = (lot,account) =>
+  lot.collector.toLowerCase()===account&&[2,3,4].includes(lot.status);
 // Household actions the relayer pays gas for (collectors lock AVAX and pay their own gas).
 const GASLESS_FUNCTIONS = ['createLot','acceptLot','disputeLot','cancelLot','releaseLot','redeemReward','transfer'];
 export function imageType(bytes) {
@@ -297,7 +299,7 @@ export async function createApp({dataDir=path.resolve(process.env.DATA_DIR||'.da
               if(!Number.isSafeInteger(detail.lotId)||detail.lotId<1)fail(400,'Mã lô không hợp lệ.');
               const lot=await client.readContract({address:identity.contract,abi:pickupArtifact.abi,functionName:'getLot',args:[BigInt(detail.lotId)]});
               if(lot.owner.toLowerCase()!==identity.account||lot.evidence.toLowerCase()!==detail.evidence.toLowerCase())fail(403,'Chỉ chủ lô được bổ sung thông tin bàn giao.');
-              if(![1,2,3].includes(lot.status))fail(409,'Chỉ bổ sung thông tin cho lô đang mở hoặc đang thu gom.');
+              if(![1,2,3,4].includes(lot.status))fail(409,'Không thể bổ sung thông tin cho lô đã hủy.');
             }else{
               const evidence=storage&&await storage.read(prefix+identity.contract+'/'+detail.evidence.toLowerCase()+'.evidence');
               const meta=evidence?JSON.parse(evidence.subarray(0,evidence.indexOf(10))):JSON.parse(await readStored(base+'.json'));
@@ -312,7 +314,7 @@ export async function createApp({dataDir=path.resolve(process.env.DATA_DIR||'.da
           const lot=await client.readContract({address:identity.contract,abi:pickupArtifact.abi,functionName:'getLot',args:[BigInt(data.id)]});
           if(lot.evidence.toLowerCase()!==identity.hash)fail(403,'Ảnh không thuộc lô.');
           const owner=lot.owner.toLowerCase()===identity.account;
-          const assigned=lot.collector.toLowerCase()===identity.account&&[2,3].includes(lot.status);
+          const assigned=canReadPickupAsCollector(lot,identity.account);
           if(!owner&&!assigned)fail(403,'Chỉ chủ lô và người được giao thu gom được xem địa chỉ.');
           const saved=await readStored(path.join(dataDir,identity.contract,identity.hash)+'.pickup.json').catch(error=>{
             if(error.code==='ENOENT')fail(404,'Thông tin bàn giao của lô này không còn trên máy chủ. Hãy liên hệ người đăng lô.');
@@ -336,7 +338,7 @@ export async function createApp({dataDir=path.resolve(process.env.DATA_DIR||'.da
             if(version!=='legacy'){
               if(!Number.isSafeInteger(data.id)||data.id<1)fail(403,'Thiếu mã lô thu gom.');
               const lot=await client.readContract({address:identity.contract,abi:pickupArtifact.abi,functionName:'getLot',args:[BigInt(data.id)]});
-              if(lot.evidence.toLowerCase()!==identity.hash||lot.owner.toLowerCase()!==meta.account||lot.collector.toLowerCase()!==identity.account||![2,3].includes(lot.status))fail(403,'Chỉ người được giao thu gom được xem ảnh của lô.');
+              if(lot.evidence.toLowerCase()!==identity.hash||lot.owner.toLowerCase()!==meta.account||!canReadPickupAsCollector(lot,identity.account))fail(403,'Chỉ người được giao thu gom được xem ảnh của lô.');
             }
           }
           const bytes=evidence?evidence.subarray(evidence.indexOf(10)+1):await readStored(base+'.bin');res.writeHead(200,{'Content-Type':meta.mime,'Cache-Control':'no-store','Content-Length':bytes.length});res.end(bytes);return;
