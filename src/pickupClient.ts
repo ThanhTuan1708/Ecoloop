@@ -1,6 +1,7 @@
 import { encodeFunctionData, formatEther, keccak256, stringToHex, type Address, type Hash } from 'viem';
 import { publicClient } from './chain';
-import { assertWallet, chain } from './wallet';
+import { assertWallet, chain, getWalletName } from './wallet';
+import { num, tr } from './settings';
 import { pickupAbi, pickupBytecode, pickupRuntimeHash, pickupImmutables, forwarderAbi, forwarderBytecode, forwarderRuntimeHash, forwarderImmutables, certificateAbi } from './generated/pickup';
 import { authorize, uploadEvidence } from './evidence';
 import previousPickup from '../config/pickup-v3.json';
@@ -74,9 +75,26 @@ export async function payoutPreview(address:Address,lot:Lot):Promise<bigint>{
   const deposit:bigint=(await readFrom(address)('getLot',[BigInt(lot.id)])).deposit;
   return value<deposit?value:deposit;
 }
+async function checkPickupFunds(address:Address,account:Address,functionName:string,args:unknown[],value=0n){
+  const sponsored=import.meta.env.VITE_SPONSOR_GAS==='true'&&getWalletName()==='Ví Google';
+  if(sponsored&&value===0n)return;
+  const balance=await publicClient.getBalance({address:account});
+  const feeError='Ví chưa đủ AVAX trên Fuji để trả phí. Nạp AVAX testnet vào đúng địa chỉ ví đang kết nối.';
+  if(balance<value)throw new Error(tr('Ví chưa đủ AVAX Fuji để đặt cọc {avax} AVAX.',{avax:num(Number(formatEther(value)),8)}));
+  if(sponsored)return;
+  if(balance===0n)throw new Error(tr(feeError));
+  const [gas,gasPrice]=await Promise.all([
+    publicClient.estimateContractGas({address,abi:pickupAbi,functionName,args,account,value} as never),
+    publicClient.getGasPrice(),
+  ]);
+  if(balance<value+gas*gasPrice){
+    throw new Error(tr(value>0n?'Ví cần đủ AVAX Fuji cho cả tiền ký quỹ và phí mạng. Nạp thêm AVAX vào ví đang kết nối.':feeError));
+  }
+}
 export async function pickupWrite(address:Address,account:Address,functionName:string,args:unknown[]=[],value?:bigint){
   if(pendingPickup())throw new Error('Có giao dịch thu gom đang chờ. Kiểm tra giao dịch trước khi gửi tiếp.');
   const wallet=await assertWallet(account);
+  await checkPickupFunds(address,account,functionName,args,value);
   const {request}=await publicClient.simulateContract({address,abi:pickupAbi,functionName,args,account,...(value!==undefined?{value}:{})} as never);
   const hash=await wallet.writeContract(request as never);localStorage.setItem(pendingKey,hash);
   await receipt(hash);return hash;

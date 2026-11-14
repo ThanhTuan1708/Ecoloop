@@ -15,6 +15,7 @@ export const en:Record<string,string>={
  "Đăng nhập để nhận lô":"Sign in to claim this lot",
  "Dùng ví Core hoặc ví khác":"Use Core or another wallet",
  "Ví chưa đủ AVAX Fuji để đặt cọc {avax} AVAX.":"Your wallet needs {avax} Fuji AVAX for the deposit.",
+ "Ví cần đủ AVAX Fuji cho cả tiền ký quỹ và phí mạng. Nạp thêm AVAX vào ví đang kết nối.":"Your wallet needs enough Fuji AVAX for both the deposit and the network fee. Add AVAX to the connected wallet.",
  "Chưa có đơn để xem":"No orders to show",
  "Lô bạn đăng và lô bạn nhận sẽ hiện tại đây.":"Lots you post or claim will appear here.",
  "Lô của bạn":"Your lot",

@@ -216,7 +216,6 @@ export default function Pickup({account,admin,onConnect,page='home',role='seller
     const id=current.id;
     if(fn==='claimLot'){
       const deposit=await requiredDeposit(address,id);
-      if(await publicClient.getBalance({address:account})<deposit)throw new Error(tr('Ví chưa đủ AVAX Fuji để đặt cọc {avax} AVAX.',{avax:avax(deposit)}));
       setHash(await pickupWrite(address,account,fn,args,deposit));
       await refresh();onOpenOrders?.();
       setMessage(tr('🔒 Đã nhận việc và khóa {avax} AVAX ký quỹ trong contract.',{avax:fmt(Number(formatEther(deposit)),6)}));
