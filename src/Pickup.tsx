@@ -1,5 +1,5 @@
 import {lazy,Suspense,useEffect,useRef,useState,type FormEvent,type ReactNode} from 'react';
-import {MapPin,Plus,RefreshCw,Navigation,ArrowRight,CheckCircle2,PackageCheck,ShieldCheck,Lock,Star,Coins,SlidersHorizontal,ChevronLeft,ChevronRight,History,Award,ExternalLink,Database,Fuel} from 'lucide-react';
+import {MapPin,Plus,RefreshCw,Navigation,ArrowRight,CheckCircle2,PackageCheck,ShieldCheck,Lock,Star,Coins,SlidersHorizontal,ChevronLeft,ChevronRight,History,Award,ExternalLink,Database,Fuel,Gift} from 'lucide-react';
 import {formatEther,isAddress,parseEther,type Address,type Hash} from 'viem';
 import {chain,getWalletName} from './wallet';
 import {errorMessage,txUrl,publicClient} from './chain';
@@ -10,6 +10,7 @@ import {pickupAbi} from './generated/pickup';
 import {lotStatuses,activatePickup,deployPickup,digest,distanceKm,pendingPickup,pickupDetails,pickupRead,pickupReadWallet,pickupWrite,householdWrite,requiredDeposit,payoutPreview,readCertificate,certificateUrl,addressUrl,isPickupV4,resumePickup,savePickupPhoto,savePickupDetails,ZERO,type Lot,type CertificateView} from './pickupClient';
 import {queryProductCards,type ListingStatus,type SortOption,type ShopeeWeb3ProductCard} from './marketplace';
 import './pickup.css';
+import './rewards.css';
 import {speakFeedback} from './voiceFeedback';
 
 const PickupMap=lazy(()=>import('./PickupMap'));
@@ -253,11 +254,11 @@ export default function Pickup({account,admin,onConnect,page='home',role='seller
     speakFeedback('Đã đăng lô phế liệu thành công.');
   }
   return <section className={`pickup-workspace pickup-page-${page}`}>
-    <div className="pickup-page-title">
+    {page!=='rewards'&&<div className="pickup-page-title">
       <span className="eyebrow">{tr('ECOLOOP · SÀN C2C WEB3 AVALANCHE FUJI')}</span>
-      <h2>{({home:seller?tr('Bán phế liệu'):tr('Lô đang chờ thu gom'),orders:seller?tr('Lô của tôi'):tr('Việc đã nhận'),wallet:tr('Ví xanh của bạn'),rewards:tr('Đổi điểm, nhận điều xanh'),settings:tr('Thiết lập hệ thống')})[page]}</h2>
+      <h2>{({home:seller?tr('Bán phế liệu'):tr('Lô đang chờ thu gom'),orders:seller?tr('Lô của tôi'):tr('Việc đã nhận'),wallet:tr('Ví xanh của bạn'),settings:tr('Thiết lập hệ thống')})[page]}</h2>
       <p>{page==='settings'?tr('Ngôn ngữ, giao diện, đơn vị, thông báo và cấu hình hệ thống.'):tr('Lô, ký quỹ và chứng nhận ghi trên Avalanche. Ảnh và liên hệ lưu riêng, chỉ chủ lô và người nhận việc xem được.')}</p>
-    </div>
+    </div>}
     {page==='settings'&&children}
     {page==='settings'&&(admin||pickupAdmin)&&<h3 className="set-section-title">{tr('Quản trị hệ thống')}</h3>}
     {seller&&page==='home'&&<div className="pickup-intro"><div><h2>{tr('Đăng lô để hẹn thu gom')}</h2><p>{tr('Thêm ảnh, khối lượng dự kiến và địa chỉ bàn giao. Xác nhận số cân sau khi người thu gom gửi đề xuất.')}</p></div>{creating?<button className="secondary" disabled={busy} onClick={()=>setCreating(false)}>{tr('Đóng biểu mẫu')}</button>:<button className="primary" onClick={onOpenOrders}>{tr('Lô của tôi')}</button>}</div>}
@@ -291,7 +292,7 @@ export default function Pickup({account,admin,onConnect,page='home',role='seller
     {paused&&<p role="alert">{tr('Thu gom đang tạm dừng. Vẫn có thể hủy, yêu cầu cân lại hoặc trả việc.')}</p>}
     {address&&page!=='settings'&&<div className="data-mode-bar"><span className="live-chip"><ShieldCheck size={15}/>{tr('Dữ liệu thật trên Avalanche')}</span>{gasless&&<span className="gasless-chip"><Fuel size={14}/>{tr('Miễn phí gas cho hộ gia đình')}</span>}</div>}
     {marketError&&(page==='home'||page==='orders')&&<div className="pickup-callout" role="status"><p>{tr('Chưa tải được dữ liệu lô mới nhất. Vui lòng thử lại.')}</p><button type="button" className="secondary" onClick={()=>void refresh()}>{tr('Thử lại')}</button></div>}
-    {!address&&page!=='settings'&&!loading&&!marketError&&<div className="pickup-callout"><strong>{tr('Chưa có contract thu gom V4')}</strong><p>{tr('Các lô sẽ xuất hiện sau khi sàn được cấu hình địa chỉ V4 dùng chung.')}</p>{onSettings&&<button type="button" className="secondary" onClick={onSettings}>{tr('Mở Thiết lập')}</button>}</div>}
+    {!address&&page!=='settings'&&page!=='rewards'&&!loading&&!marketError&&<div className="pickup-callout"><strong>{tr('Chưa có contract thu gom V4')}</strong><p>{tr('Các lô sẽ xuất hiện sau khi sàn được cấu hình địa chỉ V4 dùng chung.')}</p>{onSettings&&<button type="button" className="secondary" onClick={onSettings}>{tr('Mở Thiết lập')}</button>}</div>}
     {page==='wallet'&&walletSlot}
     {address&&<>
       {browseMarket&&<div className="pickup-summary">
@@ -517,11 +518,11 @@ export default function Pickup({account,admin,onConnect,page='home',role='seller
       />}
       {address&&(admin||pickupAdmin)&&account&&page==='settings'&&<section className="pickup-callout"><h3>{tr('Quản lý thu gom')}</h3><button type="button" className="secondary" disabled={busy} onClick={()=>run(async()=>{setHash(await pickupWrite(address,account,'setPaused',[!paused]));await refresh();})}>{paused?tr('Mở lại thu gom'):tr('Tạm dừng thu gom')}</button><p className="footnote">Contract V4: {address}{certAddress?<> · NFT: {certAddress}</>:null}</p></section>}
       {address&&(admin||pickupAdmin)&&account&&page==='settings'&&<form className="pickup-callout" onSubmit={e=>{e.preventDefault();const f=new FormData(e.currentTarget);run(async()=>{const next=[0,1,2,3].map(i=>{const v=String(f.get('price'+i)||'').replace(',','.');if(!/^\d*\.?\d+$/.test(v)||Number(v)>1)throw new Error(tr('Giá phải là số AVAX từ 0 đến 1 cho mỗi kg.'));return parseEther(v);});setHash(await pickupWrite(address,account,'setPrices',[next]));await refresh();setMessage(tr('Đã cập nhật giá thu mua.'));});}}><h3>{tr('Giá thu mua (AVAX/kg)')}</h3><p>{tr('Người thu gom khóa số AVAX = giá × khối lượng ước tính + 20%. Chủ lô nhận theo số cân thực tế.')}</p><div className="pickup-weights">{materials.map((m,i)=><label key={m.name}>{tr(m.name)}<input name={'price'+i} inputMode="decimal" defaultValue={prices[i]??''} key={String(prices[i])}/></label>)}</div><button className="secondary" disabled={busy}>{tr('Cập nhật giá')}</button></form>}
-      {page==='wallet'&&!walletSlot&&<div className="pickup-callout wallet-live"><span>{tr('VÍ ĐIỂM THU GOM ECOLOOP')}</span><h2>{fmt(effectiveBalance)} ECO</h2><p>{account?tr('Ví đã kết nối: {wallet} · Số dư ECO on-chain trên contract V4.',{wallet:short(account)}):tr('Kết nối ví để xem số dư ECO on-chain của bạn.')}</p>{address&&<code>{address}</code>}<p>{tr('ECO là token thưởng khi hoàn tất bàn giao phế liệu qua hợp đồng ký quỹ (Escrow); dùng để đổi các phần thưởng xanh bên dưới.')}</p></div>}
+      {page==='wallet'&&!walletSlot&&<div className="pickup-callout wallet-live"><span>{tr('VÍ ĐIỂM THU GOM ECOLOOP')}</span><h2>{fmt(effectiveBalance)} ECO</h2><p>{account?tr('Ví đã kết nối: {wallet} · Số dư ECO on-chain trên contract V4.',{wallet:short(account)}):tr('Kết nối ví để xem số dư ECO on-chain của bạn.')}</p>{address&&<code>{address}</code>}<p>{tr('Bạn nhận ECO khi hoàn tất bàn giao phế liệu.')}</p></div>}
       {page==='wallet'&&address&&account&&pendingAvax>0&&<div className="pickup-callout"><strong>{tr('Có {avax} AVAX chờ rút',{avax:fmt(pendingAvax,6)})}</strong><p>{tr('Contract chưa chuyển thẳng được khoản này vào ví của bạn. Bấm rút để nhận.')}</p><button className="primary" disabled={busy} onClick={()=>run(async()=>{setHash(await pickupWrite(address,account,'withdrawPending'));await refresh();setMessage(tr('Đã rút AVAX về ví.'));})}>{tr('Rút về ví')}</button></div>}
       {page==='wallet'&&address&&certAddress&&<section className="pickup-callout"><h3><Award size={18}/> {tr('Chứng nhận tái chế của tôi ({n})',{n:myCertificates.length})}</h3>{myCertificates.length?<div className="cert-grid">{myCertificates.map(l=><CertificateCard key={l.id} certificate={certAddress} lotId={l.id} compact/>)}</div>:<p>{account?tr('Hoàn tất một lô thu gom để nhận chứng nhận NFT đầu tiên.'):tr('Kết nối ví để xem chứng nhận của bạn.')}</p>}</section>}
-      {(page==='rewards'||page==='wallet')&&<PickupRewards gasless={gasless} admin={admin||pickupAdmin} address={address} account={account} collector={canFulfillRewards} busy={busy} balance={effectiveBalance} run={run} onChange={refresh} onDone={text=>setMessage(text)}/>}
     </>}
+    {page==='rewards'&&<PickupRewards gasless={gasless} admin={admin||pickupAdmin} address={address} account={account} collector={canFulfillRewards} busy={busy} balance={effectiveBalance} run={run} onChange={refresh} onConnect={onConnect} onDone={setMessage}/>}
     {busy&&<p role="status" className="pickup-busy">{tr('Đang xử lý… Kiểm tra cửa sổ ví nếu được yêu cầu ký. Không đóng trang khi gửi giao dịch.')}</p>}
   </section>;
 }
@@ -719,7 +720,13 @@ function LotForm({busy,center,onCreate}:{busy:boolean;center?:[number,number];on
   }
   return <form className="lot-form" onSubmit={submit}><h3>{tr('Một lô, nhiều loại vật liệu')}</h3><p>{tr('Ước lượng khối lượng từng loại. Ảnh minh họa cả lô; ECO cuối cùng tính theo kết quả cân thực tế.')}</p><WeightInputs values={weights} onChange={setWeights}/><label>{tr('Ảnh thật của cả lô (bắt buộc)')}<input type="file" required accept="image/jpeg,image/png,image/webp" capture="environment" onChange={e=>setFile(e.target.files?.[0])}/></label><div className="pickup-weights"><label>{tr('Số điện thoại / cách liên hệ')}<input name="contact" minLength={3} maxLength={120} required placeholder={tr("Người nhận việc sẽ dùng thông tin này")}/></label><label>{tr('Địa chỉ & thời gian bàn giao')}<input name="address" value={address} onChange={e=>setAddress(e.target.value)} minLength={5} maxLength={400} required placeholder={tr("Số nhà, đường, khung giờ thuận tiện")}/></label></div><p>{tr('Địa chỉ và liên hệ chỉ chia sẻ với chủ lô và người đã nhận việc.')} {tr('Ảnh được lưu riêng trên server local; không đưa ảnh hoặc số điện thoại lên blockchain.')}</p><h4>{tr('Vị trí bàn giao trên bản đồ (mặc định: {lat}, {lng})',{lat:point[0].toFixed(2),lng:point[1].toFixed(2)})}</h4><Suspense fallback={<p>{tr('Đang tải bản đồ…')}</p>}><PickupMap lots={[]} center={point} onPin={setPoint} onPlace={selectAddress}/></Suspense><div className="pickup-weights"><label>{tr('Vĩ độ')}<input type="number" step="any" min="-90" max="90" value={point?.[0]??''} onChange={e=>setPoint([Number(e.target.value),point?.[1]??106.69])}/></label><label>{tr('Kinh độ')}<input type="number" step="any" min="-180" max="180" value={point?.[1]??''} onChange={e=>setPoint([point?.[0]??10.78,Number(e.target.value)])}/></label></div><p className="footnote">{tr('Chỉ tọa độ làm tròn khoảng 1 km được ghi công khai, vĩnh viễn trên blockchain. Có thể nhập tọa độ nếu bản đồ không tải được.')}</p><div className="estimate"><span>{tr('Tổng dự kiến: {kg}',{kg:wt(total(weights.map(v=>Number(v)*1000)))})}</span><strong>+{fmt(points(weights.map(v=>Number(v)*1000)))} ECO</strong></div>{error&&<p className="form-error" role="alert">{error}</p>}<button className="primary full-width" disabled={busy||hashing}>{hashing?tr('Đang đọc ảnh & tạo mã băm…'):tr('Ký hợp đồng & Đăng lô tìm người thu gom')}<ArrowRight size={17}/></button></form>;
 }
-function PickupRewards({gasless,admin,address,account,collector,busy,balance,run,onChange,onDone}:{gasless:boolean;admin:boolean;address?:Address;account?:Address;collector:boolean;busy:boolean;balance:number;run:(f:()=>Promise<void>)=>Promise<void>;onChange:()=>Promise<void>;onDone:(message:string)=>void}){
+const rewardArtwork=new Map([
+  ['Coffee voucher',{image:'/rewards/coffee.webp',name:'Voucher cà phê',tone:'coffee'}],
+  ['Canvas tote bag',{image:'/rewards/tote.webp',name:'Túi vải canvas',tone:'tote'}],
+  ['Green shopping voucher',{image:'/rewards/shopping.webp',name:'Voucher mua sắm xanh',tone:'shopping'}],
+]);
+
+function PickupRewards({gasless,admin,address,account,collector,busy,balance,run,onChange,onConnect,onDone}:{gasless:boolean;admin:boolean;address?:Address;account?:Address;collector:boolean;busy:boolean;balance:number;run:(f:()=>Promise<void>)=>Promise<void>;onChange:()=>Promise<void>;onConnect:()=>void;onDone:(message:string)=>void}){
   const [rewards,setRewards]=useState<RewardItem[]>([]);
   const [receipts,setReceipts]=useState<ReceiptItem[]>([]);
   async function reload(){
@@ -740,12 +747,48 @@ function PickupRewards({gasless,admin,address,account,collector,busy,balance,run
   }
   useEffect(()=>{reload().catch(()=>{});},[address,account,balance,collector]);
   const active=rewards.filter(r=>r.active);
-  return <section className="pickup-callout"><h3>{tr('Đổi điểm ECO lấy quà tặng xanh ({n} phần thưởng)',{n:active.length})}</h3><p>{tr('Sử dụng số dư ECO tích lũy từ các lô phế liệu đã hoàn tất để đổi voucher và sản phẩm thân thiện môi trường.')}</p>
+  const rewardName=(name:string)=>tr(rewardArtwork.get(name)?.name??name);
+  return <section className="reward-shop" aria-labelledby="reward-shop-title">
+    <header className="reward-shop-header">
+      <div>
+        <h2 id="reward-shop-title">{tr('Đổi điểm, nhận điều xanh')}</h2>
+        <p>{tr('Sử dụng số dư ECO tích lũy từ các lô phế liệu đã hoàn tất để đổi voucher và sản phẩm thân thiện môi trường.')}</p>
+      </div>
+      {account?<div className="reward-shop-balance"><Coins size={21} aria-hidden="true"/><div>
+        <span>{tr('ECO khả dụng')}</span><strong>{fmt(balance)} ECO</strong>
+      </div></div>:<button type="button" className="secondary" onClick={onConnect}>{tr('Kết nối ví')}</button>}
+    </header>
     {!address&&<p>{tr('Phần thưởng sẽ hiện khi contract thu gom V4 được kích hoạt.')}</p>}
     {address&&!active.length&&<p>{tr('Chưa có phần thưởng nào trên contract.')}</p>}
-    <div className="pickup-reward-list">{active.map(r=><div key={r.id}><strong>{tr(r.name)}</strong><p>{tr('{cost} ECO · còn {n} suất',{cost:fmt(r.cost),n:r.stock})}</p><button className="secondary" disabled={busy||balance<r.cost||!r.stock} onClick={()=>run(async()=>{if(!address||!account)throw new Error(tr('Kết nối ví để đổi quà.'));await householdWrite(address,account,'redeemReward',[BigInt(r.id)],gasless);await onChange();await reload();onDone(tr('Đã đổi quà thành công (-{cost} ECO). Biên nhận đã được tạo!',{cost:fmt(r.cost)}));})}>{balance<r.cost?tr('Cần thêm {n} ECO',{n:fmt(r.cost-balance)}):tr('Đổi quà ngay')}</button></div>)}</div>
+    {active.length>0&&<div className="reward-vouchers">{active.map(reward=>{
+      const art=rewardArtwork.get(reward.name);
+      const unavailable=reward.stock===0;
+      const shortfall=!!account&&balance<reward.cost;
+      return <article className="reward-voucher" key={reward.id} data-tone={art?.tone??'tote'}>
+        <div className="reward-voucher-cover">
+          {art?<img src={art.image} alt="" width={768} height={512}/>:<Gift size={48} aria-hidden="true"/>}
+        </div>
+        <div className="reward-voucher-body">
+          <h3>{rewardName(reward.name)}</h3>
+          <div className="reward-voucher-meta">
+            <strong>{fmt(reward.cost)} <small>ECO</small></strong>
+            <span>{unavailable?tr('Hết lượt đổi'):tr('Còn {n} suất',{n:reward.stock})}</span>
+          </div>
+          <button type="button" className="reward-voucher-action" disabled={busy||unavailable||shortfall} onClick={()=>{
+            if(!account){onConnect();return;}
+            if(!address)return;
+            void run(async()=>{
+              await householdWrite(address,account,'redeemReward',[BigInt(reward.id)],gasless);
+              await onChange();
+              await reload();
+              onDone(tr('Đã đổi quà thành công (-{cost} ECO). Biên nhận đã được tạo!',{cost:fmt(reward.cost)}));
+            });
+          }}>{unavailable?tr('Hết lượt đổi'):shortfall?tr('Cần thêm {n} ECO',{n:fmt(reward.cost-balance)}):tr('Đổi quà ngay')}<ArrowRight size={17} aria-hidden="true"/></button>
+        </div>
+      </article>;
+    })}</div>}
     {admin&&address&&account&&<form className="reward-admin" onSubmit={e=>{e.preventDefault();const f=new FormData(e.currentTarget);const form=e.currentTarget;run(async()=>{const name=String(f.get('name')||'').trim();const cost=String(f.get('cost')||'').replace(',','.');const stock=Number(f.get('stock'));if(!name||name.length>120)throw new Error(tr('Nhập tên phần thưởng (tối đa 120 ký tự).'));if(!/^\d*\.?\d+$/.test(cost)||Number(cost)<=0)throw new Error(tr('Số ECO phải lớn hơn 0.'));if(!Number.isInteger(stock)||stock<0)throw new Error(tr('Số suất phải là số nguyên không âm.'));await pickupWrite(address,account,'addReward',[name,parseEther(cost),BigInt(stock)]);form.reset();await reload();onDone(tr('Đã thêm phần thưởng lên contract.'));});}}><h4>{tr('Thêm phần thưởng thật (quản trị)')}</h4><div className="pickup-weights"><label>{tr('Tên phần thưởng')}<input name="name" required maxLength={120} placeholder={tr('VD: Voucher cà phê của đối tác')}/></label><label>{tr('Giá (ECO)')}<input name="cost" required inputMode="decimal" placeholder="100"/></label><label>{tr('Số suất')}<input name="stock" required type="number" min="0" step="1" placeholder="20"/></label></div><button className="secondary" disabled={busy}>{tr('Thêm phần thưởng')}</button></form>}
-    <h4>{tr('Biên nhận đổi quà ({n})',{n:receipts.length})}</h4>{receipts.length?receipts.map(r=><div className="pickup-receipt" key={r.id}><span>#{r.id} · <strong>{tr(rewards.find(x=>x.id===r.reward)?.name||'')||tr('Quà #{id}',{id:r.reward})}</strong> {tr('· Ví nhận:')} <code>{short(r.owner)}</code> · {r.done?tr('✅ Đã giao quà'):tr('⏳ Chờ nhận tại trạm')}</span>{collector&&!r.done&&<button className="secondary" disabled={busy} onClick={()=>run(async()=>{if(!address||!account)throw new Error(tr('Kết nối ví để xác nhận.'));await pickupWrite(address,account,'fulfillRedemption',[BigInt(r.id)]);await reload();})}>{tr('Xác nhận đã giao quà')}</button>}</div>):<p>{tr('Chưa có biên nhận.')}</p>}</section>;
+    <section className="reward-receipts"><h4>{tr('Biên nhận đổi quà ({n})',{n:receipts.length})}</h4>{receipts.length?receipts.map(r=><div className="pickup-receipt" key={r.id}><span>#{r.id} · <strong>{rewardName(rewards.find(x=>x.id===r.reward)?.name||'')||tr('Quà #{id}',{id:r.reward})}</strong> {tr('· Ví nhận:')} <code>{short(r.owner)}</code> · {r.done?tr('✅ Đã giao quà'):tr('⏳ Chờ nhận tại trạm')}</span>{collector&&!r.done&&<button className="secondary" disabled={busy} onClick={()=>run(async()=>{if(!address||!account)throw new Error(tr('Kết nối ví để xác nhận.'));await pickupWrite(address,account,'fulfillRedemption',[BigInt(r.id)]);await reload();})}>{tr('Xác nhận đã giao quà')}</button>}</div>):<p>{tr('Chưa có biên nhận.')}</p>}</section></section>;
 }
 function CertificateCard({certificate,lotId,compact}:{certificate:Address;lotId:number;compact?:boolean}){
   const [cert,setCert]=useState<CertificateView|null>();

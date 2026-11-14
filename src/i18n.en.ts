@@ -1,6 +1,11 @@
 // English translations. Keys are the Vietnamese source strings used with tr() in the UI.
 // Add a line here whenever you add a new tr('…') string. `npm run i18n:check` lists any that are missing.
 export const en:Record<string,string>={
+ "Voucher cà phê":"Coffee voucher",
+ "Túi vải canvas":"Canvas tote bag",
+ "Voucher mua sắm xanh":"Green shopping voucher",
+ "Hết lượt đổi":"Sold out",
+ "Còn {n} suất":"{n} available",
  "Xem ảnh lô":"View lot photo",
  "Tải lại ảnh gốc của lô":"Re-upload original lot photo",
  "Ảnh này không khớp ảnh gốc đã đăng.":"This file does not match the original lot photo.",
@@ -359,7 +364,7 @@ export const en:Record<string,string>={
  "VÍ ĐIỂM THU GOM ECOLOOP":"ECOLOOP PICKUP POINTS WALLET",
  "Ví đã kết nối: {wallet} · Số dư ECO on-chain trên contract V4.":"Connected wallet: {wallet} · On-chain ECO balance on the V4 contract.",
  "Kết nối ví để xem số dư ECO on-chain của bạn.":"Connect a wallet to see your on-chain ECO balance.",
- "ECO là token thưởng khi hoàn tất bàn giao phế liệu qua hợp đồng ký quỹ (Escrow); dùng để đổi các phần thưởng xanh bên dưới.":"ECO is the reward token earned when a scrap handover completes through the escrow contract; use it to redeem the green rewards below.",
+ "Bạn nhận ECO khi hoàn tất bàn giao phế liệu.":"You earn ECO when you complete a scrap handover.",
  "Có {avax} AVAX chờ rút":"{avax} AVAX ready to withdraw",
  "Contract chưa chuyển thẳng được khoản này vào ví của bạn. Bấm rút để nhận.":"The contract couldn't send this directly to your wallet. Withdraw it here.",
  "Đã rút AVAX về ví.":"AVAX withdrawn to your wallet.",
