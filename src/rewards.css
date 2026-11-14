@@ -22,11 +22,10 @@
 }
 
 .reward-shop-header h2 {
-  font-family: Georgia, serif;
-  font-size: clamp(32px, 5vw, 64px);
-  line-height: 1.05;
-  font-weight: 400;
-  letter-spacing: -.035em;
+  font-size: clamp(2rem, 3vw, 3rem);
+  line-height: 1.2;
+  font-weight: 800;
+  text-wrap: balance;
 }
 
 .reward-shop-header p { max-width: 48ch; margin-top: 10px; color: var(--muted); }
@@ -59,7 +58,7 @@
 .reward-voucher-cover { aspect-ratio: 3 / 2; display: grid; place-items: center; background: #d6dfd0; color: #325d44; overflow: hidden; }
 .reward-voucher-cover img { width: 100%; height: 100%; object-fit: cover; }
 .reward-voucher-body { display: flex; flex: 1; flex-direction: column; gap: 14px; padding: 20px; border-top: 1px dashed var(--edge); }
-.reward-voucher-body h3 { font-family: Georgia, serif; font-weight: 600; font-size: clamp(21px, 2.5vw, 28px); line-height: 1.2; overflow-wrap: anywhere; }
+.reward-voucher-body h3 { font-weight: 750; font-size: clamp(1.25rem, 2vw, 1.5rem); line-height: 1.3; overflow-wrap: anywhere; }
 .reward-voucher-meta { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 5px 12px; margin-top: auto; }
 .reward-voucher-meta strong { font-size: 23px; }
 .reward-voucher-meta small { font-size: 12px; }
@@ -72,4 +71,5 @@
 .reward-receipts .pickup-receipt { border-color: var(--edge); }
 :root[data-theme=dark] .reward-shop { --paper: #202b25; --text: #fff6e7; --muted: #cad1c5; --edge: #465247; }
 :root[data-layout=mobile] .reward-vouchers { grid-template-columns: 1fr; gap: 16px; }
-:root[data-layout=mobile] .reward-shop-header { gap: 14px; }
+:root[data-layout=mobile] .reward-shop-header { gap: 14px; padding: 20px; }
+:root[data-layout=mobile] .reward-shop-header h2 { font-size: 1.75rem; }
