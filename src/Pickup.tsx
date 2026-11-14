@@ -1,5 +1,5 @@
 import {lazy,Suspense,useEffect,useRef,useState,type FormEvent,type ReactNode} from 'react';
-import {MapPin,Plus,RefreshCw,Navigation,ArrowRight,CheckCircle2,PackageCheck,ShieldCheck,Lock,Star,Coins,SlidersHorizontal,ChevronLeft,ChevronRight,History,Award,ExternalLink} from 'lucide-react';
+import {MapPin,Plus,RefreshCw,Navigation,ArrowRight,CheckCircle2,PackageCheck,ShieldCheck,Lock,Star,Coins,SlidersHorizontal,ChevronLeft,ChevronRight,History,Award,ExternalLink,Database,Fuel} from 'lucide-react';
 import {formatEther,isAddress,parseEther,type Address,type Hash} from 'viem';
 import {chain,getWalletName} from './wallet';
 import {errorMessage,txUrl,publicClient} from './chain';
@@ -7,7 +7,7 @@ import {materials,short} from './model';
 import {tr,num as fmt,wt,dateTime,notify,unit} from './settings';
 import {viewEvidence} from './evidence';
 import {pickupAbi} from './generated/pickup';
-import {lotStatuses,activatePickup,deployPickup,digest,distanceKm,pendingPickup,pickupDetails,pickupRead,pickupReadWallet,pickupWrite,householdWrite,requiredDeposit,payoutPreview,readCertificate,certificateUrl,pickupVersion,resumePickup,savePickupPhoto,ZERO,type Lot,type CertificateView} from './pickupClient';
+import {lotStatuses,activatePickup,deployPickup,digest,distanceKm,pendingPickup,pickupDetails,pickupRead,pickupReadWallet,pickupWrite,householdWrite,requiredDeposit,payoutPreview,readCertificate,certificateUrl,addressUrl,pickupVersion,resumePickup,savePickupPhoto,ZERO,type Lot,type CertificateView} from './pickupClient';
 import {queryProductCards,type ListingStatus,type SortOption,type ShopeeWeb3ProductCard} from './marketplace';
 import './pickup.css';
 
@@ -22,14 +22,15 @@ const same=(a?:string,b?:string)=>!!a&&!!b&&a.toLowerCase()===b.toLowerCase();
 const total=(weights:number[])=>weights.reduce((a,b)=>a+b,0)/1000;
 const points=(weights:number[])=>weights.reduce((a,b,i)=>a+b*materials[i].rate/1000,0);
 
-export default function Pickup({account,admin,onConnect,page='home',onSettings,onOpenOrders,onBrowse,onPost,children,walletSlot}:{
+export default function Pickup({account,admin,onConnect,page='home',role='seller',createRequest=0,onSettings,onOpenOrders,onBrowseAsCollector,collectorLot,children,walletSlot}:{
   children?:ReactNode;walletSlot?:ReactNode;account?:Address;admin:boolean;
-  onConnect:(reason?:'post'|'claim')=>void;page?:'home'|'post'|'orders'|'wallet'|'rewards'|'settings';
-  onSettings:()=>void;onOpenOrders:()=>void;onBrowse:()=>void;onPost:()=>void;
+  demo?:boolean;onConnect:()=>void;page?:'home'|'orders'|'wallet'|'rewards'|'settings';
+  role?:'seller'|'collector';createRequest?:number;collectorLot?:number;
+  onSettings:()=>void;onOpenOrders:()=>void;onBrowseAsCollector:(lotId:number)=>void;
 }){
   const [address,setAddress]=useState<Address>();const [onChainLots,setOnChainLots]=useState<Lot[]>([]);const [count,setCount]=useState(0);const [limit,setLimit]=useState(100);
   const [balance,setBalance]=useState(0);const [view,setView]=useState<'grid'|'map'>('grid');const [v2Admin,setV2Admin]=useState(false);const [loading,setLoading]=useState(true);const [marketError,setMarketError]=useState(false);const [category,setCategory]=useState(-1);const [query,setQuery]=useState('');const [canFulfillRewards,setCanFulfillRewards]=useState(false);const [paused,setPaused]=useState(false);
-  const [selected,setSelected]=useState<number>();const [radius,setRadius]=useState(0);const [center,setCenter]=useState<[number,number]>();
+  const [selected,setSelected]=useState<number>();const [creating,setCreating]=useState(false);const [radius,setRadius]=useState(0);const [center,setCenter]=useState<[number,number]>();
   const [filtersOpen,setFiltersOpen]=useState(false);const [sort,setSort]=useState<SortOption>('newest');const [tokenFilter,setTokenFilter]=useState<string>('ALL');const [pageNum,setPageNum]=useState(1);const [pageSize,setPageSize]=useState(12);
   const [busy,setBusy]=useState(false);const lock=useRef(false);const version=useRef(0);const detailVersion=useRef(0);
   const [message,setMessage]=useState('');const [failure,setFailure]=useState(false);const [hash,setHash]=useState<Hash>();const [detail,setDetail]=useState<{contact:string;address:string}>();const [photo,setPhoto]=useState('');
@@ -41,9 +42,11 @@ export default function Pickup({account,admin,onConnect,page='home',onSettings,o
 
   // Only real on-chain data: lots, balances and rewards all come from the V4 contract.
   const lots=onChainLots;
-  const browseMarket=page==='home';
-  const marketLots=lots.filter(l=>l.status===1);
-  const myLots=lots.filter(l=>same(l.owner,account)||same(l.collector,account));
+  const seller=role==='seller';
+  const browseMarket=page==='home'&&!creating;
+  const collectorMarket=browseMarket&&!seller;
+  const marketLots=lots.filter(l=>l.status===1&&(seller||!same(l.owner,account)));
+  const myLots=lots.filter(l=>same(seller?l.owner:l.collector,account));
   const current=(page==='orders'?myLots:browseMarket?marketLots:[]).find(l=>l.id===selected);
   const isCurrentOnChain=!!address&&!!current;
   const user=account;
@@ -62,11 +65,11 @@ export default function Pickup({account,admin,onConnect,page='home',onSettings,o
     }
     lastStatus.current={wallet:user||'',map};
   },[watchedStatus,user]);
-  const isOwner=same(user,current?.owner);
+  const isOwner=page==='orders'&&seller&&same(user,current?.owner);
   const mayCollect=openPickup||canFulfillRewards;
-  const isAssignedCollector=same(user,current?.collector);
+  const isAssignedCollector=!seller&&same(user,current?.collector);
   const actions:Record<string,boolean>={
-    claimLot:browseMarket&&!!account&&!isOwner&&mayCollect&&current?.status===1&&!paused,
+    claimLot:collectorMarket&&!!account&&!same(user,current?.owner)&&mayCollect&&current?.status===1&&!paused,
     cancelLot:isOwner&&current?.status===1,
     proposeLot:isAssignedCollector&&mayCollect&&current?.status===2&&!paused,
     acceptLot:isOwner&&current?.status===3&&!paused&&consent&&Date.now()<=current.updatedAt+7*86400000,
@@ -89,10 +92,11 @@ export default function Pickup({account,admin,onConnect,page='home',onSettings,o
       lng:center?.[1],
       radiusKm:radius>0?radius:undefined,
       q:query,
+      excludeOwner:seller?undefined:account,
       page:pageNum,
       limit:pageSize,
     },
-    {chainId:chain.id,contractAddress:address}
+    {chainId:chain.id,contractAddress:address,role}
   );
 
   const activeFilters=(tokenFilter!=='ALL'?1:0)+(radius>0?1:0);
@@ -169,7 +173,13 @@ export default function Pickup({account,admin,onConnect,page='home',onSettings,o
       window.removeEventListener('focus', handleFocus);
     };
   },[account,limit]);
-  useEffect(()=>{setSelected(undefined);setPageNum(1);setCategory(-1);setQuery('');setRadius(0);setSort('newest');setTokenFilter('ALL');setView('grid');setFiltersOpen(false);},[page]);
+  useEffect(()=>{setSelected(!seller&&page==='home'?collectorLot:undefined);setCreating(false);setPageNum(1);setCategory(-1);setQuery('');setRadius(0);setSort('newest');setTokenFilter('ALL');setView('grid');setFiltersOpen(false);},[page,seller,collectorLot]);
+  const handledCreateRequest=useRef(0);
+  useEffect(()=>{
+    if(createRequest===handledCreateRequest.current)return;
+    handledCreateRequest.current=createRequest;
+    if(seller&&page==='home'){setCreating(true);setSelected(undefined);}
+  },[createRequest,seller,page]);
   useEffect(()=>{setPageNum(1);setPageSize(12);},[category,query,radius,sort,tokenFilter]);
   useEffect(()=>{detailVersion.current++;setDetail(undefined);setPhoto('');setConsent(false);setActual((current?.estimated||[0,0,0,0]).map(n=>String(n/1000)));},[selected,user,current?.status]);
   useEffect(()=>()=>{if(photo)URL.revokeObjectURL(photo);},[photo]);
@@ -178,6 +188,9 @@ export default function Pickup({account,admin,onConnect,page='home',onSettings,o
     const panel=document.querySelector('.lot-detail');
     if(panel&&getComputedStyle(panel).position!=='fixed')panel.scrollIntoView({block:'nearest'});
   },[current?.id]);
+  useEffect(()=>{
+    if(creating&&address)document.querySelector('.lot-form')?.scrollIntoView({block:'start'});
+  },[creating,address]);
   // Exact escrow figures for the selected on-chain lot (deposit to lock, payout preview).
   useEffect(()=>{setDepositWei(undefined);setPayoutWei(undefined);if(!address||!current||!onChainLots.some(l=>l.id===current.id))return;let live=true;
     if(current.status===1)requiredDeposit(address,current.id).then(v=>{if(live)setDepositWei(v);}).catch(()=>{});
@@ -208,9 +221,9 @@ export default function Pickup({account,admin,onConnect,page='home',onSettings,o
   }
   function locate(){run(async()=>{if(!navigator.geolocation)throw new Error(tr('Trình duyệt chưa hỗ trợ vị trí. Chọn khu vực trên bản đồ khi đăng lô.'));const p=await new Promise<GeolocationPosition>((resolve,reject)=>navigator.geolocation.getCurrentPosition(resolve,reject,{enableHighAccuracy:false,timeout:15000}));setCenter([p.coords.latitude,p.coords.longitude]);setSort('distance_asc');setMessage(tr('Đã lấy vị trí để lọc khoảng cách. Không lưu vị trí vào hồ sơ hay blockchain; OpenStreetMap cung cấp nền bản đồ.'));});}
   async function create(weights:number[],file:File,evidence:Hash,point:[number,number],contact:string,location:string){
-    if(!account){onConnect('post');return;}
+    if(!account){onConnect();return;}
     if(!address)throw new Error(tr('Chưa kích hoạt thu gom.'));
-    if(paused)throw new Error(tr('Thu gom đang tạm dừng. Vẫn có thể hủy, yêu cầu cân lại hoặc trả việc.'));
+    if(!seller||paused)throw new Error(tr('Thao tác này không khả dụng với vai trò hoặc trạng thái hiện tại.'));
     const lat=Math.round(point[0]*100),lng=Math.round(point[1]*100);
     if(pendingPickup())throw new Error(tr('Kiểm tra giao dịch đang chờ trước khi đăng lô mới.'));
     const args=[weights.map(BigInt) as [bigint,bigint,bigint,bigint],evidence,lat,lng] as const;
@@ -224,29 +237,40 @@ export default function Pickup({account,admin,onConnect,page='home',onSettings,o
     // Photo and contact stay on the EcoLoop server (owner + assigned collector only); only the hash goes on-chain.
     await savePickupPhoto(account,address,file,evidence,contact,location);
     setHash(await householdWrite(address,account,'createLot',[...args],gasless));
+    setCreating(false);
     await refresh();
     onOpenOrders?.();
     setMessage(gasless?tr('🎉 Đã đăng lô lên Avalanche, miễn phí gas.'):tr('🎉 Đã ký và gửi giao dịch tạo lô on-chain thành công lên mạng Fuji.'));
   }
   return <section className={`pickup-workspace pickup-page-${page}`}>
     <div className="pickup-page-title">
-      <h2>{({home:tr('Tìm lô thu gom gần bạn'),post:tr('Đăng lô phế liệu'),orders:tr('Đơn của tôi'),wallet:tr('Ví xanh của bạn'),rewards:tr('Đổi điểm, nhận điều xanh'),settings:tr('Thiết lập hệ thống')})[page]}</h2>
+      <span className="eyebrow">{tr('ECOLOOP · SÀN C2C WEB3 AVALANCHE FUJI')}</span>
+      <h2>{({home:seller?tr('Bán phế liệu'):tr('Lô đang chờ thu gom'),orders:seller?tr('Lô của tôi'):tr('Việc đã nhận'),wallet:tr('Ví xanh của bạn'),rewards:tr('Đổi điểm, nhận điều xanh'),settings:tr('Thiết lập hệ thống')})[page]}</h2>
+      <p>{page==='settings'?tr('Ngôn ngữ, giao diện, đơn vị, thông báo và cấu hình hệ thống.'):tr('Lô, ký quỹ và chứng nhận ghi trên Avalanche. Ảnh và liên hệ lưu riêng, chỉ chủ lô và người nhận việc xem được.')}</p>
     </div>
     {page==='settings'&&children}
     {page==='settings'&&(admin||v2Admin||!address)&&<h3 className="set-section-title">{tr('Quản trị hệ thống')}</h3>}
-    {page==='orders'&&!account&&<div className="pickup-empty"><PackageCheck size={28}/><h3>{tr('Chưa có đơn để xem')}</h3><p>{tr('Lô bạn đăng và lô bạn nhận sẽ hiện tại đây.')}</p><div className="order-empty-actions"><button className="primary" onClick={onPost}>{tr('Đăng lô')}</button><button className="secondary" onClick={onBrowse}>{tr('Tìm lô')}</button></div></div>}
+    {seller&&page==='home'&&<div className="pickup-intro"><div><h2>{tr('Đăng lô để hẹn thu gom')}</h2><p>{tr('Thêm ảnh, khối lượng dự kiến và địa chỉ bàn giao. Xác nhận số cân sau khi người thu gom gửi đề xuất.')}</p></div>{creating?<button className="secondary" disabled={busy} onClick={()=>setCreating(false)}>{tr('Đóng biểu mẫu')}</button>:<button className="primary" onClick={onOpenOrders}>{tr('Lô của tôi')}</button>}</div>}
+    {page==='orders'&&!account&&<button className="secondary" onClick={onConnect}>{tr('Kết nối ví')}</button>}
     {loading&&!lots.length&&<p role="status">{tr('Đang tải dữ liệu từ mạng…')}</p>}
     {(!address||!openPickup)&&page==='settings'&&<div className="pickup-callout"><strong>{(legacyPickup||address)?tr('Nâng cấp contract thu gom lên V4'):tr('Chờ kích hoạt contract thu gom V4')}</strong><p>{tr('V4 cho mọi ví đăng lô và nhận thu gom. Quản trị viên triển khai rồi kích hoạt dùng chung.')}</p>{legacyPickup&&<p className="footnote">{tr('Contract cũ: {address}. Lô và ECO trên contract cũ không tự chuyển sang V4.',{address:legacyPickup})}</p>}{!account&&<button className="primary" onClick={()=>onConnect()}>{tr('Kết nối ví quản trị')}</button>}{account&&!admin&&<p>{tr('Ví này chưa có quyền quản trị trên hệ thống hiện tại. Hãy dùng ví đã triển khai EcoLoop.')}</p>}{admin&&account&&<><label className="checkbox"><input type="checkbox" checked={deployConsent} onChange={e=>setDeployConsent(e.target.checked)}/>{tr('Tạo bộ contract V4 mới bằng AVAX testnet. ECO V4 được quản lý riêng với ECO cũ.')}</label><button className="primary" disabled={busy||!deployConsent||!!pendingPickup()} onClick={()=>run(async()=>{const a=await deployPickup(account);setImportAddress(a);setMessage(tr('Đã triển khai. Nhấn kích hoạt dùng chung bên dưới để hoàn tất.'));})}>{tr('Triển khai bằng ví quản trị')}</button><label>{tr('Địa chỉ V4 đã triển khai')}<input value={importAddress} onChange={e=>setImportAddress(e.target.value)} placeholder="0x…"/></label><button className="secondary" disabled={busy||!isAddress(importAddress)} onClick={()=>run(async()=>{await activatePickup(account,importAddress as Address);await refresh();setMessage(tr('Đã kích hoạt contract chung cho Chrome và Edge.'));})}>{tr('Kích hoạt dùng chung')}</button></>}</div>}
     {pendingPickup()&&<div className="pickup-callout"><strong>{tr('Giao dịch đang chờ xác nhận')}</strong><code>{pendingPickup()}</code><button className="secondary" disabled={busy} onClick={()=>run(async()=>{const r=await resumePickup();if(r?.contractAddress){setImportAddress(r.contractAddress);localStorage.setItem(`ecoloop-pickup-deployed-${chain.id}`,r.contractAddress);}await refresh();setMessage(tr('Đã kiểm tra giao dịch.'));})}>{tr('Kiểm tra giao dịch')}</button></div>}
     {message&&!(failure&&current)&&<div className={failure?'pickup-feedback error':'pickup-feedback'} role={failure?'alert':'status'}>{tr(message)}</div>}
     {hash&&<a className="text-link" href={txUrl(hash)} target="_blank" rel="noreferrer">{tr('Xem giao dịch trên Fuji ↗')}</a>}
     {paused&&<p role="alert">{tr('Thu gom đang tạm dừng. Vẫn có thể hủy, yêu cầu cân lại hoặc trả việc.')}</p>}
-    {marketError&&(page==='home'||page==='post'||page==='orders')&&<div className="pickup-callout" role="status"><p>{tr('Chưa tải được dữ liệu lô mới nhất. Vui lòng thử lại.')}</p><button type="button" className="secondary" onClick={()=>void refresh()}>{tr('Thử lại')}</button></div>}
+    {address&&page!=='settings'&&<div className="data-mode-bar"><span className="live-chip"><ShieldCheck size={15}/>{tr('Dữ liệu thật trên Avalanche')}</span>{gasless&&<span className="gasless-chip"><Fuel size={14}/>{tr('Miễn phí gas cho hộ gia đình')}</span>}</div>}
+    {marketError&&(page==='home'||page==='orders')&&<div className="pickup-callout" role="status"><p>{tr('Chưa tải được dữ liệu lô mới nhất. Vui lòng thử lại.')}</p><button type="button" className="secondary" onClick={()=>void refresh()}>{tr('Thử lại')}</button></div>}
     {!address&&page!=='settings'&&!loading&&!marketError&&<div className="pickup-callout"><strong>{legacyPickup?tr('Contract thu gom cần nâng cấp lên V4'):tr('Chưa có contract thu gom V4')}</strong><p>{legacyPickup?tr('Quản trị viên cần kích hoạt V4 để mọi ví đều có thể nhận thu gom.'):tr('Quản trị viên vào Thiết lập để triển khai và kích hoạt contract. Sau đó các lô thật sẽ hiện ở đây.')}</p>{onSettings&&<button type="button" className="secondary" onClick={onSettings}>{tr('Mở Thiết lập')}</button>}</div>}
     {page==='wallet'&&walletSlot}
     {address&&<>
-      {page==='post'&&<LotForm busy={busy||paused} signedIn={!!account} onConnect={()=>onConnect('post')} onCreate={(...args)=>run(()=>create(...args))}/>}
+      {browseMarket&&<div className="pickup-summary">
+        <span><strong>{marketLots.length}</strong> {tr('đang mở bán')}</span>
+        <span><strong>{fmt(effectiveBalance)}</strong> {tr('ECO khả dụng')}</span>
+        <a className="text-link" href={addressUrl(address)} target="_blank" rel="noreferrer"><Database size={14}/>{tr('Contract trên Snowtrace')}<ExternalLink size={12}/></a>
+      </div>}
+      {seller&&creating&&page==='home'&&<LotForm busy={busy||paused} center={center} onCreate={(...args)=>run(()=>create(...args))}/>}
       {browseMarket&&<>
+        {seller&&<h3>{tr('Lô đang chờ thu gom')}</h3>}
         <div className={filtersOpen?'pickup-toolbar filters-open':'pickup-toolbar'}>
           <label className="pickup-search">{tr('Tìm sản phẩm / cửa hàng / khu vực')}<input type="search" value={query} onChange={e=>setQuery(e.target.value)} placeholder={tr("VD: đồng, nhôm, PET, carton, Quận 7, Thủ Đức, Hà Nội…")}/></label>
           <button type="button" className="pickup-filter-toggle" aria-expanded={filtersOpen} onClick={()=>setFiltersOpen(o=>!o)}><SlidersHorizontal size={16}/>{tr('Bộ lọc')}{activeFilters>0&&<b>{activeFilters}</b>}</button>
@@ -266,6 +290,8 @@ export default function Pickup({account,admin,onConnect,page='home',onSettings,o
             <span className="shopee-sort-label"><SlidersHorizontal size={14}/> {tr('Sắp xếp theo')}</span>
             {([
               ['newest',tr('Mới nhất')],
+              ['popular',tr('Phổ biến')],
+              ['top_sales',tr('Bán chạy')],
               ['distance_asc',tr('Gần bạn')],
             ] as const).map(([id,label])=>(
               <button
@@ -345,7 +371,7 @@ export default function Pickup({account,admin,onConnect,page='home',onSettings,o
                 </span>
                 <small className="shopee-shop-row">{card.seller.displayName} · {short(card.onChain.sellerWallet)}</small>
                 <span className={`lot-card-action action-${st.toLowerCase()}`}>
-                  {same(card.onChain.sellerWallet,account)?tr('Lô của bạn'):tr('Xem lô')} ↗
+                  {seller?tr('Xem thông tin lô'):tr(card.uiState.ctaTextVi)} ↗
                 </span>
               </button>;
             })}
@@ -367,8 +393,7 @@ export default function Pickup({account,admin,onConnect,page='home',onSettings,o
             <h3>{selectedCard.title}</h3>
             <img className="pickup-evidence" src={photo||selectedCard.thumbnail.previewUrl} alt={selectedCard.title}/>
             <p>{selectedCard.shortDescription}</p>
-            <details className="web3-metadata-box">
-              <summary>{tr('Chi tiết giao dịch')}</summary>
+            <div className="web3-metadata-box">
               <div><span>{tr('Trạng thái Ký quỹ:')}</span> <strong>{tr(selectedCard.uiState.statusLabelVi)} — {tr(selectedCard.uiState.subStatusLabelVi)}</strong></div>
               <div><span>{tr('Cửa hàng / Chủ lô:')}</span> <strong>{selectedCard.seller.displayName}</strong> (<code>{short(current.owner)}</code>) · {tr('({n} lô hoàn tất)',{n:selectedCard.seller.completedSalesCount})}</div>
               <div><span>{tr('Ví thu gom (Escrow):')}</span> <code>{current.collector===ZERO?tr('Chưa khóa ký quỹ'):short(current.collector)}</code></div>
@@ -376,8 +401,8 @@ export default function Pickup({account,admin,onConnect,page='home',onSettings,o
               <div><span>Contract {openPickup?4:3} (Chain {chain.id}):</span> <code>{address?short(address):'—'}</code></div>
               <div><span>{tr('SHA-256 ảnh lô:')}</span> <code>{short(current.evidence)}</code></div>
               {selectedCard.onChain.escrowLockExpiresAt&&<div><span>{tr('Hạn bảo vệ ký quỹ:')}</span> {dateTime(selectedCard.onChain.escrowLockExpiresAt)}</div>}
-            </details>
-            <table><thead><tr><th>{tr('Vật liệu')}</th><th>{tr('Dự kiến')}</th>{[3,4].includes(current.status)&&<th>{tr('Thực tế')}</th>}</tr></thead><tbody>{materials.map((m,i)=>current.estimated[i]||current.actual[i]?<tr key={m.name}><td>{m.symbol} {tr(m.name)}</td><td>{wt(current.estimated[i]/1000)}</td>{[3,4].includes(current.status)&&<td>{wt(current.actual[i]/1000)}</td>}</tr>:null)}</tbody></table>
+            </div>
+            <table><thead><tr><th>{tr('Vật liệu')}</th><th>{tr('Dự kiến')}</th><th>{tr('Thực tế')}</th></tr></thead><tbody>{materials.map((m,i)=><tr key={m.name}><td>{m.symbol} {tr(m.name)}</td><td>{wt(current.estimated[i]/1000)}</td><td>{[3,4].includes(current.status)?wt(current.actual[i]/1000):'—'}</td></tr>)}</tbody></table>
             <p className="lot-points">
               <strong>+{selectedCard.pricing.amountFormatted} ECO</strong>
               {avaxValue(current.estimated)!==undefined&&<span> · {tr('giá trị ước tính ≈ {avax} AVAX',{avax:fmt(avaxValue([3,4].includes(current.status)&&current.actual.some(w=>w>0)?current.actual:current.estimated)!,6)})}</span>}
@@ -391,14 +416,16 @@ export default function Pickup({account,admin,onConnect,page='home',onSettings,o
               {current.status===5&&<p>{tr('Lô đã hủy, không có tiền ký quỹ.')}</p>}
             </div>}
             {(isOwner||isAssignedCollector)&&<button className="secondary" disabled={busy} onClick={()=>run(async()=>{if(!account||!address){onConnect();return;}const v=detailVersion.current;const d=await pickupDetails(account,address,current);const p=await viewEvidence(account,current.evidence,address,current.id);if(v!==detailVersion.current){URL.revokeObjectURL(p);return;}setDetail(d);setPhoto(p);})}>{tr('Xem liên hệ & địa chỉ bàn giao')}</button>}
-            {detail&&<div className="pickup-callout"><strong>{detail.contact}</strong><p className="pickup-address">{detail.address}</p>{isAssignedCollector&&<a className="text-link" href={`https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(detail.address.split('\n')[0])}`} target="_blank" rel="noreferrer">{tr('Chỉ đường')}</a>}</div>}
-            {browseMarket&&isOwner&&<p role="status">{tr('Lô của bạn')}</p>}
-            {browseMarket&&account&&!isOwner&&!openPickup&&!mayCollect&&<div className="pickup-callout" role="status">
+            {detail&&<div className="pickup-callout"><strong>{detail.contact}</strong><p style={{whiteSpace:'pre-line'}}>{detail.address}</p></div>}
+            {seller&&browseMarket&&(same(current.owner,account)
+              ?<p role="status">{tr('Bạn đang xem lô của mình. Hãy dùng ví khác để nhận thu gom.')}</p>
+              :<button type="button" className="secondary" onClick={()=>onBrowseAsCollector(current.id)}>{tr('Chuyển sang Người Thu Gom')}</button>)}
+            {collectorMarket&&account&&!openPickup&&!mayCollect&&<div className="pickup-callout" role="status">
               <p>{tr('V3 vẫn yêu cầu quyền thu gom. V4 sẽ mở cho mọi ví sau khi được kích hoạt.')}</p>
               {onSettings&&<button type="button" className="secondary" onClick={onSettings}>{tr('Mở Thiết lập')}</button>}
             </div>}
             {failure&&message&&<p className="form-error" role="alert">{tr(message)}</p>}
-            {browseMarket&&(!account||actions.claimLot)&&<button className="primary full-width" disabled={busy||paused||(!!account&&depositWei===undefined)} onClick={()=>account?run(()=>change('claimLot',[BigInt(current.id)])):onConnect('claim')}>{account&&depositWei!==undefined?tr('Nhận thu gom · Cọc {avax} AVAX',{avax:avax(depositWei)}):tr('Nhận thu gom')} <ArrowRight size={16}/></button>}
+            {collectorMarket&&(!account||actions.claimLot)&&<button className="primary full-width" disabled={busy||paused} onClick={()=>account?run(()=>change('claimLot',[BigInt(current.id)])):onConnect()}>{!account?tr('Kết nối ví'):depositWei!==undefined?tr('Nhận việc & khóa {avax} AVAX ký quỹ',{avax:avax(depositWei)}):tr('Ký hợp đồng nhận thu gom & Khóa ký quỹ (Escrow)')} <ArrowRight size={16}/></button>}
             {current.status===1&&isOwner&&<button className="secondary" disabled={busy} onClick={()=>run(()=>change('cancelLot',[BigInt(current.id)]))}>{tr('Hủy listing')}{freeGas}</button>}
             {isAssignedCollector&&mayCollect&&current.status===2&&<form onSubmit={e=>{e.preventDefault();run(async()=>{const weights=actual.map(s=>Math.round(Number(s)*1000));if(weights.some(n=>!Number.isSafeInteger(n)||n<0)||total(weights)<=0||total(weights)>1000)throw new Error(tr('Tổng khối lượng thực tế từ 0,001 đến 1.000 kg.'));await change('proposeLot',[BigInt(current.id),weights.map(BigInt)]);});}}><h4>{tr('Kết quả cân thực tế tại điểm bàn giao')}</h4><WeightInputs values={actual} onChange={setActual}/><p>{tr('Nhập số cân thực tế trên bàn cân điện tử để ký số và gửi đề xuất on-chain cho chủ lô xác nhận.')}</p><button className="primary" disabled={busy||paused}>{tr('Gửi số cân')}</button></form>}
             {isOwner&&current.status===3&&<><p>{tr('Kiểm tra bảng khối lượng thực tế trước khi xác nhận giải ngân. Đề xuất có hiệu lực 7 ngày.')}</p><label className="checkbox"><input type="checkbox" checked={consent} onChange={e=>setConsent(e.target.checked)}/>{tr('Tôi đã bàn giao vật liệu và đồng ý khối lượng thực tế trên.')}</label><button className="primary full-width" disabled={busy||paused||!consent||Date.now()>current.updatedAt+7*86400000} onClick={()=>run(()=>change('acceptLot',[BigInt(current.id)]))}><CheckCircle2 size={16}/>{isCurrentOnChain&&payoutWei!==undefined?tr('Xác nhận & nhận {avax} AVAX',{avax:avax(payoutWei)}):tr('Đồng ý số cân')}{freeGas}</button><button className="secondary" disabled={busy} onClick={()=>run(()=>change('disputeLot',[BigInt(current.id)]))}>{tr('Chưa đồng ý · yêu cầu cân lại')}{freeGas}</button></>}
@@ -410,7 +437,7 @@ export default function Pickup({account,admin,onConnect,page='home',onSettings,o
       {page==='orders'&&account&&<PickupHistorySection
         allCards={allCards}
         lots={lots}
-        account={account}
+        seller={seller}
         selected={selected}
         onSelectLot={setSelected}
       />}
@@ -428,13 +455,13 @@ export default function Pickup({account,admin,onConnect,page='home',onSettings,o
 function PickupHistorySection({
   allCards,
   lots,
-  account,
+  seller,
   selected,
   onSelectLot,
 }:{
   allCards:ShopeeWeb3ProductCard[];
   lots:Lot[];
-  account:Address;
+  seller:boolean;
   selected?:number;
   onSelectLot:(id:number)=>void;
 }){
@@ -450,11 +477,12 @@ function PickupHistorySection({
       <div className="pickup-history-header">
         <div>
           <span className="eyebrow"><History size={14}/> {tr('SỔ CÁI THEO DÕI ĐƠN HÀNG & KÝ QUỸ')}</span>
+          <h3>{seller?tr('Lô của tôi'):tr('Việc đã nhận')}</h3>
         </div>
       </div>
       <div className="history-kpis">
         <div className="history-kpi-card">
-          <span>{tr('Tổng số đơn')}</span>
+          <span>{seller?tr('Tổng lô đã đăng'):tr('Tổng chuyến thu gom')}</span>
           <strong>{tr('{n} lô',{n:activeList.length})}</strong>
         </div>
         <div className="history-kpi-card">
@@ -479,7 +507,7 @@ function PickupHistorySection({
         <div className="pickup-empty">
           <PackageCheck size={28}/>
           <h4>{tr('Chưa có bản ghi nào trong mục này')}</h4>
-          <p>{tr('Lô bạn đăng và lô bạn nhận sẽ hiện tại đây.')}</p>
+          <p>{seller?tr('Các lô bạn đăng bằng ví này sẽ hiện ở đây.'):tr('Các lô bạn nhận bằng ví này sẽ hiện ở đây.')}</p>
         </div>
       ):(
         <div className="history-table-wrap">
@@ -488,7 +516,7 @@ function PickupHistorySection({
               <tr>
                 <th>{tr('Mã lô & Phế liệu')}</th>
                 <th>{tr('Vật liệu & Cân nặng')}</th>
-                <th>{tr('Chủ lô & Người thu gom')}</th>
+                <th>{seller?tr('Người thu gom (Escrow)'):tr('Chủ lô & Người thu gom')}</th>
                 <th>{tr('Điểm thưởng & Giá trị')}</th>
                 <th>{tr('Trạng thái & Thời gian')}</th>
                 <th>{tr('Thao tác')}</th>
@@ -511,7 +539,6 @@ function PickupHistorySection({
                             <span className="history-id-pill">#{card.lotId}</span>
                             {isNewUserLot&&<span className="history-new-pill">{tr('MỚI ĐĂNG')}</span>}
                             <span className="history-cat-pill">{tr(card.category.name)}</span>
-                            <span className="history-cat-pill">{same(lot?.owner,account)?tr('Đã đăng'):tr('Đã nhận')}</span>
                           </div>
                           <strong className="history-lot-title">{card.title}</strong>
                           <small className="history-lot-loc"><MapPin size={11}/> {card.seller.location.district}, {card.seller.location.province}</small>
@@ -575,112 +602,39 @@ function PickupHistorySection({
   );
 }
 function WeightInputs({values,onChange}:{values:string[];onChange:(v:string[])=>void}){return <div className="pickup-weights">{materials.map((m,i)=><label key={m.name}>{tr(m.name)} (kg)<input type="number" min="0" max="1000" step="0.001" required value={values[i]} onChange={e=>onChange(values.map((v,j)=>j===i?e.target.value:v))}/></label>)}</div>;}
-function LotForm({busy,signedIn,onConnect,onCreate}:{
-  busy:boolean;
-  signedIn:boolean;
-  onConnect:()=>void;
-  onCreate:(weights:number[],file:File,evidence:Hash,point:[number,number],contact:string,address:string)=>void;
-}){
-  const [material,setMaterial]=useState(0);
-  const [weights,setWeights]=useState(['','','','']);
-  const [moreMaterials,setMoreMaterials]=useState(false);
+function LotForm({busy,center,onCreate}:{busy:boolean;center?:[number,number];onCreate:(weights:number[],file:File,evidence:Hash,point:[number,number],contact:string,address:string)=>void}){
+  const [weights,setWeights]=useState(['0','0','0','0']);
   const [file,setFile]=useState<File>();
-  const [point,setPoint]=useState<[number,number]>();
-  const [manualPoint,setManualPoint]=useState(false);
-  const [coordinates,setCoordinates]=useState(['','']);
+  const [point,setPoint]=useState<[number,number]>(()=>center||[10.78,106.70]);
   const [error,setError]=useState('');
-  const [locationError,setLocationError]=useState('');
-  const [locating,setLocating]=useState(false);
   const [hashing,setHashing]=useState(false);
-
-  function usePhoneLocation(){
-    if(!navigator.geolocation){
-      setLocationError(tr('Không lấy được vị trí. Bạn có thể chọn trên bản đồ.'));
-      return;
-    }
-    setLocationError('');
-    setLocating(true);
-    navigator.geolocation.getCurrentPosition(({coords})=>{
-      setPoint([coords.latitude,coords.longitude]);
-      setLocating(false);
-    },()=>{
-      setLocationError(tr('Không lấy được vị trí. Bạn có thể chọn trên bản đồ.'));
-      setLocating(false);
-    },{timeout:10000,maximumAge:60000});
-  }
-
   async function submit(e:FormEvent<HTMLFormElement>){
     e.preventDefault();
     setError('');
-    const form=new FormData(e.currentTarget);
-    const grams=weights.map((v,i)=>i===material||moreMaterials?Math.round(Number(v)*1000):0);
+    const f=new FormData(e.currentTarget);
+    const grams=weights.map(v=>Math.round(Number(v)*1000));
     if(grams.some(n=>!Number.isSafeInteger(n)||n<0)||total(grams)<=0||total(grams)>1000){
       setError(tr('Nhập ít nhất một vật liệu (từ 0,001 đến 1.000 kg).'));
       return;
     }
-    if(!point){
-      setLocationError(tr('Chọn vị trí lấy hàng để người thu gom tìm thấy lô.'));
+    const [lat,lng]=point;
+    if(!Number.isFinite(lat)||Math.abs(lat)>90||!Number.isFinite(lng)||Math.abs(lng)>180){
+      setError(tr('Tọa độ bàn giao không hợp lệ. Chọn lại vị trí trên bản đồ hoặc nhập vĩ độ từ -90 đến 90 và kinh độ từ -180 đến 180.'));
       return;
     }
-    if(!file){setError(tr('Chụp hoặc chọn ảnh thật của lô phế liệu.'));return;}
-    const contact=String(form.get('contact')||'').trim();
-    const address=String(form.get('address')||'').trim();
-    const time=String(form.get('time')||'').trim();
-    if(contact.length<3||address.length<5||!time){
-      setError(tr('Kiểm tra địa chỉ, giờ lấy và số điện thoại.'));
-      return;
-    }
-    if(!signedIn){onConnect();return;}
     setHashing(true);
     try{
+      // A real photo of the lot is required: its SHA-256 is the on-chain evidence.
+      if(!file){setError(tr('Chụp hoặc chọn ảnh thật của lô phế liệu.'));return;}
       const hash=await digest(await file.arrayBuffer());
-      onCreate(grams,file,hash,point,contact,[address,time].join('\n'));
+      onCreate(grams,file,hash,point,String(f.get('contact')||'').trim(),String(f.get('address')||'').trim());
     }catch{
       setError(tr('Lỗi xử lý ảnh. Hãy chọn lại.'));
     }finally{
       setHashing(false);
     }
   }
-
-  return <form className="lot-form lot-form-simple" onSubmit={submit}>
-    <label>{tr('Ảnh cả lô')}<input type="file" required accept="image/jpeg,image/png,image/webp" capture="environment" onChange={e=>setFile(e.target.files?.[0])}/></label>
-    <div className="lot-form-split">
-      <label>{tr('Vật liệu chính')}<select value={material} onChange={e=>setMaterial(Number(e.target.value))}>{materials.map((m,i)=><option key={m.name} value={i}>{tr(m.name)}</option>)}</select></label>
-      <label>{tr('Cân nặng ước tính (kg)')}<input type="number" inputMode="decimal" min="0.001" max="1000" step="0.001" required value={weights[material]} onChange={e=>setWeights(weights.map((v,i)=>i===material?e.target.value:v))}/></label>
-    </div>
-    {moreMaterials?<div className="lot-form-split">{materials.map((m,i)=>i!==material&&<label key={m.name}>{tr(m.name)} (kg)<input type="number" inputMode="decimal" min="0" max="1000" step="0.001" value={weights[i]} onChange={e=>setWeights(weights.map((v,j)=>j===i?e.target.value:v))}/></label>)}</div>:<button type="button" className="text-link" onClick={()=>setMoreMaterials(true)}><Plus size={16}/>{tr('Thêm loại vật liệu')}</button>}
-    <label>{tr('Địa chỉ lấy hàng')}<input name="address" autoComplete="street-address" minLength={5} maxLength={320} required placeholder={tr('Số nhà, đường, phường/xã')}/></label>
-    <div className="lot-form-split">
-      <label>{tr('Giờ có thể đến lấy')}<input name="time" required maxLength={79} placeholder={tr('Ví dụ 17–19 giờ hôm nay')}/></label>
-      <label>{tr('Số điện thoại')}<input name="contact" type="tel" autoComplete="tel" minLength={3} maxLength={120} required/></label>
-    </div>
-    <div className="lot-form-location">
-      <button type="button" className="secondary" disabled={busy||locating} onClick={usePhoneLocation}><Navigation size={16}/>{locating?tr('Đang lấy vị trí…'):point?tr('Cập nhật vị trí'):tr('Dùng vị trí của tôi')}</button>
-      <p className="footnote">{point?tr('Đã chọn vị trí lấy hàng.'):tr('Dùng vị trí điện thoại nếu bạn đang ở nơi lấy hàng.')}</p>
-      <details onToggle={e=>setManualPoint(e.currentTarget.open)}>
-        <summary>{tr('Chọn vị trí khác')}</summary>
-        {manualPoint&&<>
-          <Suspense fallback={<p>{tr('Đang tải bản đồ…')}</p>}><PickupMap lots={[]} center={point} onPin={next=>{setPoint(next);setLocationError('');}}/></Suspense>
-          <div className="lot-form-split">
-            <label>{tr('Vĩ độ')}<input type="text" inputMode="decimal" value={coordinates[0]} onChange={e=>setCoordinates([e.target.value,coordinates[1]])}/></label>
-            <label>{tr('Kinh độ')}<input type="text" inputMode="decimal" value={coordinates[1]} onChange={e=>setCoordinates([coordinates[0],e.target.value])}/></label>
-          </div>
-          <button type="button" className="secondary" onClick={()=>{
-            const [lat,lng]=coordinates.map(v=>Number(v.trim().replace(',','.')));
-            if(coordinates.some(v=>!v.trim())||!Number.isFinite(lat)||Math.abs(lat)>90||!Number.isFinite(lng)||Math.abs(lng)>180){
-              setLocationError(tr('Tọa độ bàn giao không hợp lệ. Chọn lại vị trí trên bản đồ hoặc nhập vĩ độ từ -90 đến 90 và kinh độ từ -180 đến 180.'));
-              return;
-            }
-            setPoint([lat,lng]);setLocationError('');
-          }}>{tr('Dùng tọa độ này')}</button>
-        </>}
-      </details>
-      {locationError&&<p className="form-error" role="alert">{locationError}</p>}
-    </div>
-    <p className="footnote">{tr('Địa chỉ và liên hệ chỉ chia sẻ với chủ lô và người đã nhận việc.')} {tr('Chỉ vị trí gần đúng được công khai.')}</p>
-    {error&&<p className="form-error" role="alert">{error}</p>}
-    <button className="primary full-width" disabled={busy||hashing||locating}>{hashing?tr('Đang đọc ảnh…'):tr('Đăng lô')}<ArrowRight size={17}/></button>
-  </form>;
+  return <form className="lot-form" onSubmit={submit}><h3>{tr('Một lô, nhiều loại vật liệu')}</h3><p>{tr('Ước lượng khối lượng từng loại. Ảnh minh họa cả lô; ECO cuối cùng tính theo kết quả cân thực tế.')}</p><WeightInputs values={weights} onChange={setWeights}/><label>{tr('Ảnh thật của cả lô (bắt buộc)')}<input type="file" required accept="image/jpeg,image/png,image/webp" capture="environment" onChange={e=>setFile(e.target.files?.[0])}/></label><div className="pickup-weights"><label>{tr('Số điện thoại / cách liên hệ')}<input name="contact" minLength={3} maxLength={120} required placeholder={tr("Người nhận việc sẽ dùng thông tin này")}/></label><label>{tr('Địa chỉ & thời gian bàn giao')}<input name="address" minLength={5} maxLength={400} required placeholder={tr("Số nhà, đường, khung giờ thuận tiện")}/></label></div><p>{tr('Địa chỉ và liên hệ chỉ chia sẻ với chủ lô và người đã nhận việc.')} {tr('Ảnh được lưu riêng trên server local; không đưa ảnh hoặc số điện thoại lên blockchain.')}</p><h4>{tr('Vị trí bàn giao trên bản đồ (mặc định: {lat}, {lng})',{lat:point[0].toFixed(2),lng:point[1].toFixed(2)})}</h4><Suspense fallback={<p>{tr('Đang tải bản đồ…')}</p>}><PickupMap lots={[]} center={point} onPin={setPoint}/></Suspense><div className="pickup-weights"><label>{tr('Vĩ độ')}<input type="number" step="any" min="-90" max="90" value={point?.[0]??''} onChange={e=>setPoint([Number(e.target.value),point?.[1]??106.69])}/></label><label>{tr('Kinh độ')}<input type="number" step="any" min="-180" max="180" value={point?.[1]??''} onChange={e=>setPoint([point?.[0]??10.78,Number(e.target.value)])}/></label></div><p className="footnote">{tr('Chỉ tọa độ làm tròn khoảng 1 km được ghi công khai, vĩnh viễn trên blockchain. Có thể nhập tọa độ nếu bản đồ không tải được.')}</p><div className="estimate"><span>{tr('Tổng dự kiến: {kg}',{kg:wt(total(weights.map(v=>Number(v)*1000)))})}</span><strong>+{fmt(points(weights.map(v=>Number(v)*1000)))} ECO</strong></div>{error&&<p className="form-error" role="alert">{error}</p>}<button className="primary full-width" disabled={busy||hashing}>{hashing?tr('Đang đọc ảnh & tạo mã băm…'):tr('Ký hợp đồng & Đăng lô tìm người thu gom')}<ArrowRight size={17}/></button></form>;
 }
 function PickupRewards({gasless,admin,address,account,collector,busy,balance,run,onChange,onDone}:{gasless:boolean;admin:boolean;address?:Address;account?:Address;collector:boolean;busy:boolean;balance:number;run:(f:()=>Promise<void>)=>Promise<void>;onChange:()=>Promise<void>;onDone:(message:string)=>void}){
   const [rewards,setRewards]=useState<RewardItem[]>([]);

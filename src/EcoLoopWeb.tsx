@@ -1,8 +1,8 @@
 import {lazy,Suspense,useEffect,useRef,useState} from 'react';
-import {ChevronDown,Gift,LogOut,PackageCheck,Plus,Recycle,RefreshCw,Settings,ShieldCheck,Truck,Wallet,X} from 'lucide-react';
+import {Recycle,Home,PackageCheck,Gift,Wallet,Plus,Leaf,ArrowUpRight,ChevronDown,X,LogOut,Settings,ShieldCheck,RefreshCw,Truck} from 'lucide-react';
 import {zeroHash} from 'viem';
 import {useWalletSession} from './useWalletSession';
-import {getContractAddress,initializeConfiguration,publicClient} from './chain';
+import {getContractAddress,initializeConfiguration,publicClient,walletBalance} from './chain';
 import {abi} from './generated/abi';
 import {short} from './model';
 import Pickup from './Pickup';
@@ -15,113 +15,39 @@ import './onchain.css';
 import './theme-dark.css';
 import './settings.css';
 
-type Page='home'|'post'|'orders'|'wallet'|'rewards'|'settings';
-type AccountDialog='account'|'post'|'claim';
+type Page='home'|'orders'|'wallet'|'rewards'|'settings';
 const PickupMap=lazy(()=>import('./PickupMap'));
-
+const navLinks=(seller:boolean)=>[{id:'home',label:seller?tr('Trang bán'):tr('Tìm lô thu gom'),icon:seller?Home:Truck},{id:'orders',label:seller?tr('Lô của tôi'):tr('Việc đã nhận'),icon:PackageCheck},{id:'rewards',label:tr('Đổi quà'),icon:Gift},{id:'wallet',label:tr('Ví xanh'),icon:Wallet},{id:'settings',label:tr('Thiết lập'),icon:Settings}] as const;
 export default function EcoLoopWeb(){
-  const prefs=useSettings();
-  const session=useWalletSession();
-  const [page,setPage]=useState<Page>('home');
-  const [profile,setProfile]=useState<AccountDialog>();
-  const [admin,setAdmin]=useState(false);
-  const [configError,setConfigError]=useState('');
-  const [configVersion,setConfigVersion]=useState(0);
-  const dialog=useRef<HTMLDialogElement>(null);
-  const content=useRef<HTMLDivElement>(null);
-  const links=[
-    {id:'home',label:tr('Tìm lô'),icon:Truck},
-    {id:'orders',label:tr('Đơn của tôi'),icon:PackageCheck},
-    {id:'wallet',label:tr('Ví xanh'),icon:Wallet},
-    {id:'rewards',label:tr('Đổi quà'),icon:Gift},
-    {id:'settings',label:tr('Thiết lập'),icon:Settings},
-  ] as const;
+ const prefs=useSettings();
+ const session=useWalletSession();const [page,setPage]=useState<Page>('home');const [role,setRole]=useState<'seller'|'collector'>('seller');const [profile,setProfile]=useState(false);const [createRequest,setCreateRequest]=useState(0);const [admin,setAdmin]=useState(false);const [configError,setConfigError]=useState('');const [balance,setBalance]=useState<number>();const [balanceError,setBalanceError]=useState('');const [configVersion,setConfigVersion]=useState(0);
+ const [collectorLot,setCollectorLot]=useState<number>();
+ const seller=role==='seller';const links=navLinks(seller);
+ const dialog=useRef<HTMLDialogElement>(null);const content=useRef<HTMLDivElement>(null);const prevAccount=useRef(session.account);
+ useEffect(()=>{if(!prevAccount.current&&session.account)setProfile(false);prevAccount.current=session.account;},[session.account]);
+ useEffect(()=>{let active=true;setAdmin(false);setConfigError('');void(async()=>{try{await initializeConfiguration();const contract=getContractAddress();if(!contract||!session.account)return;const isAdmin=await publicClient.readContract({address:contract,abi,functionName:'hasRole',args:[zeroHash,session.account]});if(active)setAdmin(!!isAdmin);}catch(e){if(active)setConfigError(e instanceof Error?e.message:tr('Chưa đọc được cấu hình hệ thống.'));}})();return()=>{active=false;};},[session.account,configVersion]);
+ useEffect(()=>{let active=true;setBalance(undefined);setBalanceError('');if(session.account)walletBalance(session.account).then(b=>{if(active)setBalance(b);}).catch(()=>{if(active)setBalanceError(tr('Chưa đọc được số dư AVAX.'));});return()=>{active=false;};},[session.account,session.network,profile]);
+ useEffect(()=>{if(profile)dialog.current?.showModal();else dialog.current?.close();},[profile]);
+ function navigate(next:Page){setPage(next);content.current?.scrollTo({top:0,behavior:prefs.reduceMotion?'auto':'smooth'});}
+ function post(){if(!seller)return;navigate('home');setCreateRequest(n=>n+1);}
+ function switchRole(next:typeof role,lotId?:number){if(next===role)return;setCollectorLot(lotId);setRole(next);navigate('home');}
 
-  useEffect(()=>{
-    let active=true;
-    setAdmin(false);
-    setConfigError('');
-    void (async()=>{
-      try{
-        await initializeConfiguration();
-        const contract=getContractAddress();
-        if(!contract||!session.account)return;
-        const isAdmin=await publicClient.readContract({address:contract,abi,functionName:'hasRole',args:[zeroHash,session.account]});
-        if(active)setAdmin(!!isAdmin);
-      }catch(e){
-        if(active)setConfigError(e instanceof Error?e.message:tr('Chưa đọc được cấu hình hệ thống.'));
-      }
-    })();
-    return()=>{active=false;};
-  },[session.account,configVersion]);
-  useEffect(()=>{
-    if(profile)dialog.current?.showModal();
-    else dialog.current?.close();
-  },[profile]);
-  useEffect(()=>{
-    if(session.account)setProfile(undefined);
-  },[session.account]);
-
-  function navigate(next:Page){
-    if(next===page)return;
-    setPage(next);
-    content.current?.scrollTo({top:0,behavior:prefs.reduceMotion?'auto':'smooth'});
-  }
-  function post(){navigate('post');}
-  function openAccount(){setProfile('account');}
-
-  return <div className="ecoloop-web">
-    <aside className="web-sidebar">
-      <button className="web-brand" onClick={()=>navigate('home')}><Recycle/>ecoloop<span>.</span></button>
-      <button className="web-post" onClick={post}><Plus size={18}/>{tr('Đăng lô phế liệu')}</button>
-      <nav aria-label={tr('Điều hướng desktop')}>{links.map(n=><button key={n.id} aria-current={page===n.id?'page':undefined} onClick={()=>navigate(n.id)}><n.icon size={19}/>{n.label}</button>)}</nav>
-    </aside>
-    <div className="web-main">
-      <header className="web-header">
-        <button className="web-brand" onClick={()=>navigate('home')}><Recycle/>ecoloop<span>.</span></button>
-        <div className="web-header-actions">
-          <button className="web-account" onClick={()=>session.account?openAccount():navigate('wallet')}><Wallet size={17}/>{session.account?tr('Tài khoản'):tr('Ví xanh')}<ChevronDown size={14}/></button>
-          <button className="web-header-settings" aria-label={tr('Thiết lập')} aria-current={page==='settings'?'page':undefined} onClick={()=>navigate('settings')}><Settings size={19}/></button>
-        </div>
-      </header>
-      {session.account&&session.network!==session.chain.id&&<div className="web-network warn"><ShieldCheck size={13}/>{tr('Ví đang ở sai mạng')}<button disabled={session.busy} onClick={()=>void session.switchChain()}>{tr('Chuyển về Fuji')}</button></div>}
-      <div className="web-content" ref={content}>
-        {configError&&<div className="web-warning" role="alert">{tr(configError)}<button onClick={()=>setConfigVersion(v=>v+1)}><RefreshCw size={14}/>{tr('Thử lại')}</button></div>}
-        <Pickup account={session.account} admin={admin} page={page}
-          onConnect={reason=>setProfile(reason||'account')} onOpenOrders={()=>navigate('orders')}
-          onSettings={()=>navigate('settings')} onBrowse={()=>navigate('home')} onPost={post}
-          walletSlot={<WalletCard account={session.account} holder={session.email||session.name} onConnect={openAccount}/>}>
-          <SettingsPanel account={session.account} network={session.network} chainId={session.chain.id} chainName={session.chain.name} walletName={session.name}/>
-        </Pickup>
-        {page==='settings'&&<details className="nullmaps-settings"><summary>{tr('Bản đồ Nullmaps local · kiểm tra kết nối')}</summary><Suspense fallback={<p>{tr('Đang tải bản đồ…')}</p>}><PickupMap lots={[]}/></Suspense></details>}
-      </div>
-      <nav className="web-bottom" aria-label={tr('Điều hướng điện thoại')}>
-        <button aria-current={page==='home'?'page':undefined} onClick={()=>navigate('home')}><Truck size={22}/><span>{tr('Tìm lô')}</span></button>
-        <button className="web-bottom-post" aria-current={page==='post'?'page':undefined} onClick={post}><i><Plus size={26}/></i><span>{tr('Đăng lô')}</span></button>
-        <button aria-current={page==='orders'?'page':undefined} onClick={()=>navigate('orders')}><PackageCheck size={22}/><span>{tr('Đơn của tôi')}</span></button>
-      </nav>
-    </div>
-    <dialog ref={dialog} onCancel={()=>setProfile(undefined)} onClick={e=>{if(e.target===dialog.current)setProfile(undefined);}} className="web-dialog" aria-labelledby="wallet-title">
-      <div className="web-dialog-head">
-        <h2 id="wallet-title">{profile==='post'?tr('Đăng nhập để đăng lô'):profile==='claim'?tr('Đăng nhập để nhận lô'):tr('Tài khoản & ví')}</h2>
-        <button aria-label={tr('Đóng tài khoản')} onClick={()=>setProfile(undefined)}><X size={22}/></button>
-      </div>
-      <div className="web-dialog-body">
-        {session.error&&<p className="web-warning" role="alert">{tr(session.error)}</p>}
-        {session.account?<>
-          <div className="web-welcome"><h3>{session.email||session.name}</h3><p>{short(session.account)} · {session.chain.name}</p></div>
-          <button className="web-primary" onClick={()=>{setProfile(undefined);navigate('wallet');}}>{tr('Xem Ví xanh & Phần thưởng')}</button>
-          <button className="web-secondary" disabled={session.busy} onClick={()=>void session.logout().then(()=>setProfile(undefined))}><LogOut size={16}/>{tr('Ngắt kết nối')}</button>
-        </>:<>
-          <button className="web-primary" disabled={session.busy||!session.googleConfigured} onClick={()=>void session.connect('google')}>{session.busy?tr('Đang kết nối…'):tr('Tiếp tục với Google')}</button>
-          {!session.googleConfigured&&<p className="web-warning">{tr('Google chưa được cấu hình. Cần Client ID công khai của dự án thirdweb; Core vẫn dùng được.')}</p>}
-          <details className="web-wallet-options">
-            <summary>{tr('Dùng ví Core hoặc ví khác')}</summary>
-            {session.wallets.filter(w=>w.id!=='embedded-google').map(w=><button className="web-secondary" key={w.id} disabled={session.busy} onClick={()=>void session.connect(w.id)}><Wallet size={17}/>{w.name}</button>)}
-            <button className="web-text-button" disabled={session.busy} onClick={session.refresh}>{tr('Quét lại ví')}</button>
-          </details>
-        </>}
-      </div>
-    </dialog>
-  </div>;
+ return <div className="ecoloop-web">
+  <aside className="web-sidebar"><button className="web-brand" onClick={()=>navigate('home')}><Recycle/>ecoloop<span>.</span></button><p className="web-eyebrow">{tr('KHÔNG GIAN XANH CỦA BẠN')}</p><nav aria-label={tr("Điều hướng desktop")}>{links.map(n=><button key={n.id} aria-current={page===n.id?'page':undefined} onClick={()=>navigate(n.id)}><n.icon size={19}/>{n.label}</button>)}</nav>{seller&&<button className="web-post" onClick={post}><Plus size={18}/>{tr('Đăng lô phế liệu')}</button>}<div className="web-planet"><Leaf size={27}/><h3>{tr('Gom điều cũ.')}<br/>{tr('Gieo điều xanh.')}</h3><p>{tr('Một lô phế liệu, một hành trình tái sinh. Bàn giao minh bạch trên Avalanche.')}</p><button onClick={()=>navigate('rewards')}>{tr('Khám phá quà tặng')} <ArrowUpRight size={15}/></button></div><p className="web-footnote">Avalanche Fuji · Testnet<br/>{tr('Google hoặc Core Wallet')}</p></aside>
+  <div className="web-main"><header className="web-header"><button className="web-brand" onClick={()=>navigate('home')}><Recycle/>ecoloop<span>.</span></button><div className="web-header-actions"><button className="web-header-settings" aria-label={tr('Thiết lập')} aria-current={page==='settings'?'page':undefined} onClick={()=>navigate('settings')}><Settings size={19}/></button><button className="web-account" onClick={()=>setProfile(true)}><Wallet size={16}/>{session.account?short(session.account):tr('Đăng nhập')}<ChevronDown size={14}/></button><div className="web-roles" aria-label={tr("Vai trò hiển thị")}><button aria-pressed={role==='seller'} onClick={()=>switchRole('seller')}>{tr('Người Bán')} <small>{tr('(Hộ gia đình)')}</small></button><button aria-pressed={role==='collector'} onClick={()=>switchRole('collector')}>{tr('Người Thu Gom')}</button></div></div></header>
+   <div className={session.account&&session.network!==session.chain.id?'web-network warn':'web-network'}><ShieldCheck size={13}/>{session.account?`${session.name} · ${session.network===session.chain.id?session.chain.name:tr('Ví đang ở sai mạng')}`:tr('Google + ví nhúng · Hoặc kết nối Core Wallet')}{session.account&&session.network!==session.chain.id&&<button disabled={session.busy} onClick={()=>void session.switchChain()}>{tr('Chuyển về Fuji')}</button>}</div>
+   <div className="web-content" ref={content}>
+    {configError&&<div className="web-warning" role="alert">{tr(configError)}<button onClick={()=>setConfigVersion(v=>v+1)}><RefreshCw size={14}/>{tr('Thử lại')}</button></div>}
+    {page==='home'&&seller&&<><section className="web-hero"><div><p>{tr('GOM ĐIỀU CŨ · GIEO ĐIỀU XANH')}</p><h1>{tr('Dọn nhà nhẹ tênh.')}<br/><span>{tr('Tích điểm xanh.')}</span></h1><div>{tr('Thu gom tận nơi, gần bạn hơn.')}<br/>{tr('Google hoặc Core. Bạn tự chọn.')}</div><button onClick={post}>{tr('Đăng lô phế liệu')} <ArrowUpRight size={16}/></button></div><Recycle className="web-hero-art" strokeWidth={1.2}/></section><div className="web-rates"><b>{tr('ĐIỂM THAM KHẢO')}</b><span>{tr('Giấy')} <strong>10 ECO/kg</strong></span><span>{tr('Nhựa')} <strong>20 ECO/kg</strong></span><span>{tr('Kim loại')} <strong>40 ECO/kg</strong></span><span>{tr('Thủy tinh')} <strong>8 ECO/kg</strong></span><small>{tr('Theo số cân được xác nhận')}</small></div></>}
+    {page==='home'&&!seller&&<section className="web-hero"><div><p>{tr('NGƯỜI THU GOM')}</p><h1>{tr('Tìm lô thu gom gần bạn')}</h1><div>{tr('Chọn lô đang mở, khóa ký quỹ AVAX và gửi số cân sau khi nhận hàng.')}</div><button onClick={()=>navigate('orders')}>{tr('Việc đã nhận')} <ArrowUpRight size={16}/></button></div><Truck className="web-hero-art" strokeWidth={1.2}/></section>}
+    <Pickup collectorLot={collectorLot} onBrowseAsCollector={id=>switchRole('collector',id)} onOpenOrders={()=>navigate('orders')} account={session.account} admin={admin} demo={false} page={page} role={role} createRequest={createRequest} onConnect={()=>setProfile(true)} onSettings={()=>navigate('settings')} walletSlot={<WalletCard account={session.account} holder={session.email||session.name} onConnect={()=>setProfile(true)}/>}><SettingsPanel account={session.account} network={session.network} chainId={session.chain.id} chainName={session.chain.name} walletName={session.name}/></Pickup>
+    {page==='settings'&&<details className="nullmaps-settings"><summary>{tr('Bản đồ Nullmaps local · kiểm tra kết nối')}</summary><p>{tr('Nền bản đồ Việt Nam và tìm địa điểm từ máy chủ của bạn. Chưa cấu hình dịch vụ sẽ có thông báo tại đây.')}</p><Suspense fallback={<p>{tr('Đang tải bản đồ…')}</p>}><PickupMap lots={[]}/></Suspense></details>}
+    <footer className="web-footer">© EcoLoop · Make good things go round.<span>● Avalanche Fuji · 43113</span></footer>
+   </div>
+   <nav className="web-bottom" aria-label={tr("Điều hướng điện thoại")}>{links.filter(l=>l.id==='home'||l.id==='orders').map(n=><button key={n.id} aria-current={page===n.id?'page':undefined} onClick={()=>navigate(n.id)}><n.icon size={22}/><span>{n.label}</span></button>)}{seller&&<button className="web-bottom-post" onClick={post} aria-label={tr('Đăng lô phế liệu')}><i><Plus size={26}/></i><span>{tr('Đăng lô')}</span></button>}{links.filter(l=>l.id==='rewards'||l.id==='wallet').map(n=><button key={n.id} aria-current={page===n.id?'page':undefined} onClick={()=>navigate(n.id)}><n.icon size={22}/><span>{n.label}</span></button>)}</nav>
+  </div>
+  <dialog ref={dialog} onCancel={()=>setProfile(false)} onClick={e=>{if(e.target===dialog.current)setProfile(false);}} className="web-dialog" aria-labelledby="wallet-title"><div className="web-dialog-head"><h2 id="wallet-title">{tr('Tài khoản & ví')}</h2><button aria-label={tr("Đóng tài khoản")} onClick={()=>setProfile(false)}><X size={22}/></button></div><div className="web-dialog-body"><div className="web-welcome"><h3>{session.account?tr('Ví đã kết nối'):tr('Bắt đầu một vòng xanh')}</h3><p>{session.email||tr('Đăng nhập Google để sử dụng ví nhúng, hoặc kết nối ví Core của bạn.')}</p></div>{session.error&&<p className="web-warning" role="alert">{tr(session.error)}</p>}
+   {session.account?<><WalletCard compact account={session.account} holder={session.email||session.name} onOpenFull={()=>{setProfile(false);navigate('wallet');}}/><div className="web-wallet-info"><b>{session.name}</b>{balanceError&&<p>{balanceError}</p>}<p>{tr('Chain ID: {id}. Đã đồng bộ dữ liệu sàn C2C Web3 với ví của bạn.',{id:String(session.network)})}</p></div>{session.network!==session.chain.id&&<button className="web-primary" disabled={session.busy} onClick={()=>void session.switchChain()}>{tr('Chuyển sang Fuji')}</button>}<p className="web-note">{import.meta.env.VITE_SPONSOR_GAS==='true'?tr('Ví Google yêu cầu paymaster tài trợ gas khi chính sách cho phép. Core vẫn trả phí mạng.'):tr('Chưa bật tài trợ gas. Giao dịch Fuji cần AVAX testnet.')}</p><button className="web-primary" onClick={()=>{setProfile(false);if(page==='wallet'||page==='settings')navigate('home');}}>{seller?tr('Trang bán'):tr('Tìm lô thu gom')}</button><button className="web-secondary" onClick={()=>{setProfile(false);navigate('wallet');}}>{tr('Xem Ví xanh & Phần thưởng')}</button><button className="web-secondary" disabled={session.busy} onClick={()=>void session.logout()}><LogOut size={16}/>{tr('Ngắt kết nối')}</button></>:<><button className="web-primary" disabled={session.busy||!session.googleConfigured} onClick={()=>void session.connect('google')}>{session.busy?tr('Đang kết nối…'):tr('Tiếp tục với Google')}</button>{!session.googleConfigured&&<p className="web-warning">{tr('Google chưa được cấu hình. Cần Client ID công khai của dự án thirdweb; Core vẫn dùng được.')}</p>}<h3>{tr('Kết nối Core / ví trình duyệt')}</h3>{session.wallets.filter(w=>w.id!=='embedded-google').map(w=><button className="web-secondary" key={w.id} disabled={session.busy} onClick={()=>void session.connect(w.id)}><Wallet size={17}/>{w.name}</button>)}{!session.wallets.some(w=>w.id!=='embedded-google')&&<p className="web-note">{tr('Mở app trong Chrome hoặc Edge có Core đã mở khóa để kết nối ví.')}</p>}<button className="web-text-button" disabled={session.busy} onClick={session.refresh}>{tr('Quét lại ví')}</button></>}
+  </div></dialog>
+ </div>;
 }
