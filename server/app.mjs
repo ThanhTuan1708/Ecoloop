@@ -7,6 +7,7 @@ import { createHash, randomUUID } from 'node:crypto';
 import { createPublicClient, createWalletClient, decodeEventLog, http as rpcHttp, isAddress, isHex, keccak256, stringToHex, toFunctionSelector, verifyMessage } from 'viem';
 import { privateKeyToAccount } from 'viem/accounts';
 import { codeHash } from './codehash.mjs';
+import previousPickup from '../config/pickup-v3.json' with {type:'json'};
 import { avalancheFuji, hardhat } from 'viem/chains';
 
 const MAX_IMAGE = 10 * 1024 * 1024;
@@ -40,7 +41,7 @@ export async function createApp({dataDir=path.resolve(process.env.DATA_DIR||'.da
   const gaslessSelectors=new Set(pickupArtifact.abi.filter(x=>x.type==='function'&&GASLESS_FUNCTIONS.includes(x.name)).map(x=>toFunctionSelector(x)));
   const relayDailyLimit=Number(process.env.RELAY_DAILY_LIMIT||300),relayHourlyPerWallet=Number(process.env.RELAY_HOURLY_PER_WALLET||20);
   const relayUsage={day:'',total:0,wallets:new Map()};
-  const v3Cache=new Map();
+  const pickupVersionCache=new Map();
   // ---- Wallet-card history: an in-memory index of the pickup contract's money events ----
   const HISTORY_EVENTS=new Set(['Transfer','EscrowLocked','EscrowReleased','EscrowRefunded','PaymentDeferred']);
   const historyAbi=pickupArtifact.abi.filter(x=>x.type==='event'&&HISTORY_EVENTS.has(x.name));
@@ -77,9 +78,9 @@ export async function createApp({dataDir=path.resolve(process.env.DATA_DIR||'.da
   }
   async function isCurrentPickup(address){
     if(!address)return false;
-    const key=address.toLowerCase();if(v3Cache.has(key))return v3Cache.get(key);
-    const code=await client.getCode({address}).catch(()=>undefined);const ok=codeHash(code,pickupArtifact.immutables)===pickupArtifact.runtimeHash;
-    v3Cache.set(key,ok);return ok;
+    const key=address.toLowerCase();if(pickupVersionCache.has(key))return pickupVersionCache.get(key);
+    const code=await client.getCode({address}).catch(()=>undefined);const ok=codeHash(code,pickupArtifact.immutables)===pickupArtifact.runtimeHash||codeHash(code,previousPickup.immutables)===previousPickup.runtimeHash;
+    pickupVersionCache.set(key,ok);return ok;
   }
   const challenges=new Map();
   const limits=new Map();
@@ -107,7 +108,11 @@ export async function createApp({dataDir=path.resolve(process.env.DATA_DIR||'.da
   async function compatible(contract){
     if(await client.getChainId()!==chainId)fail(503,'Server cấu hình sai mạng.');
     const code=await client.getCode({address:contract});
-    if(!code||(keccak256(code)!==artifact.runtimeHash&&codeHash(code,pickupArtifact.immutables)!==pickupArtifact.runtimeHash))fail(400,'Contract không phải phiên bản EcoLoop đang chạy trên server.');
+    if(!code)fail(400,'Contract không phải phiên bản EcoLoop đang chạy trên server.');
+    if(codeHash(code,pickupArtifact.immutables)===pickupArtifact.runtimeHash)return 'v4';
+    if(codeHash(code,previousPickup.immutables)===previousPickup.runtimeHash)return 'v3';
+    if(keccak256(code)!==artifact.runtimeHash)fail(400,'Contract không phải phiên bản EcoLoop đang chạy trên server.');
+    return 'legacy';
   }
   const mapsHandler=createMapsHandler();
   const marketplaceHandler=createMarketplaceHandler({client,chainId,configFile,pickupArtifact});
@@ -166,15 +171,22 @@ export async function createApp({dataDir=path.resolve(process.env.DATA_DIR||'.da
           activatingPickup=true;
           try{
           await compatible(identity.contract);
-          if(codeHash(await client.getCode({address:identity.contract}),pickupArtifact.immutables)!==pickupArtifact.runtimeHash)fail(400,'Cần contract thu gom V3.');
+          if(codeHash(await client.getCode({address:identity.contract}),pickupArtifact.immutables)!==pickupArtifact.runtimeHash)fail(400,'Cần contract thu gom V4.');
           const config=JSON.parse(await fs.readFile(configFile,'utf8'));
           const legacy=process.env.ECOLOOP_ADDRESS||process.env.VITE_ECOLOOP_ADDRESS||config.contract;
           for(const address of [legacy,identity.contract]){
             if(!isAddress(address||'')||!await client.readContract({address,abi:artifact.abi,functionName:'hasRole',args:['0x'+'0'.repeat(64),identity.account]}))fail(403,'Chỉ quản trị của cả hai contract được kích hoạt.');
           }
-          // An older pickup version (V2, no real escrow) can be upgraded; a current V3 cannot be replaced from the UI.
-          if(config.pickupContract&&config.pickupContract.toLowerCase()!==identity.contract&&codeHash(await client.getCode({address:config.pickupContract}),pickupArtifact.immutables)===pickupArtifact.runtimeHash)fail(409,'Đã có contract thu gom chung. Không thể ghi đè bằng giao diện.');
-          v3Cache.clear();
+          // Older deployments can be upgraded; the active V4 cannot be replaced from the UI.
+          if(config.pickupContract&&config.pickupContract.toLowerCase()!==identity.contract){
+            const currentCode=await client.getCode({address:config.pickupContract});
+            if(codeHash(currentCode,pickupArtifact.immutables)===pickupArtifact.runtimeHash)fail(409,'Đã có contract thu gom chung. Không thể ghi đè bằng giao diện.');
+            if(codeHash(currentCode,previousPickup.immutables)===previousPickup.runtimeHash){
+              const escrow=await client.readContract({address:config.pickupContract,abi:pickupArtifact.abi,functionName:'totalEscrowed'});
+              if(escrow>0n)fail(409,'V3 còn ký quỹ. Hoàn tất hoặc trả lại các lô đang giữ ký quỹ trước khi kích hoạt V4.');
+            }
+          }
+          pickupVersionCache.clear();
           const temp=configFile+'.'+randomUUID()+'.tmp';
           // Optional deploy block (from the admin's deploy receipt) lets the history index start at the contract's creation.
           const latest=Number.isSafeInteger(body.deployBlock)&&body.deployBlock>0?Number(await Promise.resolve().then(()=>client.getBlockNumber()).catch(()=>0n)):0;
@@ -207,7 +219,7 @@ export async function createApp({dataDir=path.resolve(process.env.DATA_DIR||'.da
           if(r.value!=='0'||!/^\d{1,7}$/.test(String(r.gas))||BigInt(r.gas)>900000n||!Number.isSafeInteger(r.deadline))fail(400,'Yêu cầu miễn phí gas không hợp lệ.');
           const now=Math.floor(Date.now()/1000);if(r.deadline<now||r.deadline>now+900)fail(400,'Yêu cầu đã hết hạn. Thử lại.');
           if(!isHex(r.data)||r.data.length>4000||!gaslessSelectors.has(r.data.slice(0,10).toLowerCase())||!isHex(r.signature)||r.signature.length!==132)fail(400,'Thao tác này không được miễn phí gas.');
-          if(!await isCurrentPickup(pickup))fail(400,'Cần contract thu gom V3.');
+          if(!await isCurrentPickup(pickup))fail(400,'Cần contract thu gom V4.');
           const today=new Date().toISOString().slice(0,10);if(relayUsage.day!==today){relayUsage.day=today;relayUsage.total=0;relayUsage.wallets.clear();}
           const from=r.from.toLowerCase();const hour=Math.floor(Date.now()/3600000);const w=relayUsage.wallets.get(from);
           const used=w&&w.hour===hour?w.count:0;
@@ -227,7 +239,7 @@ export async function createApp({dataDir=path.resolve(process.env.DATA_DIR||'.da
         }
         if(url.pathname==='/api/pickup/details'&&req.method==='POST'){
           const data=JSON.parse((await readBody(req,16384)).toString());const identity=await authenticate(data.auth);
-          await compatible(identity.contract);
+          const version=await compatible(identity.contract);
           if(identity.action==='pickup-save'){
             const payload=data.payload;
             if(typeof payload!=='string'||'0x'+createHash('sha256').update(payload).digest('hex')!==identity.hash)fail(400,'Nội dung liên hệ không khớp chữ ký.');
@@ -245,7 +257,9 @@ export async function createApp({dataDir=path.resolve(process.env.DATA_DIR||'.da
           const lot=await client.readContract({address:identity.contract,abi:pickupArtifact.abi,functionName:'getLot',args:[BigInt(data.id)]});
           if(lot.evidence.toLowerCase()!==identity.hash)fail(403,'Ảnh không thuộc lô.');
           const owner=lot.owner.toLowerCase()===identity.account;
-          const assigned=lot.collector.toLowerCase()===identity.account&&[2,3].includes(lot.status)&&await client.readContract({address:identity.contract,abi:artifact.abi,functionName:'hasRole',args:[collectorRole,identity.account]});
+          const assigned=lot.collector.toLowerCase()===identity.account&&[2,3].includes(lot.status)&&(
+            version==='v4'||await client.readContract({address:identity.contract,abi:artifact.abi,functionName:'hasRole',args:[collectorRole,identity.account]})
+          );
           if(!owner&&!assigned)fail(403,'Chỉ chủ lô và người được giao thu gom được xem địa chỉ.');
           const detail=JSON.parse(await fs.readFile(path.join(dataDir,identity.contract,identity.hash)+'.pickup.json','utf8'));
           if(detail.owner!==lot.owner.toLowerCase())fail(403,'Chủ thông tin không khớp lô.');
@@ -256,10 +270,12 @@ export async function createApp({dataDir=path.resolve(process.env.DATA_DIR||'.da
           const base=path.join(dataDir,identity.contract,identity.hash);let meta;
           try{meta=JSON.parse(await fs.readFile(base+'.json','utf8'));}catch(error){if(error.code==='ENOENT')fail(404,'Ảnh chưa được lưu trên server này.');throw error;}
           if(meta.account!==identity.account){
-            await compatible(identity.contract);
-            const allowed=await client.readContract({address:identity.contract,abi:artifact.abi,functionName:'hasRole',args:[collectorRole,identity.account]});
-            if(!allowed)fail(403,'Chỉ chủ ảnh hoặc ví thu gom có quyền xem ảnh.');
-            if(codeHash(await client.getCode({address:identity.contract}),pickupArtifact.immutables)===pickupArtifact.runtimeHash){
+            const version=await compatible(identity.contract);
+            if(version!=='v4'){
+              const allowed=await client.readContract({address:identity.contract,abi:artifact.abi,functionName:'hasRole',args:[collectorRole,identity.account]});
+              if(!allowed)fail(403,'Chỉ chủ ảnh hoặc ví thu gom có quyền xem ảnh.');
+            }
+            if(version!=='legacy'){
               if(!Number.isSafeInteger(data.id)||data.id<1)fail(403,'Thiếu mã lô thu gom.');
               const lot=await client.readContract({address:identity.contract,abi:pickupArtifact.abi,functionName:'getLot',args:[BigInt(data.id)]});
               if(lot.evidence.toLowerCase()!==identity.hash||lot.owner.toLowerCase()!==meta.account||lot.collector.toLowerCase()!==identity.account||![2,3].includes(lot.status))fail(403,'Chỉ người được giao thu gom được xem ảnh của lô.');

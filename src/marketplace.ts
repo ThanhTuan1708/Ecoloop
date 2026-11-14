@@ -149,6 +149,7 @@ export interface MarketplaceQuery {
   radiusKm?: number;
   q?: string;
   owner?: string;
+  excludeOwner?: string;
   collector?: string;
   limit?: number;
   page?: number;
@@ -584,6 +585,9 @@ export function queryProductCards(
       return false;
     }
     if (query.owner && card.onChain.sellerWallet.toLowerCase() !== query.owner.toLowerCase()) {
+      return false;
+    }
+    if (query.excludeOwner && card.onChain.sellerWallet.toLowerCase() === query.excludeOwner.toLowerCase()) {
       return false;
     }
     if (

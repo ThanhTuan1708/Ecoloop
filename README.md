@@ -143,7 +143,7 @@ Cách thêm chữ mới cho giao diện:
 
 Nếu sửa màu trong `src/web.css` hoặc `src/pickup.css`, chạy `npm run theme:dark` để tạo lại `src/theme-dark.css`.
 
-## Hợp đồng thu gom V3: ký quỹ thật, miễn phí gas, chứng nhận NFT
+## Hợp đồng thu gom V4: ký quỹ thật, miễn phí gas, chứng nhận NFT
 
 **Ký quỹ AVAX thật.** Khi nhận một lô, người thu gom phải khóa AVAX vào contract, bằng giá ước tính cộng thêm 20%.
 - Người thu gom gửi số cân thực tế, chủ lô xác nhận. Contract tự trả AVAX cho chủ lô theo số cân thực tế và hoàn phần dư cho người thu gom.
@@ -157,12 +157,12 @@ Nếu sửa màu trong `src/web.css` hoặc `src/pickup.css`, chạy `npm run th
 
 **Chứng nhận tái chế NFT.** Mỗi lô hoàn tất tạo một NFT (contract `EcoLoopCertificate`, ký hiệu ECOREC) cho chủ lô. NFT ghi số kg của từng vật liệu, ví người thu gom và số AVAX đã trả. Hình ảnh và dữ liệu nằm hoàn toàn trên chain, xem được trên Snowtrace và trong trang **Ví xanh**.
 
-**Chỉ dữ liệu thật.** App đã bỏ hẳn 28 lô mẫu, phần quà mẫu và chế độ demo. Mọi lô, số dư, phần thưởng và chứng nhận đều đọc từ contract V3 trên Avalanche. Lô mới bắt buộc có ảnh thật, và chỉ mã băm của ảnh được ghi lên chain. Cách tạo dữ liệu thật và dữ liệu thử xem ở [docs/DU-LIEU-THAT.md](docs/DU-LIEU-THAT.md).
+**Chỉ dữ liệu thật.** App đã bỏ hẳn 28 lô mẫu, phần quà mẫu và chế độ demo. Mọi lô, số dư, phần thưởng và chứng nhận đều đọc từ contract V4 trên Avalanche. Lô mới bắt buộc có ảnh thật, và chỉ mã băm của ảnh được ghi lên chain. Cách tạo dữ liệu thật và dữ liệu thử xem ở [docs/DU-LIEU-THAT.md](docs/DU-LIEU-THAT.md).
 
-**Triển khai V3**, chọn một trong hai cách:
-- Qua giao diện: vào **Thiết lập** bằng ví quản trị → **Triển khai bằng ví quản trị** (2 giao dịch: forwarder, rồi contract thu gom) → **Kích hoạt dùng chung**. Nếu đang dùng contract V2, app cho phép nâng cấp. Lô và ECO trên V2 không tự chuyển sang V3.
+**Triển khai V4**, chọn một trong hai cách:
+- Qua giao diện: vào **Thiết lập** bằng ví quản trị → **Triển khai bằng ví quản trị** (2 giao dịch: forwarder, rồi contract thu gom) → **Kích hoạt dùng chung**. Lô, ký quỹ và ECO của contract cũ vẫn thuộc địa chỉ cũ.
 - Qua dòng lệnh: chạy `npm run deploy:pickup:fuji` (cần `DEPLOYER_PRIVATE_KEY` trong `.env`). Script tự ghi địa chỉ mới vào `config/app.json`.
-- Sau đó cấp quyền thu gom (`COLLECTOR_ROLE`) cho các ví người thu gom trong **Thiết lập**.
+- Mọi ví có thể đăng lô hoặc nhận thu gom lô của ví khác. Người nhận việc vẫn phải ký quỹ AVAX.
 - Nếu chạy trên **Vercel**: server không ghi được `config/app.json`, nên nút **Kích hoạt dùng chung** không dùng được. Hãy chạy `npm run deploy:pickup:fuji` trên máy, commit file `config/app.json` rồi deploy lại. Đặt `RELAYER_PRIVATE_KEY` trong mục **Environment Variables** của Vercel.
 
 ## Thẻ ví EcoLoop (EcoLoop Card)
@@ -172,6 +172,6 @@ Nếu sửa màu trong `src/web.css` hoặc `src/pickup.css`, chạy `npm run th
 - **Nhận**: mã QR theo chuẩn EIP-681 (`ethereum:<ví>@43113?value=…` cho AVAX, `ethereum:<ECO>@43113/transfer?address=…&uint256=…` cho ECO). Có thể đặt số tiền và nội dung để tạo yêu cầu thanh toán; ví Core cũng đọc được.
 - **Chuyển**: nhập hoặc quét địa chỉ, chọn AVAX/ECO, xem màn hình xác nhận rồi mới ký. ECO chuyển miễn phí gas qua relayer (hàm `transfer` đã nằm trong danh sách cho phép). AVAX trả phí mạng từ ví người gửi.
 - **Quét QR trả tiền**: dùng camera (BarcodeDetector, hoặc jsQR khi trình duyệt không hỗ trợ), chọn ảnh có mã QR, hoặc dán link. Mã của mạng khác hay token khác ECO bị từ chối. Không có khoản nào được gửi khi chưa bấm xác nhận.
-- **Lịch sử**: `GET /api/history?address=` đọc sự kiện của contract V3 (ECO nhận/chuyển/thưởng/đổi quà, khóa và hoàn ký quỹ, tiền bán lô, khoản chờ rút) từ khối triển khai (`pickupDeployBlock` trong `config/app.json`). AVAX gửi từ thiết bị này được ghi lại cục bộ; AVAX nhận từ ví khác xem trên Snowtrace qua liên kết trong lịch sử.
+- **Lịch sử**: `GET /api/history?address=` đọc sự kiện của contract V4 (ECO nhận/chuyển/thưởng/đổi quà, khóa và hoàn ký quỹ, tiền bán lô, khoản chờ rút) từ khối triển khai (`pickupDeployBlock` trong `config/app.json`). AVAX gửi từ thiết bị này được ghi lại cục bộ; AVAX nhận từ ví khác xem trên Snowtrace qua liên kết trong lịch sử.
 
 Thư viện QR nằm sẵn trong `src/vendor/` (qrcode-generator, MIT; jsQR, Apache-2.0) kèm giấy phép.

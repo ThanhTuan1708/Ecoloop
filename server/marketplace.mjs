@@ -2,6 +2,7 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import { isAddress, keccak256 } from 'viem';
 import { codeHash } from './codehash.mjs';
+import previousPickup from '../config/pickup-v3.json' with {type:'json'};
 
 const ZERO = '0x0000000000000000000000000000000000000000';
 const ECO_USD_RATE = 0.05;
@@ -563,8 +564,8 @@ export function createMarketplaceHandler({ client, chainId = 43113, configFile, 
 
     if (client.getCode) {
       const code = await client.getCode({ address: pickupContract });
-      if (!code || (pickupArtifact?.runtimeHash && codeHash(code, pickupArtifact.immutables) !== pickupArtifact.runtimeHash)) {
-        json(400, { error: 'Contract không phải phiên bản EcoLoopPickup V3.' });
+      if (!code || (pickupArtifact?.runtimeHash && codeHash(code, pickupArtifact.immutables) !== pickupArtifact.runtimeHash && codeHash(code, previousPickup.immutables) !== previousPickup.runtimeHash)) {
+        json(400, { error: 'Contract không phải phiên bản EcoLoopPickup V4.' });
         return true;
       }
     }

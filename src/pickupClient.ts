@@ -3,6 +3,7 @@ import { publicClient } from './chain';
 import { assertWallet, chain } from './wallet';
 import { pickupAbi, pickupBytecode, pickupRuntimeHash, pickupImmutables, forwarderAbi, forwarderBytecode, forwarderRuntimeHash, forwarderImmutables, certificateAbi } from './generated/pickup';
 import { authorize, uploadEvidence } from './evidence';
+import previousPickup from '../config/pickup-v3.json';
 
 export type Lot = {id:number; owner:Address; collector:Address; estimated:number[]; actual:number[]; evidence:Hash; latitude:number; longitude:number; updatedAt:number; status:number; deposit?:number; paid?:number};
 export const lotStatuses=['Không tồn tại','Chờ thu gom','Đã nhận việc','Chờ chủ lô xác nhận','Hoàn tất','Đã hủy'];
@@ -29,21 +30,22 @@ export function codeHash(code:Hash|undefined,immutables:[number,number][]){
   for(const [start,length] of immutables)hex=hex.slice(0,start*2)+'0'.repeat(length*2)+hex.slice((start+length)*2);
   return keccak256(`0x${hex}`);
 }
-export async function pickupVersion(address:Address):Promise<'v3'|'legacy'>{
+export async function pickupVersion(address:Address):Promise<'v4'|'v3'|'legacy'>{
   const code=await publicClient.getCode({address});
-  return codeHash(code,pickupImmutables)===pickupRuntimeHash?'v3':'legacy';
+  if(codeHash(code,pickupImmutables)===pickupRuntimeHash)return 'v4';
+  return codeHash(code,previousPickup.immutables as [number,number][])===previousPickup.runtimeHash?'v3':'legacy';
 }
 export async function validatePickup(address:Address){
   if(await publicClient.getChainId()!==chain.id)throw new Error('RPC đang trỏ sai mạng.');
-  if(await pickupVersion(address)!=='v3')throw new Error('Địa chỉ không phải contract Thu gom EcoLoop V3.');
+  if(await pickupVersion(address)==='legacy')throw new Error('Địa chỉ không phải contract Thu gom EcoLoop V4.');
 }
 const readFrom=(address:Address)=>(functionName:string,args:unknown[]=[])=>publicClient.readContract({address,abi:pickupAbi,functionName,args} as never) as Promise<any>;
-export async function pickupRead(address:Address,account?:Address,limit=100){
+export async function pickupRead(address:Address,limit=100){
   await validatePickup(address);
   const read=readFrom(address);
-  const [count,balance,collector,paused,admin,prices,certificate,forwarder,pending]=await Promise.all([
-    read('lotCount'),account?read('balanceOf',[account]):0n,account?read('hasRole',[keccak256(stringToHex('COLLECTOR_ROLE')),account]):false,read('paused'),account?read('hasRole',['0x'+'0'.repeat(64),account]):false,
-    Promise.all([0,1,2,3].map(i=>read('pricePerKg',[BigInt(i)]))),read('certificate'),read('trustedForwarder'),account?read('pendingWithdrawals',[account]):0n]);
+  const [count,paused,prices,certificate]=await Promise.all([
+    read('lotCount'),read('paused'),
+    Promise.all([0,1,2,3].map(i=>read('pricePerKg',[BigInt(i)]))),read('certificate')]);
   const lots:Lot[]=[];
   for(let i=0;i<Math.min(Number(count),limit);i+=10){
     lots.push(...await Promise.all(Array.from({length:Math.min(10,Number(count)-i,limit-i)},async(_,j)=>{
@@ -51,8 +53,18 @@ export async function pickupRead(address:Address,account?:Address,limit=100){
       return {...l,id,estimated:l.estimated.map(Number),actual:l.actual.map(Number),latitude:l.latitude/100,longitude:l.longitude/100,updatedAt:Number(l.updatedAt)*1000,deposit:Number(formatEther(l.deposit)),paid:Number(formatEther(l.paid))} as Lot;
     })));
   }
-  return {lots,count:Number(count),balance:Number(formatEther(balance)),collector:!!collector,paused:!!paused,admin:!!admin,
-    prices:(prices as bigint[]).map(p=>Number(formatEther(p))),certificate:certificate as Address,forwarder:forwarder as Address,pending:Number(formatEther(pending))};
+  return {lots,count:Number(count),paused:!!paused,
+    prices:(prices as bigint[]).map(p=>Number(formatEther(p))),certificate:certificate as Address};
+}
+export async function pickupReadWallet(address:Address,account:Address){
+  const read=readFrom(address);
+  const [balance,collector,admin,pending]=await Promise.all([
+    read('balanceOf',[account]),
+    read('hasRole',[keccak256(stringToHex('COLLECTOR_ROLE')),account]),
+    read('hasRole',['0x'+'0'.repeat(64),account]),
+    read('pendingWithdrawals',[account]),
+  ]);
+  return {balance:Number(formatEther(balance)),collector:!!collector,admin:!!admin,pending:Number(formatEther(pending))};
 }
 /** AVAX (wei) the collector must lock to claim this lot (estimate value + 20%). */
 export async function requiredDeposit(address:Address,id:number):Promise<bigint>{return readFrom(address)('requiredDeposit',[BigInt(id)]);}
@@ -91,7 +103,7 @@ export async function relayWrite(address:Address,account:Address,functionName:st
 export async function householdWrite(address:Address,account:Address,functionName:string,args:unknown[],gasless:boolean){
   return gasless&&GASLESS_FUNCTIONS.has(functionName)?relayWrite(address,account,functionName,args):pickupWrite(address,account,functionName,args);
 }
-/** Deploys the V3 suite: forwarder (gas-free relay) then pickup (which creates the certificate NFT contract). */
+/** Deploys the V4 suite: forwarder (gas-free relay) then pickup (which creates the certificate NFT contract). */
 export async function deployPickup(account:Address){
   if(pendingPickup())throw new Error('Kiểm tra giao dịch đang chờ trước.');
   const wallet=await assertWallet(account);
@@ -112,7 +124,7 @@ export async function deployPickup(account:Address){
   return r.contractAddress;
 }
 export async function activatePickup(account:Address,address:Address){
-  await validatePickup(address);
+  if(await pickupVersion(address)!=='v4')throw new Error('Địa chỉ không phải contract Thu gom EcoLoop V4.');
   const auth=await authorize('configure-pickup',account,keccak256(stringToHex(address)),address);
   const deployBlock=Number(localStorage.getItem(`ecoloop-pickup-deployblock-${chain.id}`)||0);
   await api('/api/pickup/configure',{...auth,...(deployBlock>0&&localStorage.getItem(`ecoloop-pickup-deployed-${chain.id}`)?.toLowerCase()===address.toLowerCase()?{deployBlock}:{})});

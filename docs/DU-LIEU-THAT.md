@@ -1,6 +1,6 @@
 # Tạo dữ liệu thật cho EcoLoop trên Avalanche Fuji
 
-App chỉ hiển thị dữ liệu on-chain từ contract thu gom V3. Có hai loại dữ liệu, cần trình bày tách bạch với ban giám khảo:
+App chỉ hiển thị dữ liệu on-chain từ contract thu gom V4. Có hai loại dữ liệu, cần trình bày tách bạch với ban giám khảo:
 
 | Loại | Ai tạo | Dùng để |
 |---|---|---|
@@ -19,18 +19,18 @@ Không trình bày giao dịch thử như hoạt động của người dùng th
 2. Nhận AVAX Fuji miễn phí từ faucet của Core (core.app → Tools → Testnet Faucet). Mỗi ví khoảng 0,5 AVAX là đủ. Ví người thu gom cần nhiều hơn một chút, vì phải khóa AVAX ký quỹ.
 3. Không dùng ví có tiền thật. Khóa riêng (private key) chỉ để trong file `.env` trên máy bạn. File này không bao giờ được đưa lên GitHub, vì `.env` đã nằm trong `.gitignore`.
 
-## Bước 2. Triển khai contract V3
+## Bước 2. Triển khai contract V4
 
 Chọn một trong hai cách:
 
 - **Không cần khóa riêng:** chạy app trên máy (`Chay-EcoLoop.bat`), kết nối Core bằng ví quản trị, vào **Thiết lập → Triển khai bằng ví quản trị** (2 giao dịch), rồi bấm **Kích hoạt dùng chung**. Server ghi địa chỉ mới vào `config/app.json`.
 - **Bằng dòng lệnh:** điền `DEPLOYER_PRIVATE_KEY` trong `.env`, rồi chạy `npm run deploy:pickup:fuji`.
 
-Sau đó commit file `config/app.json` lên GitHub (dùng `Luu-cau-hinh-V3.bat`) để bản trên Vercel cũng dùng V3.
+Sau đó commit file `config/app.json` lên GitHub để bản trên Vercel cũng dùng V4.
 
-## Bước 3. Cấp quyền và cấu hình
+## Bước 3. Cấu hình thu gom
 
-- Vào **Thiết lập → Quyền thu gom V3**: cấp quyền cho ví người thu gom.
+- Mọi ví có thể đăng lô và nhận lô của ví khác sau khi kích hoạt V4.
 - Vào **Thiết lập → Giá thu mua (AVAX/kg)**: chỉnh giá nếu cần.
 - Vào **Đổi quà → Thêm phần thưởng thật**: thêm phần quà của đối tác thật, ghi rõ tên, giá ECO và số suất.
 - Bật miễn phí gas: điền khóa của ví tài trợ gas vào `RELAYER_PRIVATE_KEY` (trong `.env` hoặc biến môi trường trên Vercel).
@@ -64,5 +64,5 @@ npm run seed:fuji                # tạo 4 lô thử: hoàn tất, chờ xác nh
 
 ## Ghi chú
 
-- Lô và ECO trên contract V2 cũ không chuyển sang V3.
+- Lô, ký quỹ và ECO trên contract cũ vẫn thuộc địa chỉ cũ.
 - Tọa độ ghi trên chain đã làm tròn khoảng 1 km. Địa chỉ, số điện thoại và ảnh chỉ lưu trên server EcoLoop, và chỉ chủ lô cùng người thu gom được giao việc xem được.

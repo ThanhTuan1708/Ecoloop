@@ -24,7 +24,8 @@ async function fixture(){
 }
 test('multi-material pickup requires collector proposal and owner acceptance, then rewards and fulfillment work',async()=>{
  const f=await fixture();try{
-  await f.create();await f.claim(0,1n);await f.write(0,'proposeLot',[1n,[2500n,4000n,1000n,0n]]);
+  await f.create();assert.equal(await f.read('hasRole',[hash('COLLECTOR_ROLE'),f.accounts[2]]),false);
+  await f.claim(2,1n);await f.write(2,'proposeLot',[1n,[2500n,4000n,1000n,0n]]);
   assert.equal(await f.read('balanceOf',[f.accounts[1]]),0n);
   await assert.rejects(f.write(0,'acceptLot',[1n]),/InvalidStatus/);
   await assert.rejects(f.write(2,'acceptLot',[1n]),/InvalidStatus/);
@@ -39,10 +40,8 @@ test('multi-material pickup requires collector proposal and owner acceptance, th
 });
 test('claim race, self-claim, duplicate evidence and invalid totals are rejected',async()=>{
  const f=await fixture();try{
-  await f.create();await assert.rejects(f.claim(2,1n),/AccessControlUnauthorizedAccount/);
-  await f.write(0,'grantRole',[hash('COLLECTOR_ROLE'),f.accounts[1]]);
+  await f.create();
   await assert.rejects(f.claim(1,1n),/SelfApproval/);
-  await f.write(0,'grantRole',[hash('COLLECTOR_ROLE'),f.accounts[2]]);
   await f.claim(0,1n);await assert.rejects(f.claim(2,1n),/InvalidStatus/);
   await assert.rejects(f.write(2,'proposeLot',[1n,[1000n,0n,0n,0n]]),/InvalidStatus/);
   await assert.rejects(f.create(2),/DuplicateEvidence/);
@@ -50,13 +49,12 @@ test('claim race, self-claim, duplicate evidence and invalid totals are rejected
   await assert.rejects(f.write(1,'createLot',[[1n,0n,0n,0n],hash('bad'),9001,10669]),/InvalidInput/);
  }finally{await f.connection.close();}
 });
-test('dispute invalidates old proposal; revoked collector cannot settle; stalled jobs can reopen',async()=>{
+test('dispute invalidates old proposal and stalled jobs can reopen',async()=>{
  const f=await fixture();try{
   await f.create();await f.claim(0,1n);await f.write(0,'proposeLot',[1n,[1000n,0n,0n,0n]]);
   await f.write(1,'disputeLot',[1n]);assert.deepEqual((await f.read('getLot',[1n])).actual,[0n,0n,0n,0n]);
   await assert.rejects(f.write(1,'acceptLot',[1n]),/InvalidStatus/);
-  await f.write(0,'proposeLot',[1n,[2000n,0n,0n,0n]]);await f.write(0,'revokeRole',[hash('COLLECTOR_ROLE'),f.accounts[0]]);
-  await assert.rejects(f.write(1,'acceptLot',[1n]),/InvalidStatus/);
+  await f.write(0,'proposeLot',[1n,[2000n,0n,0n,0n]]);
   await assert.rejects(f.write(1,'releaseLot',[1n]),/InvalidStatus/);
   await f.connection.provider.request({method:'evm_increaseTime',params:[7*86400+1]});await f.connection.provider.request({method:'evm_mine'});
   await f.write(1,'releaseLot',[1n]);assert.equal((await f.read('getLot',[1n])).status,1);

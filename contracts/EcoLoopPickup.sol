@@ -32,7 +32,7 @@ contract EcoLoopPickup is EcoLoop, ERC2771Context, ReentrancyGuard {
 
     uint256 public constant ESCROW_BUFFER_BPS = 12_000; // collector locks 120% of the estimated value
     uint256 public constant TIMEOUT = 7 days;
-    uint256 public constant VERSION = 3;
+    uint256 public constant VERSION = 4;
 
     EcoLoopCertificate public immutable certificate;
     /// @notice AVAX (wei) paid per kg for plastic, paper, metal, glass.
@@ -96,7 +96,7 @@ contract EcoLoopPickup is EcoLoop, ERC2771Context, ReentrancyGuard {
     function acceptLot(uint256 id) external whenNotPaused nonReentrant {
         Lot storage lot = lots[id];
         if (lot.status != PickupStatus.Proposed || lot.owner != _msgSender()) revert InvalidStatus();
-        if (block.timestamp > lot.updatedAt + TIMEOUT || !hasRole(COLLECTOR_ROLE, lot.collector)) revert InvalidStatus();
+        if (block.timestamp > lot.updatedAt + TIMEOUT) revert InvalidStatus();
         uint256 total = checkWeights(lot.actual);
         uint256 amount;
         for (uint256 i; i < 4; i++) amount += uint256(lot.actual[i]) * rates[i] * 1 ether / 1000;
@@ -151,7 +151,7 @@ contract EcoLoopPickup is EcoLoop, ERC2771Context, ReentrancyGuard {
     }
 
     // ---------- collector (pays own gas and locks AVAX) ----------
-    function claimLot(uint256 id) external payable onlyRole(COLLECTOR_ROLE) whenNotPaused nonReentrant {
+    function claimLot(uint256 id) external payable whenNotPaused nonReentrant {
         Lot storage lot = lots[id];
         if (lot.status != PickupStatus.Open) revert InvalidStatus();
         address collector = _msgSender();
@@ -165,7 +165,7 @@ contract EcoLoopPickup is EcoLoop, ERC2771Context, ReentrancyGuard {
         emit EscrowLocked(id, collector, msg.value);
     }
 
-    function proposeLot(uint256 id, uint64[4] calldata actual) external onlyRole(COLLECTOR_ROLE) whenNotPaused {
+    function proposeLot(uint256 id, uint64[4] calldata actual) external whenNotPaused {
         Lot storage lot = lots[id];
         if (lot.status != PickupStatus.Claimed || lot.collector != _msgSender()) revert InvalidStatus();
         checkWeights(actual);

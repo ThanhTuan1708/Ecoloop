@@ -24,7 +24,7 @@ export default function WalletCard({account,holder,compact,onConnect,onOpenFull}
   const [sheet,setSheet]=useState<Sheet>(null);
   const [copied,setCopied]=useState(false);
   const refresh=async()=>{if(!account)return;try{setBal(await balances(account,eco));}catch{/* RPC hiccup: keep last */}};
-  useEffect(()=>{let live=true;(async()=>{try{const c=await (await fetch('/api/config',{cache:'no-store'})).json();setGasless(!!c.gasless);if(c.pickupContract&&await pickupVersion(c.pickupContract)==='v3'&&live)setEco(c.pickupContract);}catch{/* offline */}})();return()=>{live=false;};},[]);
+  useEffect(()=>{let live=true;(async()=>{try{const c=await (await fetch('/api/config',{cache:'no-store'})).json();setGasless(!!c.gasless);if(c.pickupContract&&await pickupVersion(c.pickupContract)!=='legacy'&&live)setEco(c.pickupContract);}catch{/* offline */}})();return()=>{live=false;};},[]);
   useEffect(()=>{setBal(undefined);if(!account)return;refresh();const t=setInterval(()=>{if(!document.hidden)refresh();},15000);return()=>clearInterval(t);},[account,eco]);
   async function copy(){if(!account)return;try{await navigator.clipboard.writeText(account);setCopied(true);setTimeout(()=>setCopied(false),1800);}catch{/* user can select the text */}}
 

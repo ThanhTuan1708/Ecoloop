@@ -26,7 +26,7 @@ export default function PickupMap({lots,center,onSelect,onPin}:{lots:Lot[];cente
    m=new maplibregl.Map({container:root.current,style,transformRequest:url=>({url:toAbsoluteUrl(url)}),center:center?[center[1],center[0]]:[106.7,10.776],zoom:center?13:11,attributionControl:{compact:true,customAttribution:'Map data © OpenStreetMap contributors · Overture Maps · Nullmaps'}});map.current=m;
    m.addControl(new maplibregl.NavigationControl(),'top-right');m.addControl(new maplibregl.ScaleControl({unit:'metric'}));
    m.on('load',()=>{if(!disposed){setReady(true);setError('');}});m.on('error',()=>{if(!disposed)setError(tr('Một số lớp bản đồ chưa tải được. Kiểm tra dữ liệu tiles, font và sprite của Nullmaps.'));});
-   m.on('click',e=>pin.current?.([e.lngLat.lat,e.lngLat.lng]));resize=new ResizeObserver(()=>m?.resize());resize.observe(root.current);
+   m.on('click',e=>{const point=e.lngLat.wrap();pin.current?.([point.lat,point.lng]);});resize=new ResizeObserver(()=>m?.resize());resize.observe(root.current);
   }catch(e){if(!disposed)setError(e instanceof Error?e.message:tr('Không mở được bản đồ Nullmaps.'));}})();
   return()=>{disposed=true;controller.abort();resize?.disconnect();markers.current.forEach(x=>x.remove());markers.current=[];m?.remove();map.current=undefined;};
  },[version]);

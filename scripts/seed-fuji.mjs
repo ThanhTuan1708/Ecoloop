@@ -1,4 +1,4 @@
-// Creates a small set of TEST lots on the EcoLoop pickup V3 contract with real transactions,
+// Creates a small set of TEST lots on the EcoLoop pickup V4 contract with real transactions,
 // so every stage of the flow can be checked on Fuji: open → claimed (escrow locked) → proposed → completed (paid + NFT).
 // These are test transactions made with your own test wallets. Label them as tests when you show them;
 // real activity should come from real households and collectors using the app (see docs/DU-LIEU-THAT.md).
@@ -33,7 +33,7 @@ const pickup = JSON.parse(fs.readFileSync('artifacts/EcoLoopPickup.json', 'utf8'
 const config = JSON.parse(fs.readFileSync('config/app.json', 'utf8'));
 const contractArg = args.find(a => a.startsWith('--contract='))?.split('=')[1];
 const address = contractArg || (config.chainId === chain.id ? config.pickupContract : undefined);
-if (!address || !isAddress(address)) fail('No pickup contract for this chain. Deploy V3 first: npm run deploy:pickup:fuji');
+if (!address || !isAddress(address)) fail('No pickup contract for this chain. Deploy V4 first: npm run deploy:pickup:fuji');
 
 const adminKey = process.env.DEPLOYER_PRIVATE_KEY;
 const householdKeys = String(process.env.SEED_HOUSEHOLD_KEYS || '').split(',').map(s => s.trim()).filter(Boolean);
@@ -45,7 +45,7 @@ if (!keyPattern.test(collectorKey || '')) fail('Set SEED_COLLECTOR_KEY (collecto
 const client = createPublicClient({ chain, transport: http(rpc) });
 if (await client.getChainId() !== chain.id) fail('RPC chain mismatch');
 const code = await client.getCode({ address });
-if (codeHash(code, pickup.immutables) !== pickup.runtimeHash) fail(`${address} is not the EcoLoop pickup V3 contract compiled from this repo.`);
+if (codeHash(code, pickup.immutables) !== pickup.runtimeHash) fail(`${address} is not the EcoLoop pickup V4 contract compiled from this repo.`);
 
 const admin = privateKeyToAccount(adminKey);
 const households = householdKeys.map(k => privateKeyToAccount(k));
@@ -92,7 +92,6 @@ const plan = [
   { stage: 'open',      weights: [1500n, 2000n, 0n, 3000n], lat: 1085, lng: 10675, area: 'TP. Thủ Đức' },
 ];
 
-const role = keccak256(stringToHex('COLLECTOR_ROLE'));
 const balance = async a => Number(formatEther(await client.getBalance({ address: a.address })));
 console.log(`EcoLoop TEST seed on chain ${chain.id}\n  Contract:   ${address}\n  Admin:      ${admin.address} (${await balance(admin)} AVAX)\n  Collector:  ${collector.address} (${await balance(collector)} AVAX)`);
 for (const h of households) console.log(`  Household:  ${h.address} (${await balance(h)} AVAX)`);
@@ -102,10 +101,6 @@ plan.forEach((p, i) => console.log(`  ${i + 1}. ${p.stage.padEnd(9)} ${p.weights
 if (dryRun) { console.log('\n--dry-run: nothing sent.'); process.exit(0); }
 if (photos.length && !server) fail('Photos found but SEED_SERVER_URL is not set: the app could not show them. Set SEED_SERVER_URL or remove seed-photos/.');
 
-if (!await read('hasRole', [role, collector.address])) {
-  console.log('\nGranting COLLECTOR_ROLE to the collector…');
-  await send(admin, 'grantRole', [role, collector.address]);
-}
 
 const log = { chainId: chain.id, contract: address, test: true, createdAt: new Date().toISOString(), lots: [] };
 const tx = h => explorer ? `${explorer}/tx/${h}` : h;

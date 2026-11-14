@@ -31,7 +31,9 @@ test('pickup contacts are signed, immutable, persisted, and visible only to owne
   const photo=await post('/api/evidence/read',{...await auth(collector,'read'),id:1});assert.equal(photo.status,200);
   assert.equal((await post('/api/evidence/read',await auth(collector,'read'))).status,403);
   status=4;assert.equal((await read(collector)).status,403);assert.equal((await read(owner)).status,200);
-  status=2;role=false;assert.equal((await read(collector)).status,403);
+  status=2;role=false;assert.equal((await read(collector)).status,200);
+  assert.equal((await post('/api/evidence/read',{...await auth(collector,'read'),id:1})).status,200);
+  assert.equal((await post('/api/evidence/read',{...await auth(outsider,'read'),id:1})).status,403);
   const signed=await auth(owner,'pickup-read');assert.equal((await post('/api/pickup/details',{auth:signed,id:1})).status,200);assert.equal((await post('/api/pickup/details',{auth:signed,id:1})).status,401);
   await new Promise(r=>server.close(r));server=await createApp({dataDir:dir,configFile,client});await new Promise(r=>server.listen(0,'127.0.0.1',r));url='http://127.0.0.1:'+server.address().port;
   assert.equal((await (await read(owner)).json()).address,'Private pickup address');
