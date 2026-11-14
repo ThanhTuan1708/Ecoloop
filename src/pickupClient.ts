@@ -1,4 +1,4 @@
-import { encodeFunctionData, formatEther, keccak256, stringToHex, type Address, type Hash } from 'viem';
+import { concatHex, encodeDeployData, encodeFunctionData, formatEther, getContractAddress, keccak256, stringToHex, type Address, type Hash } from 'viem';
 import { publicClient } from './chain';
 import { assertWallet, chain, getWalletName } from './wallet';
 import { num, tr } from './settings';
@@ -13,6 +13,8 @@ export const GASLESS_FUNCTIONS=new Set(['createLot','acceptLot','disputeLot','ca
 const RELAY_GAS:Record<string,bigint>={createLot:450_000n,acceptLot:800_000n,disputeLot:150_000n,cancelLot:120_000n,releaseLot:200_000n,redeemReward:250_000n,transfer:150_000n};
 const pendingKey=`ecoloop-pickup-pending-${chain.id}`;
 const forwarderKey=`ecoloop-forwarder-${chain.id}`;
+const deploymentProxy='0x4e59b44847b379578588920cA78FbF26c0B4956C';
+const deploymentProxyHash='0x2fa86add0aed31f33a762c9d88e807c475bd51d0f52bd0955754b2608f7e4989';
 export function pendingPickup():Hash|undefined {return localStorage.getItem(pendingKey) as Hash||undefined;}
 async function receipt(hash:Hash){
   let replaced=false;
@@ -123,6 +125,27 @@ export async function householdWrite(address:Address,account:Address,functionNam
 export async function deployPickup(account:Address){
   if(pendingPickup())throw new Error('Kiểm tra giao dịch đang chờ trước.');
   const wallet=await assertWallet(account);
+  if(import.meta.env.VITE_SPONSOR_GAS==='true'&&getWalletName()==='Ví Google'){
+    const proxyCode=await publicClient.getCode({address:deploymentProxy});
+    if(!proxyCode||keccak256(proxyCode)!==deploymentProxyHash)throw new Error(tr('Mạng hiện tại chưa hỗ trợ triển khai từ ví Google được tài trợ gas.'));
+    // ERC-4337 sends calls to an existing contract. The proxy creates the new contracts via CREATE2.
+    const salt=keccak256(stringToHex(`EcoLoop Pickup V4:${account.toLowerCase()}`));
+    const deploy=async(initCode:Hash)=>{
+      const address=getContractAddress({opcode:'CREATE2',from:deploymentProxy,salt,bytecode:initCode});
+      const existing=await publicClient.getCode({address});
+      if(existing&&existing!=='0x')return {address};
+      const hash=await wallet.sendTransaction({to:deploymentProxy,data:concatHex([salt,initCode])});
+      localStorage.setItem(pendingKey,hash);
+      const result=await receipt(hash);
+      return {address,block:result.blockNumber};
+    };
+    const {address:forwarder}=await deploy(forwarderBytecode);
+    if(codeHash(await publicClient.getCode({address:forwarder}),forwarderImmutables)!==forwarderRuntimeHash)throw new Error(tr('Không xác minh được contract Forwarder sau khi triển khai.'));
+    const {address,block}=await deploy(encodeDeployData({abi:pickupAbi,bytecode:pickupBytecode,args:[account,forwarder]}));
+    await validatePickup(address);
+    rememberDeployment(address,block);
+    return address;
+  }
   let forwarder=localStorage.getItem(forwarderKey) as Address|null;
   const code=forwarder?await publicClient.getCode({address:forwarder}):undefined;
   if(!forwarder||codeHash(code,forwarderImmutables)!==forwarderRuntimeHash){
@@ -134,10 +157,15 @@ export async function deployPickup(account:Address){
   const hash=await wallet.deployContract({abi:pickupAbi,bytecode:pickupBytecode,args:[account,forwarder]} as never);
   localStorage.setItem(pendingKey,hash);
   const r=await receipt(hash);if(!r.contractAddress)throw new Error('Chưa nhận được địa chỉ contract.');
-  localStorage.setItem(`ecoloop-pickup-deployed-${chain.id}`,r.contractAddress);
-  // The deploy block lets the server index this contract's history (wallet card) from the start.
-  localStorage.setItem(`ecoloop-pickup-deployblock-${chain.id}`,String(r.blockNumber));
+  rememberDeployment(r.contractAddress,r.blockNumber);
   return r.contractAddress;
+}
+function rememberDeployment(address:Address,block?:bigint){
+  const addressKey=`ecoloop-pickup-deployed-${chain.id}`;
+  const blockKey=`ecoloop-pickup-deployblock-${chain.id}`;
+  if(block!==undefined)localStorage.setItem(blockKey,String(block));
+  else if(localStorage.getItem(addressKey)?.toLowerCase()!==address.toLowerCase())localStorage.removeItem(blockKey);
+  localStorage.setItem(addressKey,address);
 }
 export async function activatePickup(account:Address,address:Address){
   if(!await isPickupV4(address))throw new Error('Địa chỉ không phải contract Thu gom EcoLoop V4.');

@@ -258,18 +258,39 @@ export default function Pickup({account,admin,onConnect,page='home',role='seller
       <p>{page==='settings'?tr('Ngôn ngữ, giao diện, đơn vị, thông báo và cấu hình hệ thống.'):tr('Lô, ký quỹ và chứng nhận ghi trên Avalanche. Ảnh và liên hệ lưu riêng, chỉ chủ lô và người nhận việc xem được.')}</p>
     </div>
     {page==='settings'&&children}
-    {page==='settings'&&(admin||pickupAdmin||!address)&&<h3 className="set-section-title">{tr('Quản trị hệ thống')}</h3>}
+    {page==='settings'&&(admin||pickupAdmin)&&<h3 className="set-section-title">{tr('Quản trị hệ thống')}</h3>}
     {seller&&page==='home'&&<div className="pickup-intro"><div><h2>{tr('Đăng lô để hẹn thu gom')}</h2><p>{tr('Thêm ảnh, khối lượng dự kiến và địa chỉ bàn giao. Xác nhận số cân sau khi người thu gom gửi đề xuất.')}</p></div>{creating?<button className="secondary" disabled={busy} onClick={()=>setCreating(false)}>{tr('Đóng biểu mẫu')}</button>:<button className="primary" onClick={onOpenOrders}>{tr('Lô của tôi')}</button>}</div>}
     {page==='orders'&&!account&&<button className="secondary" onClick={onConnect}>{tr('Kết nối ví')}</button>}
     {loading&&!lots.length&&<p role="status">{tr('Đang tải dữ liệu từ mạng…')}</p>}
-    {!address&&page==='settings'&&<div className="pickup-callout"><strong>{legacyPickup?tr('Nâng cấp contract thu gom lên V4'):tr('Chờ kích hoạt contract thu gom V4')}</strong><p>{tr('V4 cho mọi ví đăng lô và nhận thu gom. Quản trị viên triển khai rồi kích hoạt dùng chung.')}</p>{legacyPickup&&<p className="footnote">{tr('Contract cũ: {address}. Lô và ECO trên contract cũ không tự chuyển sang V4.',{address:legacyPickup})}</p>}{!account&&<button className="primary" onClick={()=>onConnect()}>{tr('Kết nối ví quản trị')}</button>}{account&&!admin&&<p>{tr('Ví này chưa có quyền quản trị trên hệ thống hiện tại. Hãy dùng ví đã triển khai EcoLoop.')}</p>}{admin&&account&&<><label className="checkbox"><input type="checkbox" checked={deployConsent} onChange={e=>setDeployConsent(e.target.checked)}/>{tr('Tạo bộ contract V4 mới bằng AVAX testnet. ECO V4 được quản lý riêng với ECO cũ.')}</label><button className="primary" disabled={busy||!deployConsent||!!pendingPickup()} onClick={()=>run(async()=>{const a=await deployPickup(account);setImportAddress(a);setMessage(tr('Đã triển khai. Nhấn kích hoạt dùng chung bên dưới để hoàn tất.'));})}>{tr('Triển khai bằng ví quản trị')}</button><label>{tr('Địa chỉ V4 đã triển khai')}<input value={importAddress} onChange={e=>setImportAddress(e.target.value)} placeholder="0x…"/></label><button className="secondary" disabled={busy||!isAddress(importAddress)} onClick={()=>run(async()=>{await activatePickup(account,importAddress as Address);await refresh();setMessage(tr('Đã kích hoạt contract chung cho Chrome và Edge.'));})}>{tr('Kích hoạt dùng chung')}</button></>}</div>}
+    {page==='settings'&&<section className="pickup-callout">
+      <h3>{tr('Triển khai contract thu gom V4')}</h3>
+      <p>{tr('Mọi ví kết nối, kể cả ví Google và Core, đều có thể tạo một contract V4. Ví triển khai nhận quyền quản trị trên contract mới.')}</p>
+      {legacyPickup&&<p className="footnote">{tr('Contract cũ: {address}. Lô và ECO trên contract cũ không tự chuyển sang V4.',{address:legacyPickup})}</p>}
+      {!account?<button className="primary" onClick={onConnect}>{tr('Kết nối ví')}</button>:<>
+        <label className="checkbox"><input type="checkbox" checked={deployConsent} onChange={e=>setDeployConsent(e.target.checked)}/>{tr('Tôi đồng ý tạo contract trên Fuji và xác nhận các giao dịch trong ví.')}</label>
+        <button className="primary" disabled={busy||!deployConsent||!!pendingPickup()} onClick={()=>run(async()=>{
+          setImportAddress(await deployPickup(account));
+          setDeployConsent(false);
+          setMessage(tr('Đã triển khai contract thu gom V4.'));
+        })}>{tr('Triển khai bằng ví đang kết nối')}</button>
+        {((!address&&admin)||importAddress)&&<label>{tr('Địa chỉ V4 đã triển khai')}
+          <input value={importAddress} readOnly={!!address||!admin} onChange={e=>setImportAddress(e.target.value)} placeholder="0x…"/>
+        </label>}
+        {!address&&admin&&<button className="secondary" disabled={busy||!isAddress(importAddress)} onClick={()=>run(async()=>{
+          await activatePickup(account,importAddress as Address);
+          await refresh();
+          setMessage(tr('Đã kích hoạt contract chung cho Chrome và Edge.'));
+        })}>{tr('Kích hoạt dùng chung')}</button>}
+        <p className="footnote">{tr('Sàn EcoLoop dùng một địa chỉ V4 chung. Quản trị viên cấu hình địa chỉ này cho tất cả người dùng.')}</p>
+      </>}
+    </section>}
     {pendingPickup()&&<div className="pickup-callout"><strong>{tr('Giao dịch đang chờ xác nhận')}</strong><code>{pendingPickup()}</code><button className="secondary" disabled={busy} onClick={()=>run(async()=>{const r=await resumePickup();if(r?.contractAddress){setImportAddress(r.contractAddress);localStorage.setItem(`ecoloop-pickup-deployed-${chain.id}`,r.contractAddress);}await refresh();setMessage(tr('Đã kiểm tra giao dịch.'));})}>{tr('Kiểm tra giao dịch')}</button></div>}
     {message&&!(failure&&current)&&<div className={failure?'pickup-feedback error':'pickup-feedback'} role={failure?'alert':'status'}>{tr(message)}</div>}
     {hash&&<a className="text-link" href={txUrl(hash)} target="_blank" rel="noreferrer">{tr('Xem giao dịch trên Fuji ↗')}</a>}
     {paused&&<p role="alert">{tr('Thu gom đang tạm dừng. Vẫn có thể hủy, yêu cầu cân lại hoặc trả việc.')}</p>}
     {address&&page!=='settings'&&<div className="data-mode-bar"><span className="live-chip"><ShieldCheck size={15}/>{tr('Dữ liệu thật trên Avalanche')}</span>{gasless&&<span className="gasless-chip"><Fuel size={14}/>{tr('Miễn phí gas cho hộ gia đình')}</span>}</div>}
     {marketError&&(page==='home'||page==='orders')&&<div className="pickup-callout" role="status"><p>{tr('Chưa tải được dữ liệu lô mới nhất. Vui lòng thử lại.')}</p><button type="button" className="secondary" onClick={()=>void refresh()}>{tr('Thử lại')}</button></div>}
-    {!address&&page!=='settings'&&!loading&&!marketError&&<div className="pickup-callout"><strong>{legacyPickup?tr('Contract thu gom cần nâng cấp lên V4'):tr('Chưa có contract thu gom V4')}</strong><p>{legacyPickup?tr('Quản trị viên cần kích hoạt V4 để mọi ví đều có thể nhận thu gom.'):tr('Quản trị viên vào Thiết lập để triển khai và kích hoạt contract. Sau đó các lô thật sẽ hiện ở đây.')}</p>{onSettings&&<button type="button" className="secondary" onClick={onSettings}>{tr('Mở Thiết lập')}</button>}</div>}
+    {!address&&page!=='settings'&&!loading&&!marketError&&<div className="pickup-callout"><strong>{tr('Chưa có contract thu gom V4')}</strong><p>{tr('Các lô sẽ xuất hiện sau khi sàn được cấu hình địa chỉ V4 dùng chung.')}</p>{onSettings&&<button type="button" className="secondary" onClick={onSettings}>{tr('Mở Thiết lập')}</button>}</div>}
     {page==='wallet'&&walletSlot}
     {address&&<>
       {browseMarket&&<div className="pickup-summary">

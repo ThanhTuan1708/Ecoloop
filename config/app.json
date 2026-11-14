@@ -2,5 +2,7 @@
   "chainId": 43113,
   "contract": "0xb31c43511f79383990f690cbc7a3d07635f70ae1",
   "collectionName": "Điểm thu gom EcoLoop",
-  "collectionInstructions": "Liên hệ đơn vị tổ chức để thống nhất địa điểm và giờ bàn giao vật liệu, nhận quà."
+  "collectionInstructions": "Liên hệ đơn vị tổ chức để thống nhất địa điểm và giờ bàn giao vật liệu, nhận quà.",
+  "pickupContract": "0x821766DE3fa2F543d658E9c480d4EC7828D4E6ee",
+  "pickupDeployBlock": 61062373
 }
