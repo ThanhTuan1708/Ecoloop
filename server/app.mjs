@@ -187,7 +187,13 @@ export async function createApp({dataDir=path.resolve(process.env.DATA_DIR||'.da
         if(url.pathname==='/api/evidence/upload'&&req.method==='POST'){
           let auth;try{auth=JSON.parse(Buffer.from(String(req.headers['x-ecoloop-auth']||''),'base64').toString());}catch{fail(401,'Thiếu chữ ký xác thực.');}
           const identity=await authenticate(auth);if(identity.action!=='upload')fail(403,'Sai loại xác thực.');
-          await compatible(identity.contract);
+          const version=await compatible(identity.contract);
+          if(req.headers['x-ecoloop-lot']!==undefined){
+            const id=Number(req.headers['x-ecoloop-lot']);
+            if(version!=='v4'||!Number.isSafeInteger(id)||id<1)fail(400,'Mã lô không hợp lệ.');
+            const lot=await client.readContract({address:identity.contract,abi:pickupArtifact.abi,functionName:'getLot',args:[BigInt(id)]});
+            if(lot.owner.toLowerCase()!==identity.account||lot.evidence.toLowerCase()!==identity.hash)fail(403,'Chỉ chủ lô có thể tải lại ảnh gốc của lô.');
+          }
           const bytes=await readBody(req,deploymentConfig?4*1024*1024:MAX_IMAGE);const mime=imageType(bytes);if(!mime)fail(415,'Chỉ hỗ trợ ảnh JPG, PNG, WebP.');
           const digest='0x'+createHash('sha256').update(bytes).digest('hex');if(digest!==identity.hash)fail(400,'Hash ảnh không khớp chữ ký.');
           const dir=path.join(dataDir,identity.contract);const base=path.join(dir,identity.hash);

@@ -10,9 +10,9 @@ export async function authorize(action:'upload'|'read'|'pickup-save'|'pickup-rea
   const signature=await signAuthorizationMessage(account,message);
   return {...identity,nonce,signature};
 }
-export async function uploadEvidence(account:Address,file:File,hash:string,contract?:Address){
+export async function uploadEvidence(account:Address,file:File,hash:string,contract?:Address,lotId?:number){
   const auth=await authorize('upload',account,hash,contract);
-  await checked(await fetch('/api/evidence/upload',{method:'POST',headers:{'Content-Type':file.type,'X-EcoLoop-Auth':btoa(JSON.stringify(auth))},body:file}));
+  await checked(await fetch('/api/evidence/upload',{method:'POST',headers:{'Content-Type':file.type,'X-EcoLoop-Auth':btoa(JSON.stringify(auth)),...(lotId===undefined?{}:{'X-EcoLoop-Lot':String(lotId)})},body:file}));
 }
 export async function viewEvidence(account:Address,hash:string,contract?:Address,id?:number){
   const auth=await authorize('read',account,hash,contract);

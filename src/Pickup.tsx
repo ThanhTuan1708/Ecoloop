@@ -5,7 +5,7 @@ import {chain,getWalletName} from './wallet';
 import {errorMessage,txUrl,publicClient} from './chain';
 import {materials,short} from './model';
 import {tr,num as fmt,wt,dateTime,notify,unit} from './settings';
-import {viewEvidence} from './evidence';
+import {uploadEvidence,viewEvidence} from './evidence';
 import {pickupAbi} from './generated/pickup';
 import {lotStatuses,activatePickup,deployPickup,digest,distanceKm,pendingPickup,pickupDetails,pickupRead,pickupReadWallet,pickupWrite,householdWrite,requiredDeposit,payoutPreview,readCertificate,certificateUrl,addressUrl,isPickupV4,resumePickup,savePickupPhoto,savePickupDetails,ZERO,type Lot,type CertificateView} from './pickupClient';
 import {queryProductCards,type ListingStatus,type SortOption,type ShopeeWeb3ProductCard} from './marketplace';
@@ -452,11 +452,30 @@ export default function Pickup({account,admin,onConnect,page='home',role='seller
               const details=await pickupDetails(account,address,current);
               if(v!==detailVersion.current)return;
               setDetail(details);
-              const image=await viewEvidence(account,current.evidence,address,current.id).catch(()=>undefined);
-              if(!image)return;
+            })}>{tr('Xem liên hệ & địa chỉ bàn giao')}</button>}
+            {(isOwner||isAssignedCollector)&&!photo&&<button type="button" className="secondary" disabled={busy} onClick={()=>run(async()=>{
+              if(!account||!address)return;
+              const v=detailVersion.current;
+              const image=await viewEvidence(account,current.evidence,address,current.id);
               if(v!==detailVersion.current){URL.revokeObjectURL(image);return;}
               setPhoto(image);
-            })}>{tr('Xem liên hệ & địa chỉ bàn giao')}</button>}
+            })}>{tr('Xem ảnh lô')}</button>}
+            {isOwner&&account&&address&&!photo&&<label className="footnote">{tr('Tải lại ảnh gốc của lô')}
+              <input type="file" accept="image/jpeg,image/png,image/webp" disabled={busy} onChange={event=>{
+                const input=event.currentTarget;
+                const file=input.files?.[0];
+                input.value='';
+                if(!file)return;
+                const v=detailVersion.current;
+                void run(async()=>{
+                  if(file.size>4*1024*1024)throw new Error(tr('Chọn ảnh tối đa 4 MB.'));
+                  const actualHash=await digest(await file.arrayBuffer());
+                  if(actualHash!==current.evidence.toLowerCase())throw new Error(tr('Ảnh này không khớp ảnh gốc đã đăng.'));
+                  await uploadEvidence(account,file,actualHash,address,current.id);
+                  if(v===detailVersion.current)setPhoto(URL.createObjectURL(file));
+                });
+              }}/>
+            </label>}
             {isOwner&&account&&address&&[1,2,3].includes(current.status)&&!detail&&<button type="button" className="text-link" onClick={()=>setRestoreDetails(value=>!value)}>{tr('Bổ sung thông tin bàn giao')}</button>}
             {isOwner&&account&&address&&restoreDetails&&!detail&&<form className="pickup-callout" onSubmit={event=>{
               event.preventDefault();

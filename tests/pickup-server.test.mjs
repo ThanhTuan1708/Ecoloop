@@ -63,7 +63,16 @@ test('pickup contacts are signed, immutable, persisted, and visible only to owne
  async function save(wallet,payload,signatureHash=sha(payload)){return post('/api/pickup/details',{auth:await auth(wallet,'pickup-save',signatureHash),payload});}
  async function read(wallet){return post('/api/pickup/details',{auth:await auth(wallet,'pickup-read'),id:1});}
  try{
-  const a=await auth(owner,'upload');assert.equal((await fetch(url+'/api/evidence/upload',{method:'POST',headers:{'X-EcoLoop-Auth':Buffer.from(JSON.stringify(a)).toString('base64')},body:image})).status,201);
+  async function restorePhoto(wallet,bytes=image){
+    const signed=await auth(wallet,'upload');
+    return fetch(url+'/api/evidence/upload',{method:'POST',headers:{
+      'X-EcoLoop-Auth':Buffer.from(JSON.stringify(signed)).toString('base64'),
+      'X-EcoLoop-Lot':'1',
+    },body:bytes});
+  }
+  assert.equal((await restorePhoto(collector)).status,403);
+  assert.equal((await restorePhoto(owner,Buffer.concat([image,Buffer.from('changed')]))).status,400);
+  assert.equal((await restorePhoto(owner)).status,201);
   const payload=JSON.stringify({evidence:hash,contact:'0900000000',address:'Private pickup address'});
   assert.equal((await save(owner,payload)).status,201);assert.equal((await save(owner,payload)).status,201,'safe retry after wallet rejection');
   assert.equal((await save(owner,payload,sha('different'))).status,400);

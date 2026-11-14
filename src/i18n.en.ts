@@ -1,6 +1,9 @@
 // English translations. Keys are the Vietnamese source strings used with tr() in the UI.
 // Add a line here whenever you add a new tr('…') string. `npm run i18n:check` lists any that are missing.
 export const en:Record<string,string>={
+ "Xem ảnh lô":"View lot photo",
+ "Tải lại ảnh gốc của lô":"Re-upload original lot photo",
+ "Ảnh này không khớp ảnh gốc đã đăng.":"This file does not match the original lot photo.",
  "Bổ sung thông tin bàn giao":"Add pickup details",
  "Ký và lưu thông tin bàn giao":"Sign and save pickup details",
  "Thông tin bàn giao của lô này không còn trên máy chủ. Hãy liên hệ người đăng lô.":"The pickup details for this lot are missing. Contact the seller.",
