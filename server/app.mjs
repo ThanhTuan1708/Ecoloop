@@ -8,9 +8,7 @@ import { createPublicClient, createWalletClient, decodeEventLog, http as rpcHttp
 import { privateKeyToAccount } from 'viem/accounts';
 import { codeHash } from './codehash.mjs';
 import previousPickup from '../config/pickup-v3.json' with {type:'json'};
-import {abi} from '../src/generated/abi.ts';
-import {runtimeHash} from '../src/generated/deployment.ts';
-import {pickupAbi,pickupRuntimeHash,pickupImmutables,forwarderAbi,forwarderRuntimeHash,forwarderImmutables} from '../src/generated/pickup.ts';
+import {artifact,pickupArtifact,forwarderArtifact} from './generated-contracts.mjs';
 import { avalancheFuji, hardhat } from 'viem/chains';
 
 const MAX_IMAGE = 10 * 1024 * 1024;
@@ -32,9 +30,6 @@ async function readBody(req, limit) {
 function fail(status,message){const error=new Error(message);error.status=status;throw error;}
 export async function createApp({dataDir=path.resolve(process.env.DATA_DIR||'.data'),staticDir=path.resolve('dist'),client,chainId=Number(process.env.VITE_CHAIN_ID||43113),configFile=path.resolve('config/app.json'),deploymentConfig,relayerKey=process.env.RELAYER_PRIVATE_KEY,relayWallet}={}) {
   dataDir=path.join(path.resolve(dataDir),String(chainId));
-  const artifact={abi,runtimeHash};
-  const pickupArtifact={abi:pickupAbi,runtimeHash:pickupRuntimeHash,immutables:pickupImmutables};
-  const forwarderArtifact={abi:forwarderAbi,runtimeHash:forwarderRuntimeHash,immutables:forwarderImmutables};
   async function readConfig(){
     if(deploymentConfig)return deploymentConfig;
     try{return JSON.parse(await fs.readFile(configFile,'utf8'));}
