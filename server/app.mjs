@@ -3,7 +3,8 @@ import {createMapsHandler} from './maps.mjs';
 import {createMarketplaceHandler} from './marketplace.mjs';
 import fs from 'node:fs/promises';
 import path from 'node:path';
-import { createHash, randomUUID } from 'node:crypto';
+import { createHash, createHmac, randomUUID, timingSafeEqual } from 'node:crypto';
+import {createPickupStorage} from './pickup-storage.mjs';
 import { createPublicClient, createWalletClient, decodeEventLog, fallback, http as rpcHttp, isAddress, isHex, keccak256, stringToHex, toFunctionSelector, verifyMessage } from 'viem';
 import { privateKeyToAccount } from 'viem/accounts';
 import { codeHash } from './codehash.mjs';
@@ -27,7 +28,7 @@ async function readBody(req, limit) {
   return Buffer.concat(parts);
 }
 function fail(status,message){const error=new Error(message);error.status=status;throw error;}
-export async function createApp({dataDir=path.resolve(process.env.DATA_DIR||'.data'),staticDir=path.resolve('dist'),client,chainId=Number(process.env.VITE_CHAIN_ID||43113),configFile=path.resolve('config/app.json'),deploymentConfig,relayerKey=process.env.RELAYER_PRIVATE_KEY,relayWallet}={}) {
+export async function createApp({dataDir=path.resolve(process.env.DATA_DIR||'.data'),staticDir=path.resolve('dist'),client,chainId=Number(process.env.VITE_CHAIN_ID||43113),configFile=path.resolve('config/app.json'),deploymentConfig,relayerKey=process.env.RELAYER_PRIVATE_KEY,relayWallet,pickupStorage,pickupStorageKey=deploymentConfig&&process.env.PICKUP_STORAGE_KEY}={}) {
   dataDir=path.join(path.resolve(dataDir),String(chainId));
   async function readConfig(){
     if(deploymentConfig)return deploymentConfig;
@@ -90,6 +91,21 @@ export async function createApp({dataDir=path.resolve(process.env.DATA_DIR||'.da
     pickupVersionCache.set(key,ok);return ok;
   }
   const challenges=new Map();
+  const storageKey=pickupStorageKey;
+  const storage=pickupStorage??createPickupStorage(process.env.BLOB_READ_WRITE_TOKEN,storageKey);
+  const prefix=`chains/${chainId}/`;
+  async function readStored(file){
+    const value=storage&&await storage.read(prefix+path.relative(dataDir,file).split(path.sep).join('/'));
+    return value||fs.readFile(file);
+  }
+  async function writeStored(file,value){
+    if(!storage)return fs.writeFile(file,value,{flag:'wx'});
+    if(!await storage.write(prefix+path.relative(dataDir,file).split(path.sep).join('/'),value)){
+      throw Object.assign(new Error('Record already exists'),{code:'EEXIST'});
+    }
+  }
+  const challengeMessage=(data,nonce,expiry)=>`EcoLoop evidence authorization\nAction: ${data.action}\nChain: ${chainId}\nContract: ${data.contract}\nWallet: ${data.account}\nSHA-256: ${data.hash}\nNonce: ${nonce}\nExpires: ${new Date(expiry).toISOString()}`;
+  const challengeMac=(message)=>createHmac('sha256',storageKey).update(message).digest('hex');
   const limits=new Map();
   let activatingPickup=false;
   let totalBytes=0;
@@ -103,9 +119,19 @@ export async function createApp({dataDir=path.resolve(process.env.DATA_DIR||'.da
     return {account:data.account.toLowerCase(),contract:data.contract.toLowerCase(),hash:data.hash.toLowerCase(),action:data.action};
   }
   async function authenticate(data){
+    const identity=fields(data||{});
+    if(storage){
+      const parts=String(data.nonce||'').match(/^([\da-f-]{36})\.(\d{13})\.([\da-f]{64})$/);
+      if(!parts||Number(parts[2])<Date.now()||Number(parts[2])>Date.now()+180000)fail(401,'Yêu cầu ký đã hết hạn hoặc được sử dụng.');
+      const message=challengeMessage(identity,parts[1],Number(parts[2]));
+      if(!timingSafeEqual(Buffer.from(challengeMac(message),'hex'),Buffer.from(parts[3],'hex')))fail(401,'Thông tin ký không khớp.');
+      const signed={address:identity.account,message,signature:data.signature};
+      if(!await verifyMessage(signed).catch(()=>false)&&!await client.verifyMessage?.(signed).catch(()=>false))fail(401,'Chữ ký ví không hợp lệ.');
+      if(!await storage.write(prefix+'nonces/'+parts[1],Buffer.alloc(0),1))fail(401,'Yêu cầu ký đã hết hạn hoặc được sử dụng.');
+      return identity;
+    }
     const challenge=challenges.get(data.nonce);challenges.delete(data.nonce);
     if(!challenge||challenge.expiry<Date.now())fail(401,'Yêu cầu ký đã hết hạn hoặc được sử dụng.');
-    const identity=fields(data);
     if(Object.keys(identity).some(k=>identity[k]!==challenge[k]))fail(401,'Thông tin ký không khớp.');
     const signed={address:identity.account,message:challenge.message,signature:data.signature};
     const valid=await verifyMessage(signed).catch(()=>false)||await client.verifyMessage?.(signed).catch(()=>false);
@@ -151,16 +177,26 @@ export async function createApp({dataDir=path.resolve(process.env.DATA_DIR||'.da
           const now=Date.now();for(const [nonce,record]of challenges)if(record.expiry<now)challenges.delete(nonce);
           if(challenges.size>1000)fail(429,'Server đang bận.');
           const nonce=randomUUID();const expiry=now+180000;
-          const message=`EcoLoop evidence authorization\nAction: ${data.action}\nChain: ${chainId}\nContract: ${data.contract}\nWallet: ${data.account}\nSHA-256: ${data.hash}\nNonce: ${nonce}\nExpires: ${new Date(expiry).toISOString()}`;
+          const message=challengeMessage(data,nonce,expiry);
+          if(storage){send(200,{nonce:`${nonce}.${expiry}.${challengeMac(message)}`,message,expiresAt:expiry});return;}
           challenges.set(nonce,{...data,expiry,message});send(200,{nonce,message,expiresAt:expiry});return;
         }
         if(url.pathname==='/api/evidence/upload'&&req.method==='POST'){
           let auth;try{auth=JSON.parse(Buffer.from(String(req.headers['x-ecoloop-auth']||''),'base64').toString());}catch{fail(401,'Thiếu chữ ký xác thực.');}
           const identity=await authenticate(auth);if(identity.action!=='upload')fail(403,'Sai loại xác thực.');
           await compatible(identity.contract);
-          const bytes=await readBody(req,MAX_IMAGE);const mime=imageType(bytes);if(!mime)fail(415,'Chỉ hỗ trợ ảnh JPG, PNG, WebP.');
+          const bytes=await readBody(req,deploymentConfig?4*1024*1024:MAX_IMAGE);const mime=imageType(bytes);if(!mime)fail(415,'Chỉ hỗ trợ ảnh JPG, PNG, WebP.');
           const digest='0x'+createHash('sha256').update(bytes).digest('hex');if(digest!==identity.hash)fail(400,'Hash ảnh không khớp chữ ký.');
           const dir=path.join(dataDir,identity.contract);const base=path.join(dir,identity.hash);
+          if(storage){
+            const file=base+'.evidence';
+            const saved=Buffer.concat([Buffer.from(JSON.stringify({account:identity.account,mime})+'\n'),bytes]);
+            if(!await storage.write(prefix+identity.contract+'/'+identity.hash+'.evidence',saved)){
+              const prior=await readStored(file);
+              if(JSON.parse(prior.subarray(0,prior.indexOf(10))).account!==identity.account)fail(409,'Ảnh đã được ví khác lưu.');
+            }
+            send(201,{hash:digest,stored:true});return;
+          }
           try{const prior=JSON.parse(await fs.readFile(base+'.json','utf8'));if(prior.account!==identity.account)fail(409,'Ảnh đã được ví khác lưu.');send(200,{hash:digest,stored:true});return;}catch(error){if(error.code!=='ENOENT')throw error;}
           if(totalBytes+bytes.length>maxStorage)fail(507,'Kho ảnh đã đầy. Liên hệ quản trị.');
           await fs.mkdir(dir,{recursive:true});
@@ -246,13 +282,21 @@ export async function createApp({dataDir=path.resolve(process.env.DATA_DIR||'.da
             const payload=data.payload;
             if(typeof payload!=='string'||'0x'+createHash('sha256').update(payload).digest('hex')!==identity.hash)fail(400,'Nội dung liên hệ không khớp chữ ký.');
             const detail=JSON.parse(payload);
-            if(!hashPattern.test(detail.evidence||'')||typeof detail.contact!=='string'||typeof detail.address!=='string'||detail.contact.length<3||detail.contact.length>120||detail.address.length<5||detail.address.length>400)fail(400,'Điền liên hệ và địa chỉ bàn giao hợp lệ.');
+            if(!hashPattern.test(detail.evidence||'')||typeof detail.contact!=='string'||typeof detail.address!=='string'||detail.contact.trim().length<3||detail.contact.length>120||detail.address.trim().length<5||detail.address.length>400)fail(400,'Điền liên hệ và địa chỉ bàn giao hợp lệ.');
             const base=path.join(dataDir,identity.contract,detail.evidence.toLowerCase());
-            const meta=JSON.parse(await fs.readFile(base+'.json','utf8'));
-            if(meta.account!==identity.account)fail(403,'Chỉ chủ ảnh được lưu địa chỉ.');
+            if(detail.lotId!==undefined){
+              if(!Number.isSafeInteger(detail.lotId)||detail.lotId<1)fail(400,'Mã lô không hợp lệ.');
+              const lot=await client.readContract({address:identity.contract,abi:pickupArtifact.abi,functionName:'getLot',args:[BigInt(detail.lotId)]});
+              if(lot.owner.toLowerCase()!==identity.account||lot.evidence.toLowerCase()!==detail.evidence.toLowerCase())fail(403,'Chỉ chủ lô được bổ sung thông tin bàn giao.');
+              if(![1,2,3].includes(lot.status))fail(409,'Chỉ bổ sung thông tin cho lô đang mở hoặc đang thu gom.');
+            }else{
+              const evidence=storage&&await storage.read(prefix+identity.contract+'/'+detail.evidence.toLowerCase()+'.evidence');
+              const meta=evidence?JSON.parse(evidence.subarray(0,evidence.indexOf(10))):JSON.parse(await readStored(base+'.json'));
+              if(meta.account!==identity.account)fail(403,'Chỉ chủ ảnh được lưu địa chỉ.');
+            }
             // Immutable once saved: a signed lot always points to the same pickup instructions.
             const saved=JSON.stringify({owner:identity.account,contact:detail.contact,address:detail.address});
-            try{await fs.writeFile(base+'.pickup.json',saved,{flag:'wx'});}catch(error){if(error.code!=='EEXIST')throw error;if(await fs.readFile(base+'.pickup.json','utf8')!==saved)fail(409,'Ảnh đã có thông tin bàn giao. Chọn ảnh mới nếu đổi địa chỉ.');}
+            try{await writeStored(base+'.pickup.json',saved);}catch(error){if(error.code!=='EEXIST')throw error;if((await readStored(base+'.pickup.json')).toString()!==saved)fail(409,'Ảnh đã có thông tin bàn giao. Chọn ảnh mới nếu đổi địa chỉ.');}
             send(201,{stored:true});return;
           }
           if(identity.action!=='pickup-read'||!Number.isSafeInteger(data.id)||data.id<1)fail(400,'Thông tin đọc không hợp lệ.');
@@ -261,14 +305,19 @@ export async function createApp({dataDir=path.resolve(process.env.DATA_DIR||'.da
           const owner=lot.owner.toLowerCase()===identity.account;
           const assigned=lot.collector.toLowerCase()===identity.account&&[2,3].includes(lot.status);
           if(!owner&&!assigned)fail(403,'Chỉ chủ lô và người được giao thu gom được xem địa chỉ.');
-          const detail=JSON.parse(await fs.readFile(path.join(dataDir,identity.contract,identity.hash)+'.pickup.json','utf8'));
+          const saved=await readStored(path.join(dataDir,identity.contract,identity.hash)+'.pickup.json').catch(error=>{
+            if(error.code==='ENOENT')fail(404,'Thông tin bàn giao của lô này không còn trên máy chủ. Hãy liên hệ người đăng lô.');
+            throw error;
+          });
+          const detail=JSON.parse(saved);
           if(detail.owner!==lot.owner.toLowerCase())fail(403,'Chủ thông tin không khớp lô.');
           send(200,{contact:detail.contact,address:detail.address});return;
         }
         if(url.pathname==='/api/evidence/read'&&req.method==='POST'){
           const data=JSON.parse((await readBody(req,8192)).toString());const identity=await authenticate(data);if(identity.action!=='read')fail(403,'Sai loại xác thực.');
           const base=path.join(dataDir,identity.contract,identity.hash);let meta;
-          try{meta=JSON.parse(await fs.readFile(base+'.json','utf8'));}catch(error){if(error.code==='ENOENT')fail(404,'Ảnh chưa được lưu trên server này.');throw error;}
+          const evidence=storage&&await storage.read(prefix+identity.contract+'/'+identity.hash+'.evidence');
+          try{meta=evidence?JSON.parse(evidence.subarray(0,evidence.indexOf(10))):JSON.parse(await readStored(base+'.json'));}catch(error){if(error.code==='ENOENT')fail(404,'Ảnh chưa được lưu trên server này.');throw error;}
           const version=await compatible(identity.contract);
           if(meta.account!==identity.account){
             if(version!=='v4'){
@@ -281,7 +330,7 @@ export async function createApp({dataDir=path.resolve(process.env.DATA_DIR||'.da
               if(lot.evidence.toLowerCase()!==identity.hash||lot.owner.toLowerCase()!==meta.account||lot.collector.toLowerCase()!==identity.account||![2,3].includes(lot.status))fail(403,'Chỉ người được giao thu gom được xem ảnh của lô.');
             }
           }
-          const bytes=await fs.readFile(base+'.bin');res.writeHead(200,{'Content-Type':meta.mime,'Cache-Control':'no-store','Content-Length':bytes.length});res.end(bytes);return;
+          const bytes=evidence?evidence.subarray(evidence.indexOf(10)+1):await readStored(base+'.bin');res.writeHead(200,{'Content-Type':meta.mime,'Cache-Control':'no-store','Content-Length':bytes.length});res.end(bytes);return;
         }
         fail(404,'API không tồn tại.');
       }

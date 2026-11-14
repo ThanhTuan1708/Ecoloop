@@ -191,7 +191,10 @@ export async function api(path:string,data:unknown){
 export async function digest(bytes:ArrayBuffer){return '0x'+Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256',bytes))).map(b=>b.toString(16).padStart(2,'0')).join('') as Hash;}
 export async function savePickupPhoto(account:Address,address:Address,file:File,evidence:Hash,contact:string,location:string){
   await uploadEvidence(account,file,evidence,address);
-  const payload=JSON.stringify({evidence,contact,address:location});
+  await savePickupDetails(account,address,evidence,contact,location);
+}
+export async function savePickupDetails(account:Address,address:Address,evidence:Hash,contact:string,location:string,lotId?:number){
+  const payload=JSON.stringify({evidence,contact,address:location,lotId});
   const hash=await digest(new TextEncoder().encode(payload).buffer as ArrayBuffer);
   const auth=await authorize('pickup-save',account,hash,address);
   await api('/api/pickup/details',{auth,payload});

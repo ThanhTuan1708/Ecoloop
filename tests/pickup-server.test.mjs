@@ -7,6 +7,48 @@ import {createHash} from 'node:crypto';
 import {generatePrivateKey,privateKeyToAccount} from 'viem/accounts';
 import {createApp} from '../server/app.mjs';
 const sha=bytes=>'0x'+createHash('sha256').update(bytes).digest('hex');
+test('owner can restore a missing address across server instances with a single-use signature',async()=>{
+ const dir=await fs.mkdtemp(path.join(os.tmpdir(),'ecoloop-restore-'));
+ const artifact=JSON.parse(await fs.readFile('artifacts/EcoLoopPickup.json','utf8'));
+ const owner=privateKeyToAccount(generatePrivateKey());
+ const collector=privateKeyToAccount(generatePrivateKey());
+ const contract='0x1111111111111111111111111111111111111111';
+ const evidence=sha('original photo');
+ const data=new Map();
+ const pickupStorage={read:async id=>data.get(id),write:async(id,value)=>{
+   if(data.has(id))return false;
+   data.set(id,Buffer.from(value));return true;
+ }};
+ const client={getChainId:async()=>43113,getCode:async()=>artifact.runtimeBytecode,readContract:async()=>({owner:owner.address,collector:collector.address,evidence,status:3})};
+ const servers=[];
+ async function start(){
+   const server=await createApp({dataDir:dir,client,pickupStorage,pickupStorageKey:'ab'.repeat(32)});
+   servers.push(server);
+   await new Promise(r=>server.listen(0,'127.0.0.1',r));
+   return (route,body)=>fetch('http://127.0.0.1:'+server.address().port+route,{method:'POST',body:JSON.stringify(body)});
+ }
+ try{
+   const challenge=await start();
+   const use=await start();
+   async function signed(wallet,action,hash){
+     const fields={account:wallet.address,contract,action,hash};
+     const {nonce,message}=await (await challenge('/api/evidence/challenge',fields)).json();
+     return {...fields,nonce,signature:await wallet.signMessage({message})};
+   }
+   const read=async()=>use('/api/pickup/details',{auth:await signed(collector,'pickup-read',evidence),id:1});
+   const payload=JSON.stringify({lotId:1,evidence,contact:'Example contact',address:'Example pickup address'});
+   assert.equal((await read()).status,404);
+   assert.equal((await use('/api/pickup/details',{auth:await signed(collector,'pickup-save',sha(payload)),payload})).status,403);
+   const body={auth:await signed(owner,'pickup-save',sha(payload)),payload};
+   assert.equal((await use('/api/pickup/details',body)).status,201);
+   assert.equal((await use('/api/pickup/details',body)).status,401);
+   assert.equal((await (await read()).json()).address,'Example pickup address');
+ }finally{
+   await Promise.all(servers.map(server=>new Promise(r=>server.close(r))));
+   await fs.rm(dir,{recursive:true,force:true});
+ }
+});
+
 test('pickup contacts are signed, immutable, persisted, and visible only to owner or assigned active collector',async()=>{
  const dir=await fs.mkdtemp(path.join(os.tmpdir(),'ecoloop-pickup-'));const configFile=path.join(dir,'config.json');
  const artifact=JSON.parse(await fs.readFile('artifacts/EcoLoopPickup.json','utf8'));

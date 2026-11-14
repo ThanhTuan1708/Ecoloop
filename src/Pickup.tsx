@@ -7,7 +7,7 @@ import {materials,short} from './model';
 import {tr,num as fmt,wt,dateTime,notify,unit} from './settings';
 import {viewEvidence} from './evidence';
 import {pickupAbi} from './generated/pickup';
-import {lotStatuses,activatePickup,deployPickup,digest,distanceKm,pendingPickup,pickupDetails,pickupRead,pickupReadWallet,pickupWrite,householdWrite,requiredDeposit,payoutPreview,readCertificate,certificateUrl,addressUrl,isPickupV4,resumePickup,savePickupPhoto,ZERO,type Lot,type CertificateView} from './pickupClient';
+import {lotStatuses,activatePickup,deployPickup,digest,distanceKm,pendingPickup,pickupDetails,pickupRead,pickupReadWallet,pickupWrite,householdWrite,requiredDeposit,payoutPreview,readCertificate,certificateUrl,addressUrl,isPickupV4,resumePickup,savePickupPhoto,savePickupDetails,ZERO,type Lot,type CertificateView} from './pickupClient';
 import {queryProductCards,type ListingStatus,type SortOption,type ShopeeWeb3ProductCard} from './marketplace';
 import './pickup.css';
 import {speakFeedback} from './voiceFeedback';
@@ -35,6 +35,7 @@ export default function Pickup({account,admin,onConnect,page='home',role='seller
   const [filtersOpen,setFiltersOpen]=useState(false);const [sort,setSort]=useState<SortOption>('newest');const [tokenFilter,setTokenFilter]=useState<string>('ALL');const [pageNum,setPageNum]=useState(1);const [pageSize,setPageSize]=useState(12);
   const [busy,setBusy]=useState(false);const lock=useRef(false);const version=useRef(0);const detailVersion=useRef(0);
   const [message,setMessage]=useState('');const [failure,setFailure]=useState(false);const [hash,setHash]=useState<Hash>();const [detail,setDetail]=useState<{contact:string;address:string}>();const [photo,setPhoto]=useState('');
+  const [restoreDetails,setRestoreDetails]=useState(false);
   const [actual,setActual]=useState(['0','0','0','0']);const [consent,setConsent]=useState(false);const [deployConsent,setDeployConsent]=useState(false);
   const [gasless,setGasless]=useState(false);const [legacyPickup,setLegacyPickup]=useState<Address>();const [prices,setPrices]=useState<number[]>([]);const [certAddress,setCertAddress]=useState<Address>();const [pendingAvax,setPendingAvax]=useState(0);
   const [depositWei,setDepositWei]=useState<bigint>();const [payoutWei,setPayoutWei]=useState<bigint>();
@@ -187,7 +188,7 @@ export default function Pickup({account,admin,onConnect,page='home',role='seller
     if(seller&&page==='home'){setCreating(true);setSelected(undefined);}
   },[createRequest,seller,page]);
   useEffect(()=>{setPageNum(1);setPageSize(12);},[category,query,radius,sort,tokenFilter]);
-  useEffect(()=>{detailVersion.current++;setDetail(undefined);setPhoto('');setConsent(false);setActual((current?.estimated||[0,0,0,0]).map(n=>String(n/1000)));},[selected,user,current?.status]);
+  useEffect(()=>{detailVersion.current++;setRestoreDetails(false);setDetail(undefined);setPhoto('');setConsent(false);setActual((current?.estimated||[0,0,0,0]).map(n=>String(n/1000)));},[selected,user,current?.status]);
   useEffect(()=>()=>{if(photo)URL.revokeObjectURL(photo);},[photo]);
   useEffect(()=>{
     if(!current)return;
@@ -445,7 +446,35 @@ export default function Pickup({account,admin,onConnect,page='home',role='seller
               {current.status===4&&<p className="escrow-payout">{tr('Đã trả {avax} AVAX cho chủ lô từ ký quỹ.',{avax:fmt(current.paid||0,6)})}</p>}
               {current.status===5&&<p>{tr('Lô đã hủy, không có tiền ký quỹ.')}</p>}
             </div>}
-            {(isOwner||isAssignedCollector)&&<button className="secondary" disabled={busy} onClick={()=>run(async()=>{if(!account||!address){onConnect();return;}const v=detailVersion.current;const d=await pickupDetails(account,address,current);const p=await viewEvidence(account,current.evidence,address,current.id);if(v!==detailVersion.current){URL.revokeObjectURL(p);return;}setDetail(d);setPhoto(p);})}>{tr('Xem liên hệ & địa chỉ bàn giao')}</button>}
+            {(isOwner||isAssignedCollector)&&<button className="secondary" disabled={busy} onClick={()=>run(async()=>{
+              if(!account||!address){onConnect();return;}
+              const v=detailVersion.current;
+              const details=await pickupDetails(account,address,current);
+              if(v!==detailVersion.current)return;
+              setDetail(details);
+              const image=await viewEvidence(account,current.evidence,address,current.id).catch(()=>undefined);
+              if(!image)return;
+              if(v!==detailVersion.current){URL.revokeObjectURL(image);return;}
+              setPhoto(image);
+            })}>{tr('Xem liên hệ & địa chỉ bàn giao')}</button>}
+            {isOwner&&account&&address&&[1,2,3].includes(current.status)&&!detail&&<button type="button" className="text-link" onClick={()=>setRestoreDetails(value=>!value)}>{tr('Bổ sung thông tin bàn giao')}</button>}
+            {isOwner&&account&&address&&restoreDetails&&!detail&&<form className="pickup-callout" onSubmit={event=>{
+              event.preventDefault();
+              const fields=new FormData(event.currentTarget);
+              const contact=String(fields.get('contact')||'').trim();
+              const location=String(fields.get('address')||'').trim();
+              const v=detailVersion.current;
+              void run(async()=>{
+                await savePickupDetails(account,address,current.evidence,contact,location,current.id);
+                if(v!==detailVersion.current)return;
+                setDetail({contact,address:location});
+                setRestoreDetails(false);
+              });
+            }}>
+              <label>{tr('Số điện thoại / cách liên hệ')}<input name="contact" minLength={3} maxLength={120} required/></label>
+              <label>{tr('Địa chỉ & thời gian bàn giao')}<input name="address" minLength={5} maxLength={400} required/></label>
+              <button className="secondary" disabled={busy}>{tr('Ký và lưu thông tin bàn giao')}</button>
+            </form>}
             {detail&&<div className="pickup-callout"><strong>{detail.contact}</strong><p style={{whiteSpace:'pre-line'}}>{detail.address}</p></div>}
             {seller&&browseMarket&&(same(current.owner,account)
               ?<p role="status">{tr('Bạn đang xem lô của mình. Hãy dùng ví khác để nhận thu gom.')}</p>
@@ -660,6 +689,7 @@ function LotForm({busy,center,onCreate}:{busy:boolean;center?:[number,number];on
     try{
       // A real photo of the lot is required: its SHA-256 is the on-chain evidence.
       if(!file){setError(tr('Chụp hoặc chọn ảnh thật của lô phế liệu.'));return;}
+      if(file.size>4*1024*1024){setError(tr('Chọn ảnh tối đa 4 MB.'));return;}
       const hash=await digest(await file.arrayBuffer());
       onCreate(grams,file,hash,point,String(f.get('contact')||'').trim(),String(f.get('address')||'').trim());
     }catch{
