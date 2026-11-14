@@ -17,7 +17,7 @@ async function fixture(){
  const read=(functionName,args=[])=>client.readContract({address,abi:artifact.abi,functionName,args});
  const write=async(w,functionName,args=[],value)=>{const {request}=await client.simulateContract({address,abi:artifact.abi,functionName,args,account:wallets[w].account,...(value!==undefined?{value}:{})});const h=await wallets[w].writeContract(request);assert.equal((await client.waitForTransactionReceipt({hash:h})).status,'success');};
  const create=(owner=1,label='lot')=>write(owner,'createLot',[[3000n,5000n,1000n,0n],hash(label),1078,10669]);
- // V3: collectors lock AVAX when claiming (estimate value + 20%).
+ // V4: collectors lock AVAX when claiming (estimate value + 20%).
  const claim=async(w,id)=>write(w,'claimLot',[id],await read('requiredDeposit',[id]));
  const balance=a=>client.getBalance({address:a});
  return {connection,client,accounts,wallets,address,forwarder,read,write,create,claim,balance};
@@ -71,7 +71,7 @@ test('expired proposal and pause block minting, but release/cancel remain availa
  }finally{await f.connection.close();}
 });
 
-test('V3 escrow pays the household for the real weight, refunds the collector and mints a certificate NFT',async()=>{
+test('V4 escrow pays the household for the real weight, refunds the collector and mints a certificate NFT',async()=>{
  const f=await fixture();try{
   await f.create();
   const deposit=await f.read('requiredDeposit',[1n]);assert.equal(deposit,parseEther('0.006'));
@@ -88,13 +88,13 @@ test('V3 escrow pays the household for the real weight, refunds the collector an
   const meta=JSON.parse(Buffer.from(uri.split(',')[1],'base64').toString());assert.match(meta.name,/Certificate #1/);
  }finally{await f.connection.close();}
 });
-test('V3 release refunds the locked AVAX to the collector',async()=>{
+test('V4 release refunds the locked AVAX to the collector',async()=>{
  const f=await fixture();try{
   await f.create();await f.claim(0,1n);const deposit=(await f.read('getLot',[1n])).deposit;assert.ok(deposit>0n);
   await f.write(0,'releaseLot',[1n]);assert.equal(await f.balance(f.address),0n);assert.equal((await f.read('getLot',[1n])).status,1);
  }finally{await f.connection.close();}
 });
-test('V3 gas-free: a household-signed request relayed by another wallet acts as the household',async()=>{
+test('V4 gas-free: a household-signed request relayed by another wallet acts as the household',async()=>{
  const f=await fixture();try{
   const household=f.wallets[3];const data=encodeFunctionData({abi:artifact.abi,functionName:'createLot',args:[[3000n,0n,0n,0n],hash('gasless'),1078,10669]});
   const nonce=await f.client.readContract({address:f.forwarder,abi:forwarderArtifact.abi,functionName:'nonces',args:[f.accounts[3]]});

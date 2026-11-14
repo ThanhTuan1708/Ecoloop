@@ -8,8 +8,6 @@ import { createPublicClient, createWalletClient, http, getAddress } from 'viem';
 import { privateKeyToAccount } from 'viem/accounts';
 import { avalancheFuji, hardhat } from 'viem/chains';
 import { compile } from './compile.mjs';
-import { codeHash } from '../server/codehash.mjs';
-import previousPickup from '../config/pickup-v3.json' with {type:'json'};
 const local = process.argv.includes('--local');
 const chain = local ? hardhat : avalancheFuji;
 const rpc = local ? 'http://127.0.0.1:8545' : (process.env.FUJI_RPC_URL || avalancheFuji.rpcUrls.default.http[0]);
@@ -31,10 +29,8 @@ const configFile = 'config/app.json';
 const config = JSON.parse(fs.readFileSync(configFile, 'utf8'));
 async function checkPreviousEscrow() {
   if (local || config.chainId !== chain.id || !config.pickupContract) return;
-  const code = await publicClient.getCode({address:config.pickupContract});
-  if (codeHash(code, previousPickup.immutables) !== previousPickup.runtimeHash) return;
   const escrow = await publicClient.readContract({address:config.pickupContract,abi:pickup.abi,functionName:'totalEscrowed'});
-  if (escrow > 0n) throw new Error('Settle or release all V3 escrow before switching to V4.');
+  if (escrow > 0n) throw new Error('Settle or release all escrow before replacing the configured pickup contract.');
 }
 await checkPreviousEscrow();
 let deployBlock = 0;

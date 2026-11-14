@@ -7,7 +7,7 @@ import {Context} from "@openzeppelin/contracts/utils/Context.sol";
 import {ERC2771Context} from "@openzeppelin/contracts/metatx/ERC2771Context.sol";
 import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 
-/// @notice Multi-material pickup marketplace with real AVAX escrow (V3).
+/// @notice Multi-material pickup marketplace with real AVAX escrow.
 /// - The collector locks AVAX when claiming a lot (estimate value + 20% buffer).
 /// - The collector proposes the real weight; the household accepts.
 /// - On acceptance the contract pays the household for the real weight, refunds the rest to the

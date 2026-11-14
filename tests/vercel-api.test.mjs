@@ -23,7 +23,7 @@ test('Vercel starts outside the checkout and serves bundled Fuji configuration',
     const base=`http://127.0.0.1:${server.address().port}`;
     const [app,maps]=await Promise.all([fetch(base+'/api/config'),fetch(base+'/api/maps/config')]);
     assert.equal(app.status,200);
-    assert.equal((await app.json()).pickupContract,config.pickupContract);
+    assert.equal((await app.json()).pickupContract,config.pickupContract??null);
     assert.equal(maps.status,503);
     assert.match((await maps.json()).error,/Nullmaps trên Vercel/);
   }finally{

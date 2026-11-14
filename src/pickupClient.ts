@@ -4,7 +4,6 @@ import { assertWallet, chain, getWalletName } from './wallet';
 import { num, tr } from './settings';
 import { pickupAbi, pickupBytecode, pickupRuntimeHash, pickupImmutables, forwarderAbi, forwarderBytecode, forwarderRuntimeHash, forwarderImmutables, certificateAbi } from './generated/pickup';
 import { authorize, uploadEvidence } from './evidence';
-import previousPickup from '../config/pickup-v3.json';
 
 export type Lot = {id:number; owner:Address; collector:Address; estimated:number[]; actual:number[]; evidence:Hash; latitude:number; longitude:number; updatedAt:number; status:number; deposit?:number; paid?:number};
 export const lotStatuses=['Không tồn tại','Chờ thu gom','Đã nhận việc','Chờ chủ lô xác nhận','Hoàn tất','Đã hủy'];
@@ -31,14 +30,13 @@ export function codeHash(code:Hash|undefined,immutables:[number,number][]){
   for(const [start,length] of immutables)hex=hex.slice(0,start*2)+'0'.repeat(length*2)+hex.slice((start+length)*2);
   return keccak256(`0x${hex}`);
 }
-export async function pickupVersion(address:Address):Promise<'v4'|'v3'|'legacy'>{
+export async function isPickupV4(address:Address){
   const code=await publicClient.getCode({address});
-  if(codeHash(code,pickupImmutables)===pickupRuntimeHash)return 'v4';
-  return codeHash(code,previousPickup.immutables as [number,number][])===previousPickup.runtimeHash?'v3':'legacy';
+  return codeHash(code,pickupImmutables)===pickupRuntimeHash;
 }
 export async function validatePickup(address:Address){
   if(await publicClient.getChainId()!==chain.id)throw new Error('RPC đang trỏ sai mạng.');
-  if(await pickupVersion(address)==='legacy')throw new Error('Địa chỉ không phải contract Thu gom EcoLoop V4.');
+  if(!await isPickupV4(address))throw new Error('Địa chỉ không phải contract Thu gom EcoLoop V4.');
 }
 const readFrom=(address:Address)=>(functionName:string,args:unknown[]=[])=>publicClient.readContract({address,abi:pickupAbi,functionName,args} as never) as Promise<any>;
 export async function pickupRead(address:Address,limit=100){
@@ -142,7 +140,7 @@ export async function deployPickup(account:Address){
   return r.contractAddress;
 }
 export async function activatePickup(account:Address,address:Address){
-  if(await pickupVersion(address)!=='v4')throw new Error('Địa chỉ không phải contract Thu gom EcoLoop V4.');
+  if(!await isPickupV4(address))throw new Error('Địa chỉ không phải contract Thu gom EcoLoop V4.');
   const auth=await authorize('configure-pickup',account,keccak256(stringToHex(address)),address);
   const deployBlock=Number(localStorage.getItem(`ecoloop-pickup-deployblock-${chain.id}`)||0);
   await api('/api/pickup/configure',{...auth,...(deployBlock>0&&localStorage.getItem(`ecoloop-pickup-deployed-${chain.id}`)?.toLowerCase()===address.toLowerCase()?{deployBlock}:{})});

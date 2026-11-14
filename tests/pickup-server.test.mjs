@@ -40,7 +40,7 @@ test('pickup contacts are signed, immutable, persisted, and visible only to owne
  }finally{await new Promise(r=>server.close(r));assert.ok(dir.startsWith(path.join(os.tmpdir(),'ecoloop-pickup-')));await fs.rm(dir,{recursive:true,force:true});}
 });
 
-test('activating shared V2 requires both admin roles and cannot replace an activated contract',async()=>{
+test('activating shared V4 requires both admin roles and cannot replace an activated contract',async()=>{
  const dir=await fs.mkdtemp(path.join(os.tmpdir(),'ecoloop-activation-'));const file=path.join(dir,'config.json');
  const old='0x1111111111111111111111111111111111111111',next='0x2222222222222222222222222222222222222222',different='0x3333333333333333333333333333333333333333';
  const a=privateKeyToAccount(generatePrivateKey());const artifact=JSON.parse(await fs.readFile('artifacts/EcoLoopPickup.json','utf8'));
@@ -53,5 +53,9 @@ test('activating shared V2 requires both admin roles and cannot replace an activ
   assert.equal((await activate(next)).status,200);assert.equal((await activate(next)).status,200);
   assert.equal((await activate(different)).status,409);
   const config=await(await fetch(url+'/api/config')).json();assert.equal(config.contract,old);assert.equal(config.pickupContract,next);assert.equal(config.collectionName,'Existing name');
+  client.getCode=async()=> '0x6000';
+  await fs.writeFile(file,JSON.stringify({...config,pickupContract:different}));
+  assert.equal((await fetch(url+'/api/config')).status,503);
+  assert.equal((await fetch(url+'/api/marketplace/listings')).status,400);
  }finally{await new Promise(r=>server.close(r));assert.ok(dir.startsWith(path.join(os.tmpdir(),'ecoloop-activation-')));await fs.rm(dir,{recursive:true,force:true});}
 });

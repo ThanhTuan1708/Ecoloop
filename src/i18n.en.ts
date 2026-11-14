@@ -661,7 +661,6 @@ export const en:Record<string,string>={
  "V4 cho mọi ví đăng lô và nhận thu gom. Quản trị viên triển khai rồi kích hoạt dùng chung.":"Any wallet can post and claim lots in V4. Deploy and activate the contract once as an administrator.",
  "Quản trị viên cần kích hoạt V4 để mọi ví đều có thể nhận thu gom.":"An administrator needs to activate V4 before any wallet can claim lots.",
  "Quản lý thu gom":"Manage pickups",
- "V3 vẫn yêu cầu quyền thu gom. V4 sẽ mở cho mọi ví sau khi được kích hoạt.":"V3 still requires collector permissions. V4 will open pickups to all wallets once activated.",
  "Bạn đang xem lô của mình. Hãy dùng ví khác để nhận thu gom.":"This is your own lot. Use a different wallet to claim it.",
  "Chuyển sang Người Thu Gom":"Switch to Collector",
 };

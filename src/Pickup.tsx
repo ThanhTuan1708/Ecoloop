@@ -7,7 +7,7 @@ import {materials,short} from './model';
 import {tr,num as fmt,wt,dateTime,notify,unit} from './settings';
 import {viewEvidence} from './evidence';
 import {pickupAbi} from './generated/pickup';
-import {lotStatuses,activatePickup,deployPickup,digest,distanceKm,pendingPickup,pickupDetails,pickupRead,pickupReadWallet,pickupWrite,householdWrite,requiredDeposit,payoutPreview,readCertificate,certificateUrl,addressUrl,pickupVersion,resumePickup,savePickupPhoto,ZERO,type Lot,type CertificateView} from './pickupClient';
+import {lotStatuses,activatePickup,deployPickup,digest,distanceKm,pendingPickup,pickupDetails,pickupRead,pickupReadWallet,pickupWrite,householdWrite,requiredDeposit,payoutPreview,readCertificate,certificateUrl,addressUrl,isPickupV4,resumePickup,savePickupPhoto,ZERO,type Lot,type CertificateView} from './pickupClient';
 import {queryProductCards,type ListingStatus,type SortOption,type ShopeeWeb3ProductCard} from './marketplace';
 import './pickup.css';
 import {speakFeedback} from './voiceFeedback';
@@ -30,13 +30,12 @@ export default function Pickup({account,admin,onConnect,page='home',role='seller
   onSettings:()=>void;onOpenOrders:()=>void;onBrowseAsCollector:(lotId:number)=>void;
 }){
   const [address,setAddress]=useState<Address>();const [onChainLots,setOnChainLots]=useState<Lot[]>([]);const [count,setCount]=useState(0);const [limit,setLimit]=useState(100);
-  const [balance,setBalance]=useState(0);const [view,setView]=useState<'grid'|'map'>('grid');const [v2Admin,setV2Admin]=useState(false);const [loading,setLoading]=useState(true);const [marketError,setMarketError]=useState(false);const [category,setCategory]=useState(-1);const [query,setQuery]=useState('');const [canFulfillRewards,setCanFulfillRewards]=useState(false);const [paused,setPaused]=useState(false);
+  const [balance,setBalance]=useState(0);const [view,setView]=useState<'grid'|'map'>('grid');const [pickupAdmin,setPickupAdmin]=useState(false);const [loading,setLoading]=useState(true);const [marketError,setMarketError]=useState(false);const [category,setCategory]=useState(-1);const [query,setQuery]=useState('');const [canFulfillRewards,setCanFulfillRewards]=useState(false);const [paused,setPaused]=useState(false);
   const [selected,setSelected]=useState<number>();const [creating,setCreating]=useState(false);const [radius,setRadius]=useState(0);const [center,setCenter]=useState<[number,number]>();
   const [filtersOpen,setFiltersOpen]=useState(false);const [sort,setSort]=useState<SortOption>('newest');const [tokenFilter,setTokenFilter]=useState<string>('ALL');const [pageNum,setPageNum]=useState(1);const [pageSize,setPageSize]=useState(12);
   const [busy,setBusy]=useState(false);const lock=useRef(false);const version=useRef(0);const detailVersion=useRef(0);
   const [message,setMessage]=useState('');const [failure,setFailure]=useState(false);const [hash,setHash]=useState<Hash>();const [detail,setDetail]=useState<{contact:string;address:string}>();const [photo,setPhoto]=useState('');
   const [actual,setActual]=useState(['0','0','0','0']);const [consent,setConsent]=useState(false);const [deployConsent,setDeployConsent]=useState(false);
-  const [openPickup,setOpenPickup]=useState(false);
   const [gasless,setGasless]=useState(false);const [legacyPickup,setLegacyPickup]=useState<Address>();const [prices,setPrices]=useState<number[]>([]);const [certAddress,setCertAddress]=useState<Address>();const [pendingAvax,setPendingAvax]=useState(0);
   const [depositWei,setDepositWei]=useState<bigint>();const [payoutWei,setPayoutWei]=useState<bigint>();
   const [importAddress,setImportAddress]=useState(localStorage.getItem(`ecoloop-pickup-deployed-${chain.id}`)||'');
@@ -67,12 +66,11 @@ export default function Pickup({account,admin,onConnect,page='home',role='seller
     lastStatus.current={wallet:user||'',map};
   },[watchedStatus,user]);
   const isOwner=page==='orders'&&seller&&same(user,current?.owner);
-  const mayCollect=openPickup||canFulfillRewards;
   const isAssignedCollector=!seller&&same(user,current?.collector);
   const actions:Record<string,boolean>={
-    claimLot:collectorMarket&&!!account&&!same(user,current?.owner)&&mayCollect&&current?.status===1&&!paused,
+    claimLot:collectorMarket&&!!account&&!same(user,current?.owner)&&current?.status===1&&!paused,
     cancelLot:isOwner&&current?.status===1,
-    proposeLot:isAssignedCollector&&mayCollect&&current?.status===2&&!paused,
+    proposeLot:isAssignedCollector&&current?.status===2&&!paused,
     acceptLot:isOwner&&current?.status===3&&!paused&&consent&&Date.now()<=current.updatedAt+7*86400000,
     disputeLot:isOwner&&current?.status===3,
     releaseLot:!!current&&[2,3].includes(current.status)&&(isAssignedCollector||(isOwner&&Date.now()>current.updatedAt+7*86400000)),
@@ -128,20 +126,19 @@ export default function Pickup({account,admin,onConnect,page='home',role='seller
       setGasless(!!config.gasless);
       setMarketError(false);
       if(!configured||config.chainId!==chain.id){setAddress(undefined);setLegacyPickup(undefined);setOnChainLots([]);setCount(0);return;}
-      // An older pickup contract (V2, no real escrow) is reported to admins instead of being shown as live data.
-      const contractVersion=await pickupVersion(configured);
+      const isSupported=await isPickupV4(configured);
       if(v!==version.current)return;
-      if(contractVersion==='legacy'){setAddress(undefined);setLegacyPickup(configured);setOnChainLots([]);setCount(0);return;}
+      if(!isSupported){setAddress(undefined);setLegacyPickup(configured);setOnChainLots([]);setCount(0);return;}
       const data=await pickupRead(configured,limit);
       if(v!==version.current)return;
-      setOpenPickup(contractVersion==='v4');setLegacyPickup(undefined);setAddress(configured);
+      setLegacyPickup(undefined);setAddress(configured);
       setOnChainLots(data.lots);setCount(data.count);setPaused(data.paused);
       setPrices(data.prices);setCertAddress(data.certificate);
       setLoading(false);
       if(account){
         const wallet=await pickupReadWallet(configured,account).catch(()=>undefined);
         if(v!==version.current)return;
-        setBalance(wallet?.balance??0);setCanFulfillRewards(!!wallet?.collector);setV2Admin(!!wallet?.admin);setPendingAvax(wallet?.pending??0);
+        setBalance(wallet?.balance??0);setCanFulfillRewards(!!wallet?.collector);setPickupAdmin(!!wallet?.admin);setPendingAvax(wallet?.pending??0);
       }
     }catch{
       if(v!==version.current)return;
@@ -163,7 +160,7 @@ export default function Pickup({account,admin,onConnect,page='home',role='seller
     setPhoto('');
     setHash(undefined);
     setMessage('');
-    setBalance(0);setCanFulfillRewards(false);setV2Admin(false);setPendingAvax(0);
+    setBalance(0);setCanFulfillRewards(false);setPickupAdmin(false);setPendingAvax(0);
     setLoading(true);
     const requestVersion=version.current;
     refresh().finally(()=>{if(requestVersion===version.current)setLoading(false);});
@@ -261,11 +258,11 @@ export default function Pickup({account,admin,onConnect,page='home',role='seller
       <p>{page==='settings'?tr('Ngôn ngữ, giao diện, đơn vị, thông báo và cấu hình hệ thống.'):tr('Lô, ký quỹ và chứng nhận ghi trên Avalanche. Ảnh và liên hệ lưu riêng, chỉ chủ lô và người nhận việc xem được.')}</p>
     </div>
     {page==='settings'&&children}
-    {page==='settings'&&(admin||v2Admin||!address)&&<h3 className="set-section-title">{tr('Quản trị hệ thống')}</h3>}
+    {page==='settings'&&(admin||pickupAdmin||!address)&&<h3 className="set-section-title">{tr('Quản trị hệ thống')}</h3>}
     {seller&&page==='home'&&<div className="pickup-intro"><div><h2>{tr('Đăng lô để hẹn thu gom')}</h2><p>{tr('Thêm ảnh, khối lượng dự kiến và địa chỉ bàn giao. Xác nhận số cân sau khi người thu gom gửi đề xuất.')}</p></div>{creating?<button className="secondary" disabled={busy} onClick={()=>setCreating(false)}>{tr('Đóng biểu mẫu')}</button>:<button className="primary" onClick={onOpenOrders}>{tr('Lô của tôi')}</button>}</div>}
     {page==='orders'&&!account&&<button className="secondary" onClick={onConnect}>{tr('Kết nối ví')}</button>}
     {loading&&!lots.length&&<p role="status">{tr('Đang tải dữ liệu từ mạng…')}</p>}
-    {(!address||!openPickup)&&page==='settings'&&<div className="pickup-callout"><strong>{(legacyPickup||address)?tr('Nâng cấp contract thu gom lên V4'):tr('Chờ kích hoạt contract thu gom V4')}</strong><p>{tr('V4 cho mọi ví đăng lô và nhận thu gom. Quản trị viên triển khai rồi kích hoạt dùng chung.')}</p>{legacyPickup&&<p className="footnote">{tr('Contract cũ: {address}. Lô và ECO trên contract cũ không tự chuyển sang V4.',{address:legacyPickup})}</p>}{!account&&<button className="primary" onClick={()=>onConnect()}>{tr('Kết nối ví quản trị')}</button>}{account&&!admin&&<p>{tr('Ví này chưa có quyền quản trị trên hệ thống hiện tại. Hãy dùng ví đã triển khai EcoLoop.')}</p>}{admin&&account&&<><label className="checkbox"><input type="checkbox" checked={deployConsent} onChange={e=>setDeployConsent(e.target.checked)}/>{tr('Tạo bộ contract V4 mới bằng AVAX testnet. ECO V4 được quản lý riêng với ECO cũ.')}</label><button className="primary" disabled={busy||!deployConsent||!!pendingPickup()} onClick={()=>run(async()=>{const a=await deployPickup(account);setImportAddress(a);setMessage(tr('Đã triển khai. Nhấn kích hoạt dùng chung bên dưới để hoàn tất.'));})}>{tr('Triển khai bằng ví quản trị')}</button><label>{tr('Địa chỉ V4 đã triển khai')}<input value={importAddress} onChange={e=>setImportAddress(e.target.value)} placeholder="0x…"/></label><button className="secondary" disabled={busy||!isAddress(importAddress)} onClick={()=>run(async()=>{await activatePickup(account,importAddress as Address);await refresh();setMessage(tr('Đã kích hoạt contract chung cho Chrome và Edge.'));})}>{tr('Kích hoạt dùng chung')}</button></>}</div>}
+    {!address&&page==='settings'&&<div className="pickup-callout"><strong>{legacyPickup?tr('Nâng cấp contract thu gom lên V4'):tr('Chờ kích hoạt contract thu gom V4')}</strong><p>{tr('V4 cho mọi ví đăng lô và nhận thu gom. Quản trị viên triển khai rồi kích hoạt dùng chung.')}</p>{legacyPickup&&<p className="footnote">{tr('Contract cũ: {address}. Lô và ECO trên contract cũ không tự chuyển sang V4.',{address:legacyPickup})}</p>}{!account&&<button className="primary" onClick={()=>onConnect()}>{tr('Kết nối ví quản trị')}</button>}{account&&!admin&&<p>{tr('Ví này chưa có quyền quản trị trên hệ thống hiện tại. Hãy dùng ví đã triển khai EcoLoop.')}</p>}{admin&&account&&<><label className="checkbox"><input type="checkbox" checked={deployConsent} onChange={e=>setDeployConsent(e.target.checked)}/>{tr('Tạo bộ contract V4 mới bằng AVAX testnet. ECO V4 được quản lý riêng với ECO cũ.')}</label><button className="primary" disabled={busy||!deployConsent||!!pendingPickup()} onClick={()=>run(async()=>{const a=await deployPickup(account);setImportAddress(a);setMessage(tr('Đã triển khai. Nhấn kích hoạt dùng chung bên dưới để hoàn tất.'));})}>{tr('Triển khai bằng ví quản trị')}</button><label>{tr('Địa chỉ V4 đã triển khai')}<input value={importAddress} onChange={e=>setImportAddress(e.target.value)} placeholder="0x…"/></label><button className="secondary" disabled={busy||!isAddress(importAddress)} onClick={()=>run(async()=>{await activatePickup(account,importAddress as Address);await refresh();setMessage(tr('Đã kích hoạt contract chung cho Chrome và Edge.'));})}>{tr('Kích hoạt dùng chung')}</button></>}</div>}
     {pendingPickup()&&<div className="pickup-callout"><strong>{tr('Giao dịch đang chờ xác nhận')}</strong><code>{pendingPickup()}</code><button className="secondary" disabled={busy} onClick={()=>run(async()=>{const r=await resumePickup();if(r?.contractAddress){setImportAddress(r.contractAddress);localStorage.setItem(`ecoloop-pickup-deployed-${chain.id}`,r.contractAddress);}await refresh();setMessage(tr('Đã kiểm tra giao dịch.'));})}>{tr('Kiểm tra giao dịch')}</button></div>}
     {message&&!(failure&&current)&&<div className={failure?'pickup-feedback error':'pickup-feedback'} role={failure?'alert':'status'}>{tr(message)}</div>}
     {hash&&<a className="text-link" href={txUrl(hash)} target="_blank" rel="noreferrer">{tr('Xem giao dịch trên Fuji ↗')}</a>}
@@ -410,7 +407,7 @@ export default function Pickup({account,admin,onConnect,page='home',role='seller
               <div><span>{tr('Cửa hàng / Chủ lô:')}</span> <strong>{selectedCard.seller.displayName}</strong> (<code>{short(current.owner)}</code>) · {tr('({n} lô hoàn tất)',{n:selectedCard.seller.completedSalesCount})}</div>
               <div><span>{tr('Ví thu gom (Escrow):')}</span> <code>{current.collector===ZERO?tr('Chưa khóa ký quỹ'):short(current.collector)}</code></div>
               <div><span>{tr('Khu vực bàn giao:')}</span> {selectedCard.seller.location.district}, {selectedCard.seller.location.province}</div>
-              <div><span>Contract {openPickup?4:3} (Chain {chain.id}):</span> <code>{address?short(address):'—'}</code></div>
+              <div><span>Contract V4 (Chain {chain.id}):</span> <code>{address?short(address):'—'}</code></div>
               <div><span>{tr('SHA-256 ảnh lô:')}</span> <code>{short(current.evidence)}</code></div>
               {selectedCard.onChain.escrowLockExpiresAt&&<div><span>{tr('Hạn bảo vệ ký quỹ:')}</span> {dateTime(selectedCard.onChain.escrowLockExpiresAt)}</div>}
             </div>
@@ -432,14 +429,10 @@ export default function Pickup({account,admin,onConnect,page='home',role='seller
             {seller&&browseMarket&&(same(current.owner,account)
               ?<p role="status">{tr('Bạn đang xem lô của mình. Hãy dùng ví khác để nhận thu gom.')}</p>
               :<button type="button" className="secondary" onClick={()=>onBrowseAsCollector(current.id)}>{tr('Chuyển sang Người Thu Gom')}</button>)}
-            {collectorMarket&&account&&!openPickup&&!mayCollect&&<div className="pickup-callout" role="status">
-              <p>{tr('V3 vẫn yêu cầu quyền thu gom. V4 sẽ mở cho mọi ví sau khi được kích hoạt.')}</p>
-              {onSettings&&<button type="button" className="secondary" onClick={onSettings}>{tr('Mở Thiết lập')}</button>}
-            </div>}
             {failure&&message&&<p className="form-error" role="alert">{tr(message)}</p>}
             {collectorMarket&&(!account||actions.claimLot)&&<button className="primary full-width" disabled={busy||paused} onClick={()=>account?run(()=>change('claimLot',[BigInt(current.id)])):onConnect()}>{!account?tr('Kết nối ví'):depositWei!==undefined?tr('Nhận việc & khóa {avax} AVAX ký quỹ',{avax:avax(depositWei)}):tr('Ký hợp đồng nhận thu gom & Khóa ký quỹ (Escrow)')} <ArrowRight size={16}/></button>}
             {current.status===1&&isOwner&&<button className="secondary" disabled={busy} onClick={()=>run(()=>change('cancelLot',[BigInt(current.id)]))}>{tr('Hủy listing')}{freeGas}</button>}
-            {isAssignedCollector&&mayCollect&&current.status===2&&<form onSubmit={e=>{e.preventDefault();run(async()=>{const weights=actual.map(s=>Math.round(Number(s)*1000));if(weights.some(n=>!Number.isSafeInteger(n)||n<0)||total(weights)<=0||total(weights)>1000)throw new Error(tr('Tổng khối lượng thực tế từ 0,001 đến 1.000 kg.'));await change('proposeLot',[BigInt(current.id),weights.map(BigInt)]);});}}><h4>{tr('Kết quả cân thực tế tại điểm bàn giao')}</h4><WeightInputs values={actual} onChange={setActual}/><p>{tr('Nhập số cân thực tế trên bàn cân điện tử để ký số và gửi đề xuất on-chain cho chủ lô xác nhận.')}</p><button className="primary" disabled={busy||paused}>{tr('Gửi số cân')}</button></form>}
+            {isAssignedCollector&&current.status===2&&<form onSubmit={e=>{e.preventDefault();run(async()=>{const weights=actual.map(s=>Math.round(Number(s)*1000));if(weights.some(n=>!Number.isSafeInteger(n)||n<0)||total(weights)<=0||total(weights)>1000)throw new Error(tr('Tổng khối lượng thực tế từ 0,001 đến 1.000 kg.'));await change('proposeLot',[BigInt(current.id),weights.map(BigInt)]);});}}><h4>{tr('Kết quả cân thực tế tại điểm bàn giao')}</h4><WeightInputs values={actual} onChange={setActual}/><p>{tr('Nhập số cân thực tế trên bàn cân điện tử để ký số và gửi đề xuất on-chain cho chủ lô xác nhận.')}</p><button className="primary" disabled={busy||paused}>{tr('Gửi số cân')}</button></form>}
             {isOwner&&current.status===3&&<><p>{tr('Kiểm tra bảng khối lượng thực tế trước khi xác nhận giải ngân. Đề xuất có hiệu lực 7 ngày.')}</p><label className="checkbox"><input type="checkbox" checked={consent} onChange={e=>setConsent(e.target.checked)}/>{tr('Tôi đã bàn giao vật liệu và đồng ý khối lượng thực tế trên.')}</label><button className="primary full-width" disabled={busy||paused||!consent||Date.now()>current.updatedAt+7*86400000} onClick={()=>run(()=>change('acceptLot',[BigInt(current.id)]))}><CheckCircle2 size={16}/>{isCurrentOnChain&&payoutWei!==undefined?tr('Xác nhận & nhận {avax} AVAX',{avax:avax(payoutWei)}):tr('Đồng ý số cân')}{freeGas}</button><button className="secondary" disabled={busy} onClick={()=>run(()=>change('disputeLot',[BigInt(current.id)]))}>{tr('Chưa đồng ý · yêu cầu cân lại')}{freeGas}</button></>}
             {actions.releaseLot&&<button className="text-link" disabled={busy} onClick={()=>run(()=>change('releaseLot',[BigInt(current.id)]))}>{isOwner?tr('Mở lại lô do quá hạn'):tr('Trả lại việc thu gom (Mở lại listing Active)')}</button>}
             {current.status===4&&<p className="pickup-success"><CheckCircle2 size={18}/>{tr('Hai phía đã xác nhận. ECO đã được giải ngân cho chủ lô.')}</p>}
@@ -453,12 +446,12 @@ export default function Pickup({account,admin,onConnect,page='home',role='seller
         selected={selected}
         onSelectLot={setSelected}
       />}
-      {address&&(admin||v2Admin)&&account&&page==='settings'&&<section className="pickup-callout"><h3>{tr('Quản lý thu gom')}</h3><button type="button" className="secondary" disabled={busy} onClick={()=>run(async()=>{setHash(await pickupWrite(address,account,'setPaused',[!paused]));await refresh();})}>{paused?tr('Mở lại thu gom'):tr('Tạm dừng thu gom')}</button><p className="footnote">Contract {openPickup?4:3}: {address}{certAddress?<> · NFT: {certAddress}</>:null}</p></section>}
-      {address&&(admin||v2Admin)&&account&&page==='settings'&&<form className="pickup-callout" onSubmit={e=>{e.preventDefault();const f=new FormData(e.currentTarget);run(async()=>{const next=[0,1,2,3].map(i=>{const v=String(f.get('price'+i)||'').replace(',','.');if(!/^\d*\.?\d+$/.test(v)||Number(v)>1)throw new Error(tr('Giá phải là số AVAX từ 0 đến 1 cho mỗi kg.'));return parseEther(v);});setHash(await pickupWrite(address,account,'setPrices',[next]));await refresh();setMessage(tr('Đã cập nhật giá thu mua.'));});}}><h3>{tr('Giá thu mua (AVAX/kg)')}</h3><p>{tr('Người thu gom khóa số AVAX = giá × khối lượng ước tính + 20%. Chủ lô nhận theo số cân thực tế.')}</p><div className="pickup-weights">{materials.map((m,i)=><label key={m.name}>{tr(m.name)}<input name={'price'+i} inputMode="decimal" defaultValue={prices[i]??''} key={String(prices[i])}/></label>)}</div><button className="secondary" disabled={busy}>{tr('Cập nhật giá')}</button></form>}
+      {address&&(admin||pickupAdmin)&&account&&page==='settings'&&<section className="pickup-callout"><h3>{tr('Quản lý thu gom')}</h3><button type="button" className="secondary" disabled={busy} onClick={()=>run(async()=>{setHash(await pickupWrite(address,account,'setPaused',[!paused]));await refresh();})}>{paused?tr('Mở lại thu gom'):tr('Tạm dừng thu gom')}</button><p className="footnote">Contract V4: {address}{certAddress?<> · NFT: {certAddress}</>:null}</p></section>}
+      {address&&(admin||pickupAdmin)&&account&&page==='settings'&&<form className="pickup-callout" onSubmit={e=>{e.preventDefault();const f=new FormData(e.currentTarget);run(async()=>{const next=[0,1,2,3].map(i=>{const v=String(f.get('price'+i)||'').replace(',','.');if(!/^\d*\.?\d+$/.test(v)||Number(v)>1)throw new Error(tr('Giá phải là số AVAX từ 0 đến 1 cho mỗi kg.'));return parseEther(v);});setHash(await pickupWrite(address,account,'setPrices',[next]));await refresh();setMessage(tr('Đã cập nhật giá thu mua.'));});}}><h3>{tr('Giá thu mua (AVAX/kg)')}</h3><p>{tr('Người thu gom khóa số AVAX = giá × khối lượng ước tính + 20%. Chủ lô nhận theo số cân thực tế.')}</p><div className="pickup-weights">{materials.map((m,i)=><label key={m.name}>{tr(m.name)}<input name={'price'+i} inputMode="decimal" defaultValue={prices[i]??''} key={String(prices[i])}/></label>)}</div><button className="secondary" disabled={busy}>{tr('Cập nhật giá')}</button></form>}
       {page==='wallet'&&!walletSlot&&<div className="pickup-callout wallet-live"><span>{tr('VÍ ĐIỂM THU GOM ECOLOOP')}</span><h2>{fmt(effectiveBalance)} ECO</h2><p>{account?tr('Ví đã kết nối: {wallet} · Số dư ECO on-chain trên contract V4.',{wallet:short(account)}):tr('Kết nối ví để xem số dư ECO on-chain của bạn.')}</p>{address&&<code>{address}</code>}<p>{tr('ECO là token thưởng khi hoàn tất bàn giao phế liệu qua hợp đồng ký quỹ (Escrow); dùng để đổi các phần thưởng xanh bên dưới.')}</p></div>}
       {page==='wallet'&&address&&account&&pendingAvax>0&&<div className="pickup-callout"><strong>{tr('Có {avax} AVAX chờ rút',{avax:fmt(pendingAvax,6)})}</strong><p>{tr('Contract chưa chuyển thẳng được khoản này vào ví của bạn. Bấm rút để nhận.')}</p><button className="primary" disabled={busy} onClick={()=>run(async()=>{setHash(await pickupWrite(address,account,'withdrawPending'));await refresh();setMessage(tr('Đã rút AVAX về ví.'));})}>{tr('Rút về ví')}</button></div>}
       {page==='wallet'&&address&&certAddress&&<section className="pickup-callout"><h3><Award size={18}/> {tr('Chứng nhận tái chế của tôi ({n})',{n:myCertificates.length})}</h3>{myCertificates.length?<div className="cert-grid">{myCertificates.map(l=><CertificateCard key={l.id} certificate={certAddress} lotId={l.id} compact/>)}</div>:<p>{account?tr('Hoàn tất một lô thu gom để nhận chứng nhận NFT đầu tiên.'):tr('Kết nối ví để xem chứng nhận của bạn.')}</p>}</section>}
-      {(page==='rewards'||page==='wallet')&&<PickupRewards gasless={gasless} admin={admin||v2Admin} address={address} account={account} collector={canFulfillRewards} busy={busy} balance={effectiveBalance} run={run} onChange={refresh} onDone={text=>setMessage(text)}/>}
+      {(page==='rewards'||page==='wallet')&&<PickupRewards gasless={gasless} admin={admin||pickupAdmin} address={address} account={account} collector={canFulfillRewards} busy={busy} balance={effectiveBalance} run={run} onChange={refresh} onDone={text=>setMessage(text)}/>}
     </>}
     {busy&&<p role="status" className="pickup-busy">{tr('Đang xử lý… Kiểm tra cửa sổ ví nếu được yêu cầu ký. Không đóng trang khi gửi giao dịch.')}</p>}
   </section>;
