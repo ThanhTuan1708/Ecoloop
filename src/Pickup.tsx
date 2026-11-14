@@ -10,6 +10,7 @@ import {pickupAbi} from './generated/pickup';
 import {lotStatuses,activatePickup,deployPickup,digest,distanceKm,pendingPickup,pickupDetails,pickupRead,pickupReadWallet,pickupWrite,householdWrite,requiredDeposit,payoutPreview,readCertificate,certificateUrl,addressUrl,pickupVersion,resumePickup,savePickupPhoto,ZERO,type Lot,type CertificateView} from './pickupClient';
 import {queryProductCards,type ListingStatus,type SortOption,type ShopeeWeb3ProductCard} from './marketplace';
 import './pickup.css';
+import {speakFeedback} from './voiceFeedback';
 
 const PickupMap=lazy(()=>import('./PickupMap'));
 // Sample data has been removed from the app; clear what older versions stored in this browser.
@@ -147,7 +148,15 @@ export default function Pickup({account,admin,onConnect,page='home',role='seller
       setMarketError(true);
     }
   }
-  async function run(fn:()=>Promise<void>){if(lock.current)return;lock.current=true;setBusy(true);setMessage('');setFailure(false);try{await fn();}catch(e){setFailure(true);setMessage(errorMessage(e));}finally{lock.current=false;setBusy(false);}}
+  async function run(fn:()=>Promise<void>){
+    if(lock.current)return;
+    lock.current=true;setBusy(true);setMessage('');setFailure(false);
+    try{await fn();}
+    catch(e){
+      setFailure(true);setMessage(errorMessage(e));
+      speakFeedback('Không hoàn tất được thao tác. Vui lòng xem thông báo trên màn hình.');
+    }finally{lock.current=false;setBusy(false);}
+  }
   useEffect(()=>{
     version.current++;
     setDetail(undefined);
@@ -211,11 +220,14 @@ export default function Pickup({account,admin,onConnect,page='home',role='seller
       setHash(await pickupWrite(address,account,fn,args,deposit));
       await refresh();onOpenOrders?.();
       setMessage(tr('🔒 Đã nhận việc và khóa {avax} AVAX ký quỹ trong contract.',{avax:fmt(Number(formatEther(deposit)),6)}));
+      speakFeedback('Bạn đã nhận thu gom.');
       return;
     }
     const household=same(account,current.owner);
     setHash(household?await householdWrite(address,account,fn,args,gasless):await pickupWrite(address,account,fn,args));
     await refresh();
+    if(fn==='proposeLot')speakFeedback('Đã gửi kết quả cân cho người bán.');
+    if(fn==='acceptLot')speakFeedback('Đã xác nhận bàn giao.');
     setMessage(fn==='acceptLot'?tr('🎉 Đã xác nhận bàn giao: tiền ký quỹ đã chuyển cho bạn và chứng nhận tái chế NFT đã được tạo.')
       :household&&gasless?tr('✅ Đã gửi giao dịch on-chain, miễn phí gas.'):tr('🎉 Đã ký và gửi giao dịch thu gom on-chain thành công lên mạng Fuji.'));
   }
@@ -241,6 +253,7 @@ export default function Pickup({account,admin,onConnect,page='home',role='seller
     await refresh();
     onOpenOrders?.();
     setMessage(gasless?tr('🎉 Đã đăng lô lên Avalanche, miễn phí gas.'):tr('🎉 Đã ký và gửi giao dịch tạo lô on-chain thành công lên mạng Fuji.'));
+    speakFeedback('Đã đăng lô phế liệu thành công.');
   }
   return <section className={`pickup-workspace pickup-page-${page}`}>
     <div className="pickup-page-title">

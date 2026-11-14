@@ -3,6 +3,7 @@ import {Languages,Palette,Ruler,Bell,Wallet,Database,Info,Check,ExternalLink,Rot
 import {version} from '../package.json';
 import {tr,num,wt,useSettings,useLayout,updateSettings,resetSettings,enableNotifications,notificationSupport,notify,systemLanguage,localDataKeys,localDataSize,clearLocalData,type Settings} from './settings';
 import './settings.css';
+import {previewVoiceFeedback,supportsVoiceFeedback} from './voiceFeedback';
 
 const REPO='https://github.com/ThanhTuan1708/Ecoloop';
 
@@ -35,6 +36,10 @@ export default function SettingsPanel({account,network,chainId,chainName,walletN
     setStatus(ok?tr('Đã bật thông báo.'):tr('Trình duyệt đang chặn thông báo. Hãy cho phép thông báo cho trang này trong cài đặt trình duyệt.'));
   }
   function testNotification(){notify(tr('EcoLoop · Thông báo thử'),tr('Bạn sẽ nhận thông báo như thế này khi lô của bạn đổi trạng thái.'));setStatus(tr('Đã gửi thông báo thử.'));}
+  function testVoice(){
+    setStatus('');
+    previewVoiceFeedback(()=>setStatus(tr('Không phát được giọng đọc. Thử mở EcoLoop bằng Microsoft Edge.')));
+  }
   function clearData(){
     if(!confirmClear){setConfirmClear(true);return;}
     clearLocalData();setConfirmClear(false);setStatus(tr('Đã xóa dữ liệu lưu trên máy. Đang tải lại…'));
@@ -73,6 +78,16 @@ export default function SettingsPanel({account,network,chainId,chainName,walletN
         </Row>
         <p className="set-note">{permission==='unsupported'?tr('Trình duyệt này không hỗ trợ thông báo.'):permission==='denied'?tr('Thông báo đang bị chặn. Mở biểu tượng ổ khóa cạnh thanh địa chỉ để cho phép lại.'):permission==='granted'?tr('Trình duyệt đã cho phép thông báo.'):tr('Trình duyệt sẽ hỏi quyền khi bạn bật.')}</p>
         {s.notifications&&permission==='granted'&&<button type="button" className="secondary" onClick={testNotification}><Send size={15}/>{tr('Gửi thông báo thử')}</button>}
+      </Card>
+
+      <Card icon={<Bell size={18}/>} title={tr('Âm thanh')}>
+        <Row title={tr('Giọng đọc thông báo')} desc={tr('Đọc thông báo quan trọng bằng tiếng Việt. Ưu tiên giọng Microsoft khi trình duyệt cung cấp.')}>
+          <Toggle label={tr('Giọng đọc thông báo')} checked={s.voiceFeedback} disabled={!supportsVoiceFeedback()} onChange={on=>{
+            updateSettings({voiceFeedback:on});
+            if(on)testVoice();else setStatus('');
+          }}/>
+        </Row>
+        {s.voiceFeedback&&supportsVoiceFeedback()&&<button type="button" className="secondary" onClick={testVoice}>{tr('Nghe thử')}</button>}
       </Card>
 
       <Card icon={<Info size={18}/>} title={tr('Giới thiệu')}>

@@ -1,6 +1,11 @@
 // English translations. Keys are the Vietnamese source strings used with tr() in the UI.
 // Add a line here whenever you add a new tr('…') string. `npm run i18n:check` lists any that are missing.
 export const en:Record<string,string>={
+ "Âm thanh":"Audio",
+ "Giọng đọc thông báo":"Spoken notifications",
+ "Đọc thông báo quan trọng bằng tiếng Việt. Ưu tiên giọng Microsoft khi trình duyệt cung cấp.":"Read important notifications in Vietnamese, preferring a Microsoft voice when available.",
+ "Không phát được giọng đọc. Thử mở EcoLoop bằng Microsoft Edge.":"Voice playback failed. Try opening EcoLoop in Microsoft Edge.",
+ "Nghe thử":"Preview voice",
  "Chưa cấu hình URL máy chủ Nullmaps trên Vercel.":"The Nullmaps server URL has not been configured on Vercel.",
  "Không kết nối được máy chủ Nullmaps từ Vercel.":"Vercel could not reach the Nullmaps server.",
  "Tìm lô":"Find lots",

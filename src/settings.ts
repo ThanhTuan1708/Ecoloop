@@ -20,11 +20,12 @@ export interface Settings{
   weightUnit:WeightUnit;
   numberFormat:NumberFormat;
   notifications:boolean;
+  voiceFeedback:boolean;
   reduceMotion:boolean;
   layout:LayoutPref;
 }
 
-export const DEFAULT_SETTINGS:Settings={language:'vi',theme:'light',fontSize:'medium',weightUnit:'kg',numberFormat:'auto',notifications:false,reduceMotion:false,layout:'auto'};
+export const DEFAULT_SETTINGS:Settings={language:'vi',theme:'light',fontSize:'medium',weightUnit:'kg',numberFormat:'auto',notifications:false,voiceFeedback:false,reduceMotion:false,layout:'auto'};
 export const SETTINGS_KEY='ecoloop-settings-v1';
 export const FONT_SCALE:Record<FontSize,number>={small:.9,medium:1,large:1.12,xlarge:1.25};
 const LB_PER_KG=2.20462;
@@ -57,6 +58,8 @@ export function systemLanguage():Language{
 }
 export function currentLanguage():Language{return state.language==='system'?systemLanguage():state.language;}
 export function prefersDark(){return !!globalThis.matchMedia?.('(prefers-color-scheme: dark)').matches;}
+const reduceMotionQuery='(prefers-reduced-motion: reduce)';
+export function reducesMotion(){return state.reduceMotion||!!globalThis.matchMedia?.(reduceMotionQuery).matches;}
 export function resolvedTheme():'light'|'dark'{return state.theme==='system'?(prefersDark()?'dark':'light'):state.theme;}
 
 /** Phone layout on narrow screens, and on touch screens held sideways (landscape phones).
@@ -95,7 +98,7 @@ export function applySettings(){
   const root=document.documentElement;
   root.lang=currentLanguage();
   root.dataset.theme=resolvedTheme();
-  root.dataset.motion=state.reduceMotion?'reduce':'full';
+  root.dataset.motion=reducesMotion()?'reduce':'full';
   root.dataset.layout=resolvedLayout();
   // a phone layout forced on a wide screen is shown as a centred phone-width column
   root.dataset.viewport=isNarrowScreen()?'narrow':'wide';
@@ -108,6 +111,7 @@ if(typeof window!=='undefined'){
   applySettings();
   // new state object so useSyncExternalStore subscribers re-render when the breakpoint is crossed
   window.matchMedia?.(MOBILE_QUERY).addEventListener?.('change',()=>{state={...state};applySettings();listeners.forEach(fn=>fn());});
+  window.matchMedia?.(reduceMotionQuery).addEventListener?.('change',applySettings);
   window.matchMedia?.('(prefers-color-scheme: dark)').addEventListener?.('change',()=>{if(state.theme==='system'){applySettings();listeners.forEach(fn=>fn());}});
   window.addEventListener('languagechange',()=>{if(state.language==='system'){applySettings();listeners.forEach(fn=>fn());}});
   window.addEventListener('storage',e=>{if(e.key===SETTINGS_KEY){state=read();applySettings();listeners.forEach(fn=>fn());}});

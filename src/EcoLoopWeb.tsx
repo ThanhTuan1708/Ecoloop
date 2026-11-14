@@ -8,27 +8,40 @@ import {short} from './model';
 import Pickup from './Pickup';
 import SettingsPanel from './SettingsPanel';
 import WalletCard from './WalletCard';
-import {tr,useSettings} from './settings';
+import {tr,useSettings,reducesMotion} from './settings';
+import {speakFeedback} from './voiceFeedback';
 import './web.css';
 import './mobile.css';
 import './onchain.css';
 import './theme-dark.css';
 import './settings.css';
+import './motion.css';
 
 type Page='home'|'orders'|'wallet'|'rewards'|'settings';
 const PickupMap=lazy(()=>import('./PickupMap'));
 const navLinks=(seller:boolean)=>[{id:'home',label:seller?tr('Trang bán'):tr('Tìm lô thu gom'),icon:seller?Home:Truck},{id:'orders',label:seller?tr('Lô của tôi'):tr('Việc đã nhận'),icon:PackageCheck},{id:'rewards',label:tr('Đổi quà'),icon:Gift},{id:'wallet',label:tr('Ví xanh'),icon:Wallet},{id:'settings',label:tr('Thiết lập'),icon:Settings}] as const;
 export default function EcoLoopWeb(){
- const prefs=useSettings();
+ useSettings();
  const session=useWalletSession();const [page,setPage]=useState<Page>('home');const [role,setRole]=useState<'seller'|'collector'>('seller');const [profile,setProfile]=useState(false);const [createRequest,setCreateRequest]=useState(0);const [admin,setAdmin]=useState(false);const [configError,setConfigError]=useState('');const [balance,setBalance]=useState<number>();const [balanceError,setBalanceError]=useState('');const [configVersion,setConfigVersion]=useState(0);
  const [collectorLot,setCollectorLot]=useState<number>();
  const seller=role==='seller';const links=navLinks(seller);
  const dialog=useRef<HTMLDialogElement>(null);const content=useRef<HTMLDivElement>(null);const prevAccount=useRef(session.account);
- useEffect(()=>{if(!prevAccount.current&&session.account)setProfile(false);prevAccount.current=session.account;},[session.account]);
+ useEffect(()=>{
+   if(!prevAccount.current&&session.account){
+     setProfile(false);
+     speakFeedback('Ví đã kết nối.');
+   }
+   prevAccount.current=session.account;
+ },[session.account]);
  useEffect(()=>{let active=true;setAdmin(false);setConfigError('');void(async()=>{try{await initializeConfiguration();const contract=getContractAddress();if(!contract||!session.account)return;const isAdmin=await publicClient.readContract({address:contract,abi,functionName:'hasRole',args:[zeroHash,session.account]});if(active)setAdmin(!!isAdmin);}catch(e){if(active)setConfigError(e instanceof Error?e.message:tr('Chưa đọc được cấu hình hệ thống.'));}})();return()=>{active=false;};},[session.account,configVersion]);
  useEffect(()=>{let active=true;setBalance(undefined);setBalanceError('');if(session.account)walletBalance(session.account).then(b=>{if(active)setBalance(b);}).catch(()=>{if(active)setBalanceError(tr('Chưa đọc được số dư AVAX.'));});return()=>{active=false;};},[session.account,session.network,profile]);
  useEffect(()=>{if(profile)dialog.current?.showModal();else dialog.current?.close();},[profile]);
- function navigate(next:Page){setPage(next);content.current?.scrollTo({top:0,behavior:prefs.reduceMotion?'auto':'smooth'});}
+ useEffect(()=>{
+   if(reducesMotion())return;
+   const animation=content.current?.animate([{opacity:.7},{opacity:1}],{duration:210,easing:'ease-out'});
+   return()=>animation?.cancel();
+ },[page,role]);
+ function navigate(next:Page){setPage(next);content.current?.scrollTo({top:0,behavior:reducesMotion()?'auto':'smooth'});}
  function post(){if(!seller)return;navigate('home');setCreateRequest(n=>n+1);}
  function switchRole(next:typeof role,lotId?:number){if(next===role)return;setCollectorLot(lotId);setRole(next);navigate('home');}
 
