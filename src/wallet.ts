@@ -1,4 +1,4 @@
-import { createWalletClient, custom, type Address, type EIP1193Provider } from 'viem';
+import { createWalletClient, custom, type Address, type EIP1193Provider, type Hex } from 'viem';
 import { avalancheFuji, hardhat } from 'viem/chains';
 
 export type Provider = EIP1193Provider & {
@@ -14,6 +14,7 @@ export const chain = import.meta.env.VITE_CHAIN_ID === '31337' ? hardhat : avala
 let active: Provider | undefined;
 let activeId = '';
 let embeddedDisconnect: (()=>Promise<void>) | undefined;
+let embeddedSignMessage: ((account:Address,message:string)=>Promise<Hex>) | undefined;
 const discovered = new Map<string, WalletOption>();
 const subscribers = new Set<() => void>();
 let snapshot: WalletOption[] = [];
@@ -42,7 +43,13 @@ export function walletSnapshot() { return snapshot; }
 export function getProvider() { return active; }
 export function getWalletName() { return discovered.get(activeId)?.name || 'Core / ví trình duyệt'; }
 export function disconnectWallet() { const cleanup=activeId==='embedded-google'?embeddedDisconnect:undefined;if(activeId==='embedded-google'){discovered.delete(activeId);publish();} active = undefined; activeId = ''; localStorage.removeItem('ecoloop-wallet'); return cleanup?.(); }
-export function registerEmbedded(provider:Provider,disconnect:()=>Promise<void>){embeddedDisconnect=disconnect;add({id:'embedded-google',name:'Ví Google',rdns:'ecoloop.google',provider});selectProvider('embedded-google');localStorage.setItem('ecoloop-wallet','ecoloop.google');}
+export function registerEmbedded(provider:Provider,disconnect:()=>Promise<void>,signMessage?:(account:Address,message:string)=>Promise<Hex>){
+  embeddedDisconnect=disconnect;
+  embeddedSignMessage=signMessage;
+  add({id:'embedded-google',name:'Ví Google',rdns:'ecoloop.google',provider});
+  selectProvider('embedded-google');
+  localStorage.setItem('ecoloop-wallet','ecoloop.google');
+}
 export function selectProvider(id: string) {
   const option = discovered.get(id);
   if (!option) throw new Error('Không tìm thấy ví. Mở app trong Chrome/Edge đã cài Core và tải lại.');
@@ -89,5 +96,10 @@ export async function assertWallet(account: Address) {
   const accounts = await wallet.getAddresses();
   if (!accounts.some(a => a.toLowerCase() === account.toLowerCase())) throw new Error('Tài khoản ví đã thay đổi. Vui lòng kết nối lại.');
   return wallet;
+}
+export async function signAuthorizationMessage(account:Address,message:string){
+  const wallet=await assertWallet(account);
+  if(activeId==='embedded-google'&&embeddedSignMessage)return embeddedSignMessage(account,message);
+  return wallet.signMessage({message});
 }
 discoverWallets();

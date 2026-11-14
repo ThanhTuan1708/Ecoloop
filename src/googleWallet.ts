@@ -17,6 +17,10 @@ export async function connectGoogle(restore=false):Promise<Address>{
   const account=restore?await wallet.autoConnect({client,chain:network}):await wallet.connect({client,chain:network,strategy:'google'});
   email=await getUserEmail({client}).catch(()=>undefined);
   const provider=EIP1193.toProvider({wallet,chain:network,client});
-  registerEmbedded(provider as unknown as Provider,async()=>{await wallet.disconnect();email=undefined;});
+  registerEmbedded(provider as unknown as Provider,async()=>{await wallet.disconnect();email=undefined;},async(expectedAddress,message)=>{
+    const signer=wallet.getAccount();
+    if(!signer||signer.address.toLowerCase()!==expectedAddress.toLowerCase())throw new Error('Tài khoản ví đã thay đổi. Vui lòng kết nối lại.');
+    return signer.signMessage({message,chainId:network.id});
+  });
   return account.address as Address;
 }
