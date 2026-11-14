@@ -4,7 +4,7 @@ import {createMarketplaceHandler} from './marketplace.mjs';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { createHash, randomUUID } from 'node:crypto';
-import { createPublicClient, createWalletClient, decodeEventLog, http as rpcHttp, isAddress, isHex, keccak256, stringToHex, toFunctionSelector, verifyMessage } from 'viem';
+import { createPublicClient, createWalletClient, decodeEventLog, fallback, http as rpcHttp, isAddress, isHex, keccak256, stringToHex, toFunctionSelector, verifyMessage } from 'viem';
 import { privateKeyToAccount } from 'viem/accounts';
 import { codeHash } from './codehash.mjs';
 import {artifact,pickupArtifact,forwarderArtifact} from './generated-contracts.mjs';
@@ -35,8 +35,13 @@ export async function createApp({dataDir=path.resolve(process.env.DATA_DIR||'.da
     catch(error){if(error.code==='ENOENT')return {};throw error;}
   }
   const chain=chainId===31337?hardhat:avalancheFuji;
-  const rpcUrl=process.env.VITE_RPC_URL||process.env.FUJI_RPC_URL||chain.rpcUrls.default.http[0];
-  client ||= createPublicClient({chain,transport:rpcHttp(rpcUrl,{timeout:15000,retryCount:1})});
+  const defaultRpc=chain.rpcUrls.default.http[0];
+  const fujiPublicRpc='https://avalanche-fuji-c-chain-rpc.publicnode.com';
+  const rpcUrl=process.env.FUJI_RPC_URL||process.env.VITE_RPC_URL||defaultRpc;
+  const readUrls=deploymentConfig&&chainId===avalancheFuji.id
+    ? [...new Set([fujiPublicRpc,rpcUrl,defaultRpc])]
+    : [rpcUrl];
+  client ||= createPublicClient({chain,transport:fallback(readUrls.map(url=>rpcHttp(url,{timeout:6000,retryCount:0})),{retryCount:1})});
   // Gas-free relayer: a dedicated, small testnet wallet that pays gas for household actions. Never a deployer/admin key.
   const relayer=relayerKey&&/^0x[0-9a-fA-F]{64}$/.test(relayerKey)?privateKeyToAccount(relayerKey):undefined;
   relayWallet ||= relayer?createWalletClient({account:relayer,chain,transport:rpcHttp(rpcUrl,{timeout:30000})}):undefined;
