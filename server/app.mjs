@@ -92,7 +92,7 @@ export async function createApp({dataDir=path.resolve(process.env.DATA_DIR||'.da
   }
   const challenges=new Map();
   const storageKey=pickupStorageKey;
-  const storage=pickupStorage??createPickupStorage(process.env.BLOB_READ_WRITE_TOKEN,storageKey);
+  const storage=pickupStorage??createPickupStorage(process.env.DATABASE_URL,storageKey);
   const prefix=`chains/${chainId}/`;
   async function readStored(file){
     const value=storage&&await storage.read(prefix+path.relative(dataDir,file).split(path.sep).join('/'));
@@ -155,7 +155,7 @@ export async function createApp({dataDir=path.resolve(process.env.DATA_DIR||'.da
       const url=new URL(req.url,'http://localhost');
       if(await mapsHandler(req,res,url))return;
       if(await marketplaceHandler(req,res,url))return;
-      if(url.pathname==='/api/health'){send(200,{ok:true,chainId,evidence:true});return;}
+      if(url.pathname==='/api/health'){send(200,{ok:true,chainId,evidence:!storageKey||!!storage});return;}
       if(url.pathname==='/api/config'&&req.method==='GET'){
         const config=await readConfig();
         const contract=process.env.ECOLOOP_ADDRESS||process.env.VITE_ECOLOOP_ADDRESS||(config.chainId===chainId?config.contract:null);
@@ -172,6 +172,9 @@ export async function createApp({dataDir=path.resolve(process.env.DATA_DIR||'.da
         const origin=req.headers.origin;
         const expected=process.env.APP_ORIGIN;
         if(origin){const allowed=expected||`${req.headers['x-forwarded-proto']==='https'?'https':'http'}://${req.headers.host}`;if(origin!==allowed&&!(!expected&&/^http:\/\/(localhost|127\.0\.0\.1):5173$/.test(origin)))fail(403,'Origin không được phép.');}
+        if(storageKey&&!storage&&(url.pathname.startsWith('/api/evidence/')||url.pathname==='/api/pickup/details')){
+          fail(503,'Kho lưu thông tin bàn giao chưa được cấu hình.');
+        }
         if(url.pathname==='/api/evidence/challenge'&&req.method==='POST'){
           const data=fields(JSON.parse((await readBody(req,4096)).toString()));
           const now=Date.now();for(const [nonce,record]of challenges)if(record.expiry<now)challenges.delete(nonce);

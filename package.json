@@ -25,9 +25,9 @@
     "seed:fuji": "node --env-file=.env scripts/seed-fuji.mjs"
   },
   "dependencies": {
+    "@neondatabase/serverless": "^1.2.1",
     "@openzeppelin/contracts": "^5.4.0",
     "@types/leaflet": "^1.9.22",
-    "@vercel/blob": "^2.9.0",
     "leaflet": "^1.9.4",
     "lucide-react": "^0.468.0",
     "maplibre-gl": "^6.16.0",
