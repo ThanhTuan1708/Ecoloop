@@ -13,6 +13,7 @@ test('Nullmaps rewrites style and TileJSON to same-origin, preserving placeholde
  assert.equal(style.glyphs,'/api/maps/assets/tiles/font/{fontstack}/{range}');
  assert.equal(style.tiles[0],'/api/maps/assets/tiles/vietnam/{z}/{x}/{y}');
  assert.throws(()=>rewriteMapResource({sources:{x:{url:'https://unapproved.example/tiles/vietnam'}}},'http://localhost:8088'));
+ assert.deepEqual(rewriteMapResource({tiles:['http://maps.example/tiles/vietnam/{z}/{x}/{y}']},'https://maps.example').tiles,['/api/maps/assets/tiles/vietnam/{z}/{x}/{y}']);
 });
 test('Nullmaps keeps shared API key server-only and normalizes valid geocoder results',async()=>{
  const seen=[];const handler=createMapsHandler({apiKey:'test-only-secret',fetchImpl:async(url,opts)=>{seen.push({url:String(url),opts});return Response.json({status:'OK',results:[{formatted_address:'Bến Thành',geometry:{location:{lat:10.77,lng:106.69}}},{formatted_address:'Invalid',geometry:{location:{lat:999,lng:0}}}]});}});

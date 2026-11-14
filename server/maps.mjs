@@ -4,7 +4,9 @@ export function rewriteMapResource(value,upstream){
  const base=new URL(upstream);
  const rewrite=(reference)=>{
   const url=new URL(reference,base);
-  if(url.origin!==base.origin&&!['martin:3000','demo','demo:80'].includes(url.host))throw new Error('External map resource is not allowed');
+  // Martin may advertise HTTP tiles behind an HTTPS proxy. Fetching still uses the configured upstream.
+  const sameHostBehindTls=base.protocol==='https:'&&url.protocol==='http:'&&url.host===base.host;
+  if(url.origin!==base.origin&&!sameHostBehindTls&&!['martin:3000','demo','demo:80'].includes(url.host))throw new Error('External map resource is not allowed');
   if(!url.pathname.startsWith('/tiles/')&&!/^\/style(?:-dark|-terrain)?\.json$/.test(url.pathname))throw new Error('Unexpected map resource');
   url.searchParams.delete('key');
   return (assetPrefix+url.pathname+url.search).replace(/%7B/gi,'{').replace(/%7D/gi,'}');
