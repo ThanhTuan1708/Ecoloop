@@ -54,7 +54,9 @@ test('Vercel Nullmaps serves the Blob-backed style and searches the SQLite datas
   try{db.exec(`CREATE TABLE features(id INTEGER PRIMARY KEY,osm_id,name,folded,lat,lon,extra,importance,category,housenumber,street,district,city,region);
    CREATE VIRTUAL TABLE features_fts USING fts5(folded);
    INSERT INTO features VALUES(1,'n1','Bến Thành','ben thanh',10.77,106.69,NULL,100,NULL,NULL,NULL,NULL,'Hồ Chí Minh',NULL);
-   INSERT INTO features_fts(rowid,folded) VALUES(1,'ben thanh');`);}finally{db.close();}
+   INSERT INTO features VALUES(2,'n2','Nguyễn Văn Bảo','nguyen van bao',10.82,106.68,NULL,100,NULL,NULL,NULL,'Gò Vấp','Hồ Chí Minh',NULL);
+   INSERT INTO features VALUES(3,'n3','14 Nguyễn Văn Bảo','14 nguyen van bao',10.821,106.681,NULL,100,NULL,'14','Nguyễn Văn Bảo','Gò Vấp','Hồ Chí Minh',NULL);
+   INSERT INTO features_fts(rowid,folded) SELECT id,folded FROM features;`);}finally{db.close();}
   const data=await readFile(databasePath);
   let downloads=0;
   const handler=createMapsHandler({hosted:true,archiveUrl,geocoderUrl,fetchImpl:async url=>{
@@ -70,6 +72,9 @@ test('Vercel Nullmaps serves the Blob-backed style and searches the SQLite datas
    assert.equal(result.status,200);
    assert.deepEqual(result.json().results,[{label:'Bến Thành, Hồ Chí Minh',lat:10.77,lng:106.69}]);
   }
+  const lookup=async query=>(await call(handler,`/api/maps/geocode?q=${encodeURIComponent(query)}`)).json().results;
+  assert.deepEqual(await lookup('14 Nguyễn Văn Bảo, Gò Vấp'),[{label:'14 Nguyễn Văn Bảo, Gò Vấp, Hồ Chí Minh',lat:10.821,lng:106.681}]);
+  assert.deepEqual(await lookup('12 Nguyễn Văn Bảo'),[{label:'Nguyễn Văn Bảo',address:'12 Nguyễn Văn Bảo',approximate:true,lat:10.82,lng:106.68}]);
   assert.equal(downloads,1);
  }finally{
   await rm(dir,{recursive:true,force:true});
