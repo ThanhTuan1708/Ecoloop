@@ -5,8 +5,10 @@ import { keccak256 } from 'viem';
 // Immutable values (e.g. the forwarder and certificate addresses) are written into the runtime code at deploy
 // time. Their byte ranges are exported so a deployed contract can be verified by hashing its code with them zeroed.
 const immutableRanges = contract => Object.values(contract.evm.deployedBytecode.immutableReferences || {}).flat().map(r => [r.start, r.length]).sort((a, b) => a[0] - b[0]);
+// Fuji contracts were compiled with CRLF project sources. Solidity hashes source text in metadata.
+const readSource = name => ({content:fs.readFileSync(path.join('contracts',name),'utf8').replace(/\r\n|\n/g,'\r\n')});
 export function compile() {
-  const input = { language: 'Solidity', sources: { 'EcoLoop.sol': { content: fs.readFileSync('contracts/EcoLoop.sol', 'utf8') } }, settings: { optimizer: { enabled: true, runs: 200 }, evmVersion: 'cancun', outputSelection: { '*': { '*': ['abi', 'evm.bytecode.object', 'evm.deployedBytecode.object', 'evm.deployedBytecode.immutableReferences'] } } } };
+  const input = { language: 'Solidity', sources: { 'EcoLoop.sol': readSource('EcoLoop.sol') }, settings: { optimizer: { enabled: true, runs: 200 }, evmVersion: 'cancun', outputSelection: { '*': { '*': ['abi', 'evm.bytecode.object', 'evm.deployedBytecode.object', 'evm.deployedBytecode.immutableReferences'] } } } };
   const result = JSON.parse(solc.compile(JSON.stringify(input), { import: (name) => {
     try { return { contents: fs.readFileSync(path.join('node_modules', name), 'utf8') }; } catch { return { error: `Missing import: ${name}` }; }
   } }));
@@ -22,7 +24,7 @@ export function compile() {
   // Compile the pickup contract separately: the legacy artifact must remain byte-for-byte stable.
   // Pickup marketplace: AVAX escrow, recycling certificates and an ERC-2771 forwarder.
   const pickupSources = ['EcoLoopPickup.sol', 'EcoLoopCertificate.sol', 'EcoLoopForwarder.sol'];
-  const pickupInput = {...input, sources: {...input.sources, ...Object.fromEntries(pickupSources.map(f => [f, {content: fs.readFileSync(`contracts/${f}`, 'utf8')}]))}};
+  const pickupInput = {...input, sources: {...input.sources, ...Object.fromEntries(pickupSources.map(f => [f, readSource(f)]))}};
   const pickupResult = JSON.parse(solc.compile(JSON.stringify(pickupInput), {import: name => {
     try { return {contents: fs.readFileSync(path.join('node_modules',name),'utf8')}; } catch { return {error:`Missing import: ${name}`}; }
   }}));
