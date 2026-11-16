@@ -261,7 +261,7 @@ export default function Pickup({account,admin,onConnect,page='home',role='seller
       if(depositWei===undefined)throw new Error(tr('Đang tính số ECO cần khóa…'));
       setHash(await householdWrite(address,account,fn,[BigInt(id),depositWei],gasless));
       await refresh();onOpenOrders?.();
-      setMessage(tr('Đã nhận việc và khóa ECO ký quỹ.'));
+      setMessage(tr('🎉 Đã nhận đơn! Bạn có thể xem địa chỉ và số điện thoại bên dưới để liên hệ đến lấy.'));
       speakFeedback('Bạn đã nhận thu gom.');
       return;
     }
@@ -270,8 +270,8 @@ export default function Pickup({account,admin,onConnect,page='home',role='seller
     await refresh();
     if(fn==='proposeLot')speakFeedback('Đã gửi kết quả cân cho người bán.');
     if(fn==='acceptLot')speakFeedback('Đã xác nhận bàn giao.');
-    setMessage(fn==='acceptLot'?tr('🎉 Đã xác nhận bàn giao: tiền ký quỹ đã chuyển cho bạn và chứng nhận tái chế NFT đã được tạo.')
-      :household&&gasless?tr('✅ Đã gửi giao dịch on-chain, miễn phí gas.'):tr('🎉 Đã ký và gửi giao dịch thu gom on-chain thành công lên mạng Fuji.'));
+    setMessage(fn==='acceptLot'?tr('🎉 Đã hoàn tất bàn giao! Điểm thưởng ECO và Chứng nhận tái chế đã được cộng vào ví của bạn.')
+      :household&&gasless?tr('✅ Đã cập nhật đơn hàng thành công (miễn phí).'):tr('🎉 Đã cập nhật đơn thu gom thành công.'));
   }
   function locate(){run(async()=>{if(!navigator.geolocation)throw new Error(tr('Trình duyệt chưa hỗ trợ vị trí. Chọn khu vực trên bản đồ khi đăng lô.'));const p=await new Promise<GeolocationPosition>((resolve,reject)=>navigator.geolocation.getCurrentPosition(resolve,reject,{enableHighAccuracy:false,timeout:15000}));setCenter([p.coords.latitude,p.coords.longitude]);setSort('distance_asc');setMessage(tr('Đã lấy vị trí để lọc khoảng cách. Không lưu vị trí vào hồ sơ hay blockchain; OpenStreetMap cung cấp nền bản đồ.'));});}
   async function create(weights:number[],file:File,evidence:Hash,point:[number,number],contact:string,location:string){
@@ -296,7 +296,7 @@ export default function Pickup({account,admin,onConnect,page='home',role='seller
     {page!=='rewards'&&page!=='messages'&&<div className="pickup-page-title">
       <span className="eyebrow">{tr('ECOLOOP · SÀN C2C WEB3 AVALANCHE FUJI')}</span>
       <h2>{({home:seller?tr('Bán phế liệu'):tr('Lô đang chờ thu gom'),orders:seller?tr('Lô của tôi'):tr('Lô đã nhận'),wallet:tr('Ví xanh của bạn'),messages:tr('Tin nhắn'),settings:tr('Thiết lập hệ thống')})[page]}</h2>
-      <p>{page==='settings'?tr('Ngôn ngữ, giao diện, đơn vị, thông báo và cấu hình hệ thống.'):tr('Lô, ký quỹ và chứng nhận ghi trên Avalanche. Ảnh và liên hệ lưu riêng, chỉ chủ lô và người nhận việc xem được.')}</p>
+      <p>{page==='settings'?tr('Ngôn ngữ, giao diện, đơn vị, thông báo và cấu hình hệ thống.'):tr('Bán và thu gom phế liệu tận nơi minh bạch. Địa chỉ và số điện thoại được bảo mật, chỉ người bán và người nhận đơn xem được.')}</p>
     </div>}
     {page==='messages'&&(!account?<button className="primary" onClick={onConnect}>{tr('Kết nối ví')}</button>:
       <div className={`messenger ${chatLot?'messenger-selected':''}`}>
@@ -439,7 +439,7 @@ export default function Pickup({account,admin,onConnect,page='home',role='seller
                     <span className="web3-chain-pill"><ShieldCheck size={11}/>Fuji #{card.lotId}</span>
                   </span>
                   {st==='SOLD'&&<span className="shopee-stamp stamp-sold">{tr('ĐÃ BÁN')}</span>}
-                  {st==='IN_ESCROW'&&<span className="shopee-stamp stamp-escrow">{tr('ĐANG KÝ QUỸ')}</span>}
+                  {st==='IN_ESCROW'&&<span className="shopee-stamp stamp-escrow">{tr('ĐANG THU GOM')}</span>}
                   {st==='CANCELLED'&&<span className="shopee-stamp stamp-cancelled">{tr('ĐÃ HỦY')}</span>}
                   <span className="shopee-card-badges-bottom">
                     <span className="web3-ipfs-pill">{tr(card.category.name)}</span>
@@ -458,7 +458,7 @@ export default function Pickup({account,admin,onConnect,page='home',role='seller
                 <span className="shopee-rating-row">
                   {card.seller.reputationScore>0&&<span className="star-badge"><Star size={11} fill="currentColor"/> {card.seller.reputationScore.toFixed(1)}</span>}
                   <span className="sales-count">{tr('Đã bán {n}',{n:card.seller.completedSalesCount})}</span>
-                  {card.badges.isEscrowProtected&&<span className="escrow-tag">Escrow</span>}
+                  {card.badges.isEscrowProtected&&<span className="escrow-tag">{tr('Đảm bảo')}</span>}
                 </span>
                 <span className="shopee-location-row">
                   <span><MapPin size={12}/> {card.seller.location.distanceKm!==undefined
@@ -490,25 +490,25 @@ export default function Pickup({account,admin,onConnect,page='home',role='seller
             <img className="pickup-evidence" src={photo||selectedCard.thumbnail.previewUrl} alt={selectedCard.title}/>
             <p>{selectedCard.shortDescription}</p>
             <div className="web3-metadata-box">
-              <div><span>{tr('Trạng thái Ký quỹ:')}</span> <strong>{tr(selectedCard.uiState.statusLabelVi)} — {tr(selectedCard.uiState.subStatusLabelVi)}</strong></div>
-              <div><span>{tr('Cửa hàng / Chủ lô:')}</span> <strong>{selectedCard.seller.displayName}</strong> (<code>{short(current.owner)}</code>) · {tr('({n} lô hoàn tất)',{n:selectedCard.seller.completedSalesCount})}</div>
-              <div><span>{tr('Ví thu gom (Escrow):')}</span> <code>{current.collector===ZERO?tr('Chưa khóa ký quỹ'):short(current.collector)}</code></div>
+              <div><span>{tr('Trạng thái đơn:')}</span> <strong>{tr(selectedCard.uiState.statusLabelVi)} — {tr(selectedCard.uiState.subStatusLabelVi)}</strong></div>
+              <div><span>{tr('Người bán:')}</span> <strong>{selectedCard.seller.displayName}</strong> (<code>{short(current.owner)}</code>) · {tr('({n} lô hoàn tất)',{n:selectedCard.seller.completedSalesCount})}</div>
+              <div><span>{tr('Người nhận thu gom:')}</span> <code>{current.collector===ZERO?tr('Chưa có người nhận'):short(current.collector)}</code></div>
               <div><span>{tr('Khu vực bàn giao:')}</span> {selectedCard.seller.location.district}, {selectedCard.seller.location.province}</div>
               <div><span>Contract V4 (Chain {chain.id}):</span> <code>{address?short(address):'—'}</code></div>
               <div><span>{tr('SHA-256 ảnh lô:')}</span> <code>{short(current.evidence)}</code></div>
-              {selectedCard.onChain.escrowLockExpiresAt&&<div><span>{tr('Hạn bảo vệ ký quỹ:')}</span> {dateTime(selectedCard.onChain.escrowLockExpiresAt)}</div>}
+              {selectedCard.onChain.escrowLockExpiresAt&&<div><span>{tr('Thời hạn xử lý đơn:')}</span> {dateTime(selectedCard.onChain.escrowLockExpiresAt)}</div>}
             </div>
             <table><thead><tr><th>{tr('Vật liệu')}</th><th>{tr('Dự kiến')}</th><th>{tr('Thực tế')}</th></tr></thead><tbody>{materials.map((m,i)=><tr key={m.name}><td>{m.symbol} {tr(m.name)}</td><td>{wt(current.estimated[i]/1000)}</td><td>{[3,4].includes(current.status)?wt(current.actual[i]/1000):'—'}</td></tr>)}</tbody></table>
             <p className="lot-points">
               <strong>+{selectedCard.pricing.amountFormatted} ECO</strong>
             </p>
             {isCurrentOnChain&&<div className="escrow-box">
-              <strong><Lock size={15}/>{tr('Ký quỹ ECO trên contract')}</strong>
-              {current.status===1&&<p>{depositWei!==undefined?tr('Người nhận việc phải khóa {eco} ECO (giá ước tính + 20%). Tiền nằm trong contract cho tới khi hai bên xác nhận số cân.',{eco:eco(depositWei)}):tr('Đang tính số ECO cần khóa…')}</p>}
-              {[2,3].includes(current.status)&&<p>{tr('Đang khóa {eco} ECO trong contract.',{eco:fmt(current.deposit||0,6)})}</p>}
-              {current.status===3&&payoutWei!==undefined&&<p className="escrow-payout">{tr('Chủ lô sẽ nhận {eco} ECO theo số cân thực tế; phần dư hoàn lại người thu gom.',{eco:eco(payoutWei)})}</p>}
-              {current.status===4&&<p className="escrow-payout">{tr('Đã trả {eco} ECO cho chủ lô từ ký quỹ.',{eco:fmt(current.paid||0,6)})}</p>}
-              {current.status===5&&<p>{tr('Lô đã hủy, không có tiền ký quỹ.')}</p>}
+              <strong><Lock size={15}/>{tr('Đảm bảo thanh toán từ EcoLoop')}</strong>
+              {current.status===1&&<p>{depositWei!==undefined?tr('Khi nhận đơn, hệ thống tạm giữ {eco} ECO làm khoản đảm bảo. Sau khi đến nơi cân thực tế và hai bên đồng ý, người bán sẽ nhận ngay điểm thưởng theo đúng số cân.',{eco:eco(depositWei)}):tr('Đang tính điểm đảm bảo…')}</p>}
+              {[2,3].includes(current.status)&&<p>{tr('Hệ thống đang giữ {eco} ECO đảm bảo cho đơn thu gom này.',{eco:fmt(current.deposit||0,6)})}</p>}
+              {current.status===3&&payoutWei!==undefined&&<p className="escrow-payout">{tr('Người bán sẽ nhận {eco} ECO theo số cân thực tế; phần dư tự động hoàn lại người thu gom.',{eco:eco(payoutWei)})}</p>}
+              {current.status===4&&<p className="escrow-payout">{tr('Đã chuyển {eco} ECO cho người bán sau khi hoàn tất thu gom.',{eco:fmt(current.paid||0,6)})}</p>}
+              {current.status===5&&<p>{tr('Đơn thu gom này đã hủy.')}</p>}
             </div>}
             {(isOwner||isAssignedCollector)&&<button className="secondary" disabled={busy} onClick={()=>run(async()=>{
               if(!account||!address){onConnect();return;}
@@ -568,14 +568,14 @@ export default function Pickup({account,admin,onConnect,page='home',role='seller
             {failure&&message&&<p className="form-error" role="alert">{tr(message)}</p>}
             {collectorMarket&&account&&!publicPickup&&!canFulfillRewards&&<p>{tr('Ví này chưa có quyền thu gom. Liên hệ quản trị viên.')}</p>}
             {actions.claimLot&&depositWei!==undefined&&balanceAtomic<depositWei&&(gasless
-              ?<div className="pickup-callout"><strong>{tr('⚡ Cấp hạn mức ECO lưu động tự động')}</strong><p>{tr('Hệ thống sẽ tự động ứng trước {eco} ECO ký quỹ còn thiếu để bạn nhận việc ngay mà không tốn phí gas AVAX.',{eco:eco(depositWei-balanceAtomic)})}</p></div>
+              ?<div className="pickup-callout"><strong>{tr('⚡ Nhận đơn miễn phí — Hệ thống hỗ trợ ứng trước điểm đảm bảo')}</strong><p>{tr('Bạn chưa cần có sẵn điểm trong ví. EcoLoop tự động ứng trước {eco} ECO đảm bảo để bạn nhận đơn đi thu gom ngay hoàn toàn miễn phí.',{eco:eco(depositWei-balanceAtomic)})}</p></div>
               :swap&&<EcoExchange {...swap} needed={depositWei-balanceAtomic}/>)}
-            {collectorMarket&&(!account||actions.claimLot)&&<button className="primary full-width" disabled={busy||paused||!!account&&(depositWei===undefined||(!gasless&&balanceAtomic<depositWei))} onClick={()=>account?run(()=>change('claimLot',[BigInt(current.id)])):onConnect()}>{!account?tr('Kết nối ví'):depositWei!==undefined?tr('Nhận việc & khóa {eco} ECO ký quỹ',{eco:eco(depositWei)}):tr('Ký hợp đồng nhận thu gom & Khóa ký quỹ (Escrow)')} <ArrowRight size={16}/></button>}
-            {current.status===1&&isOwner&&<button className="secondary" disabled={busy} onClick={()=>run(()=>change('cancelLot',[BigInt(current.id)]))}>{tr('Hủy listing')}{freeGas}</button>}
-            {isAssignedCollector&&current.status===2&&<form onSubmit={e=>{e.preventDefault();run(async()=>{const weights=actual.map(s=>Math.round(Number(s)*1000));if(weights.some(n=>!Number.isSafeInteger(n)||n<0)||total(weights)<=0||total(weights)>1000)throw new Error(tr('Tổng khối lượng thực tế từ 0,001 đến 1.000 kg.'));await change('proposeLot',[BigInt(current.id),weights.map(BigInt)]);});}}><h4>{tr('Kết quả cân thực tế tại điểm bàn giao')}</h4><WeightInputs values={actual} onChange={setActual}/><p>{tr('Nhập số cân thực tế trên bàn cân điện tử để ký số và gửi đề xuất on-chain cho chủ lô xác nhận.')}</p><button className="primary" disabled={busy||paused}>{tr('Gửi số cân')}</button></form>}
-            {isOwner&&current.status===3&&<><p>{tr('Kiểm tra bảng khối lượng thực tế trước khi xác nhận giải ngân. Đề xuất có hiệu lực 7 ngày.')}</p><label className="checkbox"><input type="checkbox" checked={consent} onChange={e=>setConsent(e.target.checked)}/>{tr('Tôi đã bàn giao vật liệu và đồng ý khối lượng thực tế trên.')}</label><button className="primary full-width" disabled={busy||paused||!consent||Date.now()>current.updatedAt+7*86400000} onClick={()=>run(()=>change('acceptLot',[BigInt(current.id)]))}><CheckCircle2 size={16}/>{isCurrentOnChain&&payoutWei!==undefined?tr('Xác nhận & nhận {eco} ECO',{eco:eco(payoutWei)}):tr('Đồng ý số cân')}{freeGas}</button><button className="secondary" disabled={busy} onClick={()=>run(()=>change('disputeLot',[BigInt(current.id)]))}>{tr('Chưa đồng ý · yêu cầu cân lại')}{freeGas}</button></>}
-            {actions.releaseLot&&<button className="text-link" disabled={busy} onClick={()=>run(()=>change('releaseLot',[BigInt(current.id)]))}>{isOwner?tr('Mở lại lô do quá hạn'):tr('Trả lại việc thu gom (Mở lại listing Active)')}</button>}
-            {current.status===4&&<p className="pickup-success"><CheckCircle2 size={18}/>{tr('Hai phía đã xác nhận. ECO đã được giải ngân cho chủ lô.')}</p>}
+            {collectorMarket&&(!account||actions.claimLot)&&<button className="primary full-width" disabled={busy||paused||!!account&&(depositWei===undefined||(!gasless&&balanceAtomic<depositWei))} onClick={()=>account?run(()=>change('claimLot',[BigInt(current.id)])):onConnect()}>{!account?tr('Kết nối ví'):tr('Nhận đơn đi thu gom ngay')} <ArrowRight size={16}/></button>}
+            {current.status===1&&isOwner&&<button className="secondary" disabled={busy} onClick={()=>run(()=>change('cancelLot',[BigInt(current.id)]))}>{tr('Hủy bài đăng')}{freeGas}</button>}
+            {isAssignedCollector&&current.status===2&&<form onSubmit={e=>{e.preventDefault();run(async()=>{const weights=actual.map(s=>Math.round(Number(s)*1000));if(weights.some(n=>!Number.isSafeInteger(n)||n<0)||total(weights)<=0||total(weights)>1000)throw new Error(tr('Tổng khối lượng thực tế từ 0,001 đến 1.000 kg.'));await change('proposeLot',[BigInt(current.id),weights.map(BigInt)]);});}}><h4>{tr('Kết quả cân thực tế tại điểm bàn giao')}</h4><WeightInputs values={actual} onChange={setActual}/><p>{tr('Nhập số cân thực tế sau khi cân tại nhà để gửi cho người bán kiểm tra và xác nhận.')}</p><button className="primary" disabled={busy||paused}>{tr('Gửi số cân')}</button></form>}
+            {isOwner&&current.status===3&&<><p>{tr('Kiểm tra bảng khối lượng thực tế bên trên trước khi xác nhận hoàn tất.')}</p><label className="checkbox"><input type="checkbox" checked={consent} onChange={e=>setConsent(e.target.checked)}/>{tr('Tôi đã bàn giao vật liệu và đồng ý khối lượng thực tế trên.')}</label><button className="primary full-width" disabled={busy||paused||!consent||Date.now()>current.updatedAt+7*86400000} onClick={()=>run(()=>change('acceptLot',[BigInt(current.id)]))}><CheckCircle2 size={16}/>{isCurrentOnChain&&payoutWei!==undefined?tr('Xác nhận & nhận {eco} ECO',{eco:eco(payoutWei)}):tr('Đồng ý số cân')}{freeGas}</button><button className="secondary" disabled={busy} onClick={()=>run(()=>change('disputeLot',[BigInt(current.id)]))}>{tr('Chưa đồng ý · yêu cầu cân lại')}{freeGas}</button></>}
+            {actions.releaseLot&&<button className="text-link" disabled={busy} onClick={()=>run(()=>change('releaseLot',[BigInt(current.id)]))}>{isOwner?tr('Mở lại lô do quá hạn'):tr('Hủy nhận đơn (Nhường cho người khác)')}</button>}
+            {current.status===4&&<p className="pickup-success"><CheckCircle2 size={18}/>{tr('Hai bên đã xác nhận. Điểm thưởng ECO đã được cộng vào ví người bán.')}</p>}
             {current.status===4&&isCurrentOnChain&&certAddress&&<CertificateCard certificate={certAddress} lotId={current.id}/>}
           </div>
         </div>}
@@ -647,7 +647,7 @@ function PickupHistorySection({
     <section className="pickup-history-panel" aria-label={tr("Lịch sử đã đăng lô và thu gom lô")}>
       <div className="pickup-history-header">
         <div>
-          <span className="eyebrow"><History size={14}/> {tr('SỔ CÁI THEO DÕI ĐƠN HÀNG & KÝ QUỸ')}</span>
+          <span className="eyebrow"><History size={14}/> {tr('LỊCH SỬ ĐƠN THU GOM')}</span>
           <h3>{seller?tr('Lô của tôi'):tr('Lô đã nhận')}</h3>
         </div>
       </div>
@@ -657,7 +657,7 @@ function PickupHistorySection({
           <strong>{tr('{n} lô',{n:activeList.length})}</strong>
         </div>
         <div className="history-kpi-card">
-          <span>{tr('Đang mở / Đang ký quỹ')}</span>
+          <span>{tr('Đang chờ / Đang thu gom')}</span>
           <strong>{tr('{n} lô',{n:inProgressCount})}</strong>
         </div>
         <div className="history-kpi-card">
@@ -687,7 +687,7 @@ function PickupHistorySection({
               <tr>
                 <th>{tr('Mã lô & Phế liệu')}</th>
                 <th>{tr('Vật liệu & Cân nặng')}</th>
-                <th>{seller?tr('Người thu gom (Escrow)'):tr('Chủ lô & Người thu gom')}</th>
+                <th>{seller?tr('Người thu gom'):tr('Người bán & Người thu gom')}</th>
                 <th>{tr('Điểm thưởng & Giá trị')}</th>
                 <th>{tr('Trạng thái & Thời gian')}</th>
                 <th>{tr('Thao tác')}</th>

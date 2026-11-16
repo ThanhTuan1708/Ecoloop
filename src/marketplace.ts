@@ -270,43 +270,43 @@ export function buildUiState(rawStatus: number, role: 'seller' | 'collector' = '
       return {
         status: 'ACTIVE',
         statusLabelVi: 'Đang mở bán',
-        subStatusLabelVi: 'Sẵn sàng nhận thu gom trên chain',
+        subStatusLabelVi: 'Sẵn sàng nhận thu gom tận nơi',
         canBuyNow: true,
-        ctaTextVi: role === 'collector' ? 'Nhận thu gom ngay' : 'Xem & giao dịch',
+        ctaTextVi: role === 'collector' ? 'Nhận thu gom ngay' : 'Xem chi tiết',
         badgeColor: 'emerald',
       };
     case 2:
       return {
         status: 'IN_ESCROW',
-        statusLabelVi: 'Đang khóa ký quỹ',
-        subStatusLabelVi: 'Đã khóa người thu gom · Chờ cân thực tế',
+        statusLabelVi: 'Đã có người nhận',
+        subStatusLabelVi: 'Người thu gom đang đến lấy và cân thực tế',
         canBuyNow: false,
-        ctaTextVi: 'Đang khóa ký quỹ',
+        ctaTextVi: 'Đang đi thu gom',
         badgeColor: 'amber',
       };
     case 3:
       return {
         status: 'IN_ESCROW',
-        statusLabelVi: 'Đang khóa ký quỹ',
-        subStatusLabelVi: 'Đã đề xuất số cân · Chờ chủ lô xác nhận',
+        statusLabelVi: 'Chờ xác nhận cân',
+        subStatusLabelVi: 'Đã có kết quả cân · Chờ người bán đồng ý',
         canBuyNow: false,
-        ctaTextVi: 'Chờ xác nhận ký quỹ',
+        ctaTextVi: 'Chờ xác nhận số cân',
         badgeColor: 'amber',
       };
     case 4:
       return {
         status: 'SOLD',
-        statusLabelVi: 'Đã bán',
-        subStatusLabelVi: 'Đã giải ngân ECO trên smart contract',
+        statusLabelVi: 'Hoàn tất',
+        subStatusLabelVi: 'Đã bàn giao và cộng điểm thưởng thành công',
         canBuyNow: false,
-        ctaTextVi: 'Đã bán hoàn tất',
+        ctaTextVi: 'Đã thu gom xong',
         badgeColor: 'slate',
       };
     default:
       return {
         status: 'CANCELLED',
-        statusLabelVi: 'Đã hủy listing',
-        subStatusLabelVi: 'Chủ lô đã đóng niêm yết trên chain',
+        statusLabelVi: 'Đã hủy',
+        subStatusLabelVi: 'Người bán đã hủy bài đăng này',
         canBuyNow: false,
         ctaTextVi: 'Đã ngừng bán',
         badgeColor: 'rose',
