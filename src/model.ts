@@ -1,8 +1,8 @@
 export const materials = [
-  { name: 'Nhựa', detail: 'Chai PET, hộp nhựa sạch', rate: 20, color: '#c9e9da', symbol: '♳' },
-  { name: 'Giấy', detail: 'Bìa carton, sách, báo', rate: 10, color: '#f2e4c5', symbol: '▤' },
-  { name: 'Kim loại', detail: 'Lon nhôm, hộp kim loại', rate: 40, color: '#dbe5ed', symbol: '◈' },
-  { name: 'Thủy tinh', detail: 'Chai, lọ thủy tinh', rate: 8, color: '#dedaf1', symbol: '◇' },
+  { name: 'Nhựa', detail: 'Chai PET, hộp nhựa sạch', rate: 20, buyVnd: 7000, stationVnd: 8500, color: '#c9e9da', symbol: '♳' },
+  { name: 'Giấy', detail: 'Bìa carton, sách, báo', rate: 10, buyVnd: 3500, stationVnd: 4200, color: '#f2e4c5', symbol: '▤' },
+  { name: 'Kim loại', detail: 'Lon nhôm, hộp kim loại', rate: 40, buyVnd: 28000, stationVnd: 32000, color: '#dbe5ed', symbol: '◈' },
+  { name: 'Thủy tinh', detail: 'Chai, lọ thủy tinh', rate: 8, buyVnd: 1500, stationVnd: 2000, color: '#dedaf1', symbol: '◇' },
 ];
 export type RequestItem = { id: number; user: string; material: number; grams: number; verifiedGrams: number; evidenceHash: string; status: 'pending' | 'approved' | 'rejected'; createdAt: number; hash?: string };
 export type Reward = { id: number; name: string; cost: number; stock: number; active: boolean };

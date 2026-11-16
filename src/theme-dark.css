@@ -132,6 +132,11 @@
 :root[data-theme=dark] .lot-card-action.action-in_escrow{background:hsl(48 55% 12.1%)!important;color:hsl(26 72.4% 69.6%)!important;border:1px solid hsl(48 43.5% 29.3%)}
 :root[data-theme=dark] .lot-card-action.action-sold,:root[data-theme=dark] .lot-card-action.action-cancelled{background:hsl(210 22% 12.1%)!important;color:hsl(215 13.1% 64.2%)!important}
 :root[data-theme=dark] .web3-metadata-box{background:hsl(120 15.7% 11.6%);border:1px solid hsl(120 9.3% 24.5%)}
+:root[data-theme=dark] .pricing-breakdown-box{background:hsl(45 55% 11.1%);border:1px solid hsl(48 43.5% 29.3%);color:hsl(37 33.5% 80%)}
+:root[data-theme=dark] .pricing-breakdown-box strong{color:hsl(23 66% 72.7%);border-bottom:1px dashed #fcd34d}
+:root[data-theme=dark] .pricing-row.highlight-cash b{color:hsl(26 72.4% 69.6%)}
+:root[data-theme=dark] .pricing-row.highlight-profit b{color:hsl(166 70% 76.2%)}
+:root[data-theme=dark] .pricing-row .eco-val{color:#ee4d2d}
 :root[data-theme=dark] .shopee-pagination-footer{background:hsl(0 0% 10.5%);border:1px solid hsl(120 8.3% 24.2%)}
 :root[data-theme=dark] .pickup-history-panel{background:hsl(0 0% 10.5%);border:1px solid hsl(120 9.3% 24.5%)}
 :root[data-theme=dark] .pickup-history-header{border-bottom:1px solid hsl(120 9.6% 22.2%)}

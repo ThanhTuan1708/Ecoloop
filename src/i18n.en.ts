@@ -816,6 +816,22 @@ export const en:Record<string,string>={
  "Người bán đã hủy bài đăng này":"The seller cancelled this post",
  "Nạp 0.1 AVAX bật miễn phí gas cho Ví Google":"Fund 0.1 AVAX to enable free gas for Google Wallets",
  "🎉 Đã nạp 0.1 AVAX vào ví tài trợ gas! Tất cả ví Google hiện đã được miễn phí gas.":"🎉 Funded 0.1 AVAX to the gas relayer! All Google wallets now have free gas.",
+ "Tiền bán ≈ {vnd} ₫":"Cash value ≈ {vnd} ₫",
+ "Mua {vnd} ₫ · Lãi +{profit} ₫":"Buy {vnd} ₫ · Profit +{profit} ₫",
+ "Đơn giá thu mua":"Buying price",
+ "💵 Bảng tính tiền thu mua & Kinh doanh":"💵 Scrap Purchase & Business Breakdown",
+ "Theo cân thực tế":"Based on actual weight",
+ "Tạm tính theo dự kiến":"Estimated",
+ "Tiền mặt trả cho người bán:":"Cash paid to seller:",
+ "Điểm thưởng phân loại xanh (tặng thêm):":"Green sorting bonus points:",
+ "Giá bao tiêu tại Trạm tái chế EcoLoop:":"EcoLoop Station guaranteed buyback price:",
+ "Lợi nhuận chuyến đi của Người thu gom:":"Collector's estimated trip profit:",
+ "Phí điều phối nền tảng EcoLoop:":"EcoLoop platform coordination fee:",
+ "{vnd} ₫ (3% đơn thương mại ≥ 30 kg)":"{vnd} ₫ (3% commercial lot ≥ 30 kg)",
+ "0 ₫ (Miễn phí cho hộ dân & thu gom lẻ < 30 kg)":"0 ₫ (Free for households & small lots < 30 kg)",
+ "Doanh thu Tín chỉ Tái chế EPR (B2B NFT):":"EPR Recycling Credit revenue (B2B NFT):",
+ "(Từ Quỹ EPR doanh nghiệp)":"(Funded by Corporate EPR Pool)",
+ "Tiền bán phế liệu ≈ {vnd} ₫":"Scrap cash value ≈ {vnd} ₫",
 };
 
 // Messages with a dynamic part (from wallet/server errors).

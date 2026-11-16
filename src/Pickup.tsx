@@ -25,6 +25,9 @@ interface ReceiptItem {id:number;reward:number;owner:string;done:boolean}
 const same=(a?:string,b?:string)=>!!a&&!!b&&a.toLowerCase()===b.toLowerCase();
 const total=(weights:number[])=>weights.reduce((a,b)=>a+b,0)/1000;
 const points=(weights:number[])=>weights.reduce((a,b,i)=>a+b*materials[i].rate/1000,0);
+const buyCashVnd=(weights:number[])=>Math.round(weights.reduce((a,b,i)=>a+b*(materials[i]?.buyVnd??3500)/1000,0));
+const stationCashVnd=(weights:number[])=>Math.round(weights.reduce((a,b,i)=>a+b*(materials[i]?.stationVnd??4200)/1000,0));
+const eprCreditVnd=(weights:number[])=>Math.round(total(weights)*800);
 
 export default function Pickup({account,admin,onConnect,page='home',role='seller',createRequest=0,onOpenOrders,onBrowseAsCollector,collectorLot,children,walletSlot}:{
   children?:ReactNode;walletSlot?:ReactNode;account?:Address;admin:boolean;
@@ -454,6 +457,13 @@ export default function Pickup({account,admin,onConnect,page='home',role='seller
                 </span>
                 <span className="shopee-price-row">
                   <b className="lot-eco"><Coins size={14}/> +{card.pricing.amountFormatted} {card.pricing.tokenSymbol}</b>
+                  {(()=>{
+                    const rawLot=lots.find(l=>l.id===card.lotId);
+                    const w=rawLot?([3,4].includes(rawLot.status)&&rawLot.actual.some(x=>x>0)?rawLot.actual:rawLot.estimated):[0,0,0,0];
+                    const cash=buyCashVnd(w);
+                    const profit=Math.max(0,stationCashVnd(w)-cash);
+                    return <small className="fiat-equiv">{seller?tr('Tiền bán ≈ {vnd} ₫',{vnd:fmt(cash)}):tr('Mua {vnd} ₫ · Lãi +{profit} ₫',{vnd:fmt(cash),profit:fmt(profit)})}</small>;
+                  })()}
                 </span>
                 <span className="shopee-rating-row">
                   {card.seller.reputationScore>0&&<span className="star-badge"><Star size={11} fill="currentColor"/> {card.seller.reputationScore.toFixed(1)}</span>}
@@ -498,7 +508,46 @@ export default function Pickup({account,admin,onConnect,page='home',role='seller
               <div><span>{tr('SHA-256 ảnh lô:')}</span> <code>{short(current.evidence)}</code></div>
               {selectedCard.onChain.escrowLockExpiresAt&&<div><span>{tr('Thời hạn xử lý đơn:')}</span> {dateTime(selectedCard.onChain.escrowLockExpiresAt)}</div>}
             </div>
-            <table><thead><tr><th>{tr('Vật liệu')}</th><th>{tr('Dự kiến')}</th><th>{tr('Thực tế')}</th></tr></thead><tbody>{materials.map((m,i)=><tr key={m.name}><td>{m.symbol} {tr(m.name)}</td><td>{wt(current.estimated[i]/1000)}</td><td>{[3,4].includes(current.status)?wt(current.actual[i]/1000):'—'}</td></tr>)}</tbody></table>
+            <table><thead><tr><th>{tr('Vật liệu')}</th><th>{tr('Đơn giá thu mua')}</th><th>{tr('Dự kiến')}</th><th>{tr('Thực tế')}</th></tr></thead><tbody>{materials.map((m,i)=><tr key={m.name}><td>{m.symbol} {tr(m.name)}</td><td>{fmt(m.buyVnd)} ₫/kg</td><td>{wt(current.estimated[i]/1000)}</td><td>{[3,4].includes(current.status)?wt(current.actual[i]/1000):'—'}</td></tr>)}</tbody></table>
+            {(()=>{
+              const activeWeights=[3,4].includes(current.status)&&current.actual.some(x=>x>0)?current.actual:current.estimated;
+              const isActual=[3,4].includes(current.status)&&current.actual.some(x=>x>0);
+              const sellerCash=buyCashVnd(activeWeights);
+              const stationCash=stationCashVnd(activeWeights);
+              const totalKg=total(activeWeights);
+              const platformFee=totalKg>=30?Math.round(stationCash*0.03):0;
+              const collectorProfit=Math.max(0,stationCash-sellerCash-platformFee);
+              const eprVnd=eprCreditVnd(activeWeights);
+              return (
+                <div className="pricing-breakdown-box">
+                  <strong>{tr('💵 Bảng tính tiền thu mua & Kinh doanh')} ({isActual?tr('Theo cân thực tế'):tr('Tạm tính theo dự kiến')})</strong>
+                  <div className="pricing-row highlight-cash">
+                    <span>{tr('Tiền mặt trả cho người bán:')}</span>
+                    <b>{fmt(sellerCash)} ₫</b>
+                  </div>
+                  <div className="pricing-row">
+                    <span>{tr('Điểm thưởng phân loại xanh (tặng thêm):')}</span>
+                    <b className="eco-val">+{selectedCard.pricing.amountFormatted} ECO</b>
+                  </div>
+                  <div className="pricing-row">
+                    <span>{tr('Giá bao tiêu tại Trạm tái chế EcoLoop:')}</span>
+                    <b>{fmt(stationCash)} ₫</b>
+                  </div>
+                  <div className="pricing-row highlight-profit">
+                    <span>{tr('Lợi nhuận chuyến đi của Người thu gom:')}</span>
+                    <b>+{fmt(collectorProfit)} ₫</b>
+                  </div>
+                  <div className="pricing-row">
+                    <span>{tr('Phí điều phối nền tảng EcoLoop:')}</span>
+                    <span>{platformFee>0?tr('{vnd} ₫ (3% đơn thương mại ≥ 30 kg)',{vnd:fmt(platformFee)}):tr('0 ₫ (Miễn phí cho hộ dân & thu gom lẻ < 30 kg)')}</span>
+                  </div>
+                  <div className="pricing-row">
+                    <span>{tr('Doanh thu Tín chỉ Tái chế EPR (B2B NFT):')}</span>
+                    <span>+{fmt(eprVnd)} ₫ {tr('(Từ Quỹ EPR doanh nghiệp)')}</span>
+                  </div>
+                </div>
+              );
+            })()}
             <p className="lot-points">
               <strong>+{selectedCard.pricing.amountFormatted} ECO</strong>
             </p>
@@ -814,7 +863,7 @@ function LotForm({busy,center,onCreate}:{busy:boolean;center?:[number,number];on
       setHashing(false);
     }
   }
-  return <form className="lot-form" onSubmit={submit}><h3>{tr('Một lô, nhiều loại vật liệu')}</h3><p>{tr('Ước lượng khối lượng từng loại. Ảnh minh họa cả lô; ECO cuối cùng tính theo kết quả cân thực tế.')}</p><WeightInputs values={weights} onChange={setWeights}/><label>{tr('Ảnh thật của cả lô (bắt buộc)')}<input type="file" required accept="image/jpeg,image/png,image/webp" capture="environment" onChange={e=>setFile(e.target.files?.[0])}/></label><div className="pickup-weights"><label>{tr('Số điện thoại / cách liên hệ')}<input name="contact" minLength={3} maxLength={120} required placeholder={tr("Người nhận việc sẽ dùng thông tin này")}/></label><label>{tr('Địa chỉ & thời gian bàn giao')}<input name="address" value={address} onChange={e=>setAddress(e.target.value)} minLength={5} maxLength={400} required placeholder={tr("Số nhà, đường, khung giờ thuận tiện")}/></label></div><p>{tr('Địa chỉ và liên hệ chỉ chia sẻ với chủ lô và người đã nhận việc.')} {tr('Ảnh được lưu riêng trên server local; không đưa ảnh hoặc số điện thoại lên blockchain.')}</p><h4>{tr('Vị trí bàn giao trên bản đồ (mặc định: {lat}, {lng})',{lat:point[0].toFixed(2),lng:point[1].toFixed(2)})}</h4><Suspense fallback={<p>{tr('Đang tải bản đồ…')}</p>}><PickupMap lots={[]} center={point} onPin={setPoint} onPlace={selectAddress}/></Suspense><div className="pickup-weights"><label>{tr('Vĩ độ')}<input type="number" step="any" min="-90" max="90" value={point?.[0]??''} onChange={e=>setPoint([Number(e.target.value),point?.[1]??106.69])}/></label><label>{tr('Kinh độ')}<input type="number" step="any" min="-180" max="180" value={point?.[1]??''} onChange={e=>setPoint([point?.[0]??10.78,Number(e.target.value)])}/></label></div><p className="footnote">{tr('Chỉ tọa độ làm tròn khoảng 1 km được ghi công khai, vĩnh viễn trên blockchain. Có thể nhập tọa độ nếu bản đồ không tải được.')}</p><div className="estimate"><span>{tr('Tổng dự kiến: {kg}',{kg:wt(total(weights.map(v=>Number(v)*1000)))})}</span><strong>+{fmt(points(weights.map(v=>Number(v)*1000)))} ECO</strong></div>{error&&<p className="form-error" role="alert">{error}</p>}<button className="primary full-width" disabled={busy||hashing}>{hashing?tr('Đang đọc ảnh & tạo mã băm…'):tr('Ký hợp đồng & Đăng lô tìm người thu gom')}<ArrowRight size={17}/></button></form>;
+  return <form className="lot-form" onSubmit={submit}><h3>{tr('Một lô, nhiều loại vật liệu')}</h3><p>{tr('Ước lượng khối lượng từng loại. Ảnh minh họa cả lô; ECO cuối cùng tính theo kết quả cân thực tế.')}</p><WeightInputs values={weights} onChange={setWeights}/><label>{tr('Ảnh thật của cả lô (bắt buộc)')}<input type="file" required accept="image/jpeg,image/png,image/webp" capture="environment" onChange={e=>setFile(e.target.files?.[0])}/></label><div className="pickup-weights"><label>{tr('Số điện thoại / cách liên hệ')}<input name="contact" minLength={3} maxLength={120} required placeholder={tr("Người nhận việc sẽ dùng thông tin này")}/></label><label>{tr('Địa chỉ & thời gian bàn giao')}<input name="address" value={address} onChange={e=>setAddress(e.target.value)} minLength={5} maxLength={400} required placeholder={tr("Số nhà, đường, khung giờ thuận tiện")}/></label></div><p>{tr('Địa chỉ và liên hệ chỉ chia sẻ với chủ lô và người đã nhận việc.')} {tr('Ảnh được lưu riêng trên server local; không đưa ảnh hoặc số điện thoại lên blockchain.')}</p><h4>{tr('Vị trí bàn giao trên bản đồ (mặc định: {lat}, {lng})',{lat:point[0].toFixed(2),lng:point[1].toFixed(2)})}</h4><Suspense fallback={<p>{tr('Đang tải bản đồ…')}</p>}><PickupMap lots={[]} center={point} onPin={setPoint} onPlace={selectAddress}/></Suspense><div className="pickup-weights"><label>{tr('Vĩ độ')}<input type="number" step="any" min="-90" max="90" value={point?.[0]??''} onChange={e=>setPoint([Number(e.target.value),point?.[1]??106.69])}/></label><label>{tr('Kinh độ')}<input type="number" step="any" min="-180" max="180" value={point?.[1]??''} onChange={e=>setPoint([point?.[0]??10.78,Number(e.target.value)])}/></label></div><p className="footnote">{tr('Chỉ tọa độ làm tròn khoảng 1 km được ghi công khai, vĩnh viễn trên blockchain. Có thể nhập tọa độ nếu bản đồ không tải được.')}</p><div className="estimate"><span>{tr('Tổng dự kiến: {kg}',{kg:wt(total(weights.map(v=>Number(v)*1000)))})} · {tr('Tiền bán phế liệu ≈ {vnd} ₫',{vnd:fmt(buyCashVnd(weights.map(v=>Number(v)*1000)))})}</span><strong>+{fmt(points(weights.map(v=>Number(v)*1000)))} ECO</strong></div>{error&&<p className="form-error" role="alert">{error}</p>}<button className="primary full-width" disabled={busy||hashing}>{hashing?tr('Đang đọc ảnh & tạo mã băm…'):tr('Ký hợp đồng & Đăng lô tìm người thu gom')}<ArrowRight size={17}/></button></form>;
 }
 const rewardArtwork=new Map([
   ['Coffee voucher',{image:'/rewards/coffee.webp',name:'Voucher cà phê',tone:'coffee'}],
