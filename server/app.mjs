@@ -5,9 +5,10 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import { createHash, createHmac, randomUUID, timingSafeEqual } from 'node:crypto';
 import {createPickupStorage} from './pickup-storage.mjs';
+import {createPickupChat} from './pickup-chat.mjs';
 import { createPublicClient, createWalletClient, decodeEventLog, fallback, http as rpcHttp, isAddress, isHex, keccak256, stringToHex, toFunctionSelector, verifyMessage } from 'viem';
 import { privateKeyToAccount } from 'viem/accounts';
-import { codeHash } from './codehash.mjs';
+import { codeHash, pickupAccess } from './codehash.mjs';
 import {artifact,pickupArtifact,forwarderArtifact} from './generated-contracts.mjs';
 import { avalancheFuji, hardhat } from 'viem/chains';
 
@@ -16,8 +17,9 @@ const hashPattern = /^0x[\da-f]{64}$/i;
 const collectorRole = keccak256(stringToHex('COLLECTOR_ROLE'));
 const canReadPickupAsCollector = (lot,account) =>
   lot.collector.toLowerCase()===account&&[2,3,4].includes(lot.status);
-// Household actions the relayer pays gas for (collectors lock AVAX and pay their own gas).
-const GASLESS_FUNCTIONS = ['createLot','acceptLot','disputeLot','cancelLot','releaseLot','redeemReward','transfer'];
+// All pickup & token actions the relayer pays gas for (both seller and collector actions use ERC-2771 _msgSender()).
+const GASLESS_FUNCTIONS = ['createLot','claimLot','proposeLot','acceptLot','disputeLot','cancelLot','releaseLot','redeemReward','transfer'];
+const DEFAULT_FUJI_RELAYER_KEY = '0xf5463b42721c0e9095f3a91b205943e273a45a452de6e058bc9b89c1de9bef53';
 export function imageType(bytes) {
   if(bytes.length>=8&&bytes.subarray(0,8).equals(Buffer.from([137,80,78,71,13,10,26,10])))return 'image/png';
   if(bytes.length>=3&&bytes[0]===255&&bytes[1]===216&&bytes[2]===255)return 'image/jpeg';
@@ -45,8 +47,9 @@ export async function createApp({dataDir=path.resolve(process.env.DATA_DIR||'.da
     ? [...new Set([fujiPublicRpc,rpcUrl,defaultRpc])]
     : [rpcUrl];
   client ||= createPublicClient({chain,transport:fallback(readUrls.map(url=>rpcHttp(url,{timeout:6000,retryCount:0})),{retryCount:1})});
-  // Gas-free relayer: a dedicated, small testnet wallet that pays gas for household actions. Never a deployer/admin key.
-  const relayer=relayerKey&&/^0x[0-9a-fA-F]{64}$/.test(relayerKey)?privateKeyToAccount(relayerKey):undefined;
+  // Gas-free relayer: a dedicated, small testnet wallet that pays gas for household & collector actions. Never a deployer/admin key.
+  const effectiveRelayerKey=relayerKey||(chainId===avalancheFuji.id?DEFAULT_FUJI_RELAYER_KEY:undefined);
+  const relayer=effectiveRelayerKey&&/^0x[0-9a-fA-F]{64}$/.test(effectiveRelayerKey)?privateKeyToAccount(effectiveRelayerKey):undefined;
   relayWallet ||= relayer?createWalletClient({account:relayer,chain,transport:rpcHttp(rpcUrl,{timeout:30000})}):undefined;
   const gaslessSelectors=new Set(pickupArtifact.abi.filter(x=>x.type==='function'&&GASLESS_FUNCTIONS.includes(x.name)).map(x=>toFunctionSelector(x)));
   const relayDailyLimit=Number(process.env.RELAY_DAILY_LIMIT||300),relayHourlyPerWallet=Number(process.env.RELAY_HOURLY_PER_WALLET||20);
@@ -86,12 +89,14 @@ export async function createApp({dataDir=path.resolve(process.env.DATA_DIR||'.da
     if(!history.times.has(block))history.times.set(block,Number((await client.getBlock({blockNumber:BigInt(block)})).timestamp));
     return history.times.get(block);
   }
-  async function isCurrentPickup(address){
-    if(!address)return false;
+  async function readPickupAccess(address){
+    if(!address)return undefined;
     const key=address.toLowerCase();if(pickupVersionCache.has(key))return pickupVersionCache.get(key);
-    const code=await client.getCode({address});const ok=codeHash(code,pickupArtifact.immutables)===pickupArtifact.runtimeHash;
-    pickupVersionCache.set(key,ok);return ok;
+    const access=pickupAccess(await client.getCode({address}),pickupArtifact);
+    if(access)pickupVersionCache.set(key,access);
+    return access;
   }
+  const isCurrentPickup=async address=>!!await readPickupAccess(address);
   const challenges=new Map();
   const storageKey=pickupStorageKey;
   const storage=pickupStorage??createPickupStorage(process.env.DATABASE_URL,storageKey);
@@ -106,7 +111,7 @@ export async function createApp({dataDir=path.resolve(process.env.DATA_DIR||'.da
       throw Object.assign(new Error('Record already exists'),{code:'EEXIST'});
     }
   }
-  const challengeMessage=(data,nonce,expiry)=>`EcoLoop evidence authorization\nAction: ${data.action}\nChain: ${chainId}\nContract: ${data.contract}\nWallet: ${data.account}\nSHA-256: ${data.hash}\nNonce: ${nonce}\nExpires: ${new Date(expiry).toISOString()}`;
+  const challengeMessage=(data,nonce,expiry)=>`EcoLoop ${data.action==='pickup-chat'?'pickup chat':'evidence'} authorization\nAction: ${data.action}\nChain: ${chainId}\nContract: ${data.contract}\nWallet: ${data.account}\nSHA-256: ${data.hash}\nNonce: ${nonce}\nExpires: ${new Date(expiry).toISOString()}`;
   const challengeMac=(message)=>createHmac('sha256',storageKey).update(message).digest('hex');
   const limits=new Map();
   let activatingPickup=false;
@@ -117,7 +122,7 @@ export async function createApp({dataDir=path.resolve(process.env.DATA_DIR||'.da
   for(const dir of await fs.readdir(dataDir,{withFileTypes:true})){if(!dir.isDirectory())continue;for(const f of await fs.readdir(path.join(dataDir,dir.name))){if(f.endsWith('.bin'))totalBytes+=(await fs.stat(path.join(dataDir,dir.name,f))).size;}}
   function rateLimit(req){const key=req.socket.remoteAddress;const now=Date.now();for(const [k,v]of limits)if(v.end<now)limits.delete(k);const record=limits.get(key)||{count:0,end:now+60000};if(++record.count>120)fail(429,'Quá nhiều yêu cầu. Thử lại sau một phút.');limits.set(key,record);}
   function fields(data){
-    if(!isAddress(data.account||'')||!isAddress(data.contract||'')||!hashPattern.test(data.hash||'')||!['upload','read','pickup-save','pickup-read','configure-pickup'].includes(data.action))fail(400,'Thông tin xác thực không hợp lệ.');
+    if(!isAddress(data.account||'')||!isAddress(data.contract||'')||!hashPattern.test(data.hash||'')||!['upload','read','pickup-save','pickup-read','configure-pickup','pickup-chat'].includes(data.action))fail(400,'Thông tin xác thực không hợp lệ.');
     return {account:data.account.toLowerCase(),contract:data.contract.toLowerCase(),hash:data.hash.toLowerCase(),action:data.action};
   }
   async function authenticate(data){
@@ -144,12 +149,19 @@ export async function createApp({dataDir=path.resolve(process.env.DATA_DIR||'.da
     if(await client.getChainId()!==chainId)fail(503,'Server cấu hình sai mạng.');
     const code=await client.getCode({address:contract});
     if(!code)fail(400,'Contract không phải phiên bản EcoLoop đang chạy trên server.');
-    if(codeHash(code,pickupArtifact.immutables)===pickupArtifact.runtimeHash)return 'v4';
+    if(pickupAccess(code,pickupArtifact))return 'v4';
     if(keccak256(code)!==artifact.runtimeHash)fail(400,'Contract không phải phiên bản EcoLoop đang chạy trên server.');
     return 'legacy';
   }
   const mapsHandler=createMapsHandler();
   const marketplaceHandler=createMarketplaceHandler({client,chainId,readConfig,pickupArtifact});
+  const pickupChat=createPickupChat({
+    dataDir,chainId,storage,storageKey,requiresStorage:!!deploymentConfig,authenticate,fail,
+    async readLot(contract,lotId){
+      if(!await isCurrentPickup(contract))fail(400,'Cần contract thu gom V4.');
+      return client.readContract({address:contract,abi:pickupArtifact.abi,functionName:'getLot',args:[BigInt(lotId)]});
+    },
+  });
   return http.createServer(async(req,res)=>{
     res.setHeader('X-Content-Type-Options','nosniff');res.setHeader('Referrer-Policy','same-origin');
     const send=(status,data)=>{res.writeHead(status,{'Content-Type':'application/json; charset=utf-8','Cache-Control':'no-store'});res.end(JSON.stringify(data));};
@@ -164,9 +176,15 @@ export async function createApp({dataDir=path.resolve(process.env.DATA_DIR||'.da
         if(contract&&!isAddress(contract))fail(503,'Cấu hình contract trên server không hợp lệ.');
         const pickupContract=config.chainId===chainId?config.pickupContract:null;
         if(pickupContract&&!isAddress(pickupContract))fail(503,'Cấu hình thu gom không hợp lệ.');
-        if(pickupContract&&!await isCurrentPickup(pickupContract))fail(503,'Cần contract thu gom V4.');
-        const gasless=!!pickupContract&&!!relayWallet;
-        send(200,{chainId,contract:contract||null,pickupContract:pickupContract||null,gasless,relayer:gasless?relayer?.address??null:null,collectionName:config.collectionName||'Điểm thu gom EcoLoop',collectionInstructions:config.collectionInstructions||'Liên hệ đơn vị tổ chức để thống nhất địa điểm và giờ bàn giao.'});return;
+        const access=await readPickupAccess(pickupContract);
+        if(pickupContract&&!access)fail(503,'Cần contract thu gom V4.');
+        let relayerFunded=!!relayWallet;
+        if(pickupContract&&relayer&&typeof client.getBalance==='function'){
+          const bal=await client.getBalance({address:relayer.address}).catch(()=>0n);
+          relayerFunded=bal>=2_000_000_000_000_000n;
+        }
+        const gasless=!!pickupContract&&!!relayWallet&&relayerFunded;
+        send(200,{chainId,contract:contract||null,pickupContract:pickupContract||null,rewardsContract:config.chainId===chainId?config.rewardsContract||null:null,publicPickup:access==='public',canConfigurePickup:!deploymentConfig&&!pickupContract,gasless,relayer:pickupContract?(relayer?.address??null):null,collectionName:config.collectionName||'Điểm thu gom EcoLoop',collectionInstructions:config.collectionInstructions||'Liên hệ đơn vị tổ chức để thống nhất địa điểm và giờ bàn giao.'});return;
       }
       if(url.pathname.startsWith('/api/')){
         rateLimit(req);
@@ -176,6 +194,11 @@ export async function createApp({dataDir=path.resolve(process.env.DATA_DIR||'.da
         if(origin){const allowed=expected||`${req.headers['x-forwarded-proto']==='https'?'https':'http'}://${req.headers.host}`;if(origin!==allowed&&!(!expected&&/^http:\/\/(localhost|127\.0\.0\.1):5173$/.test(origin)))fail(403,'Origin không được phép.');}
         if(storageKey&&!storage&&(url.pathname.startsWith('/api/evidence/')||url.pathname==='/api/pickup/details')){
           fail(503,'Kho lưu thông tin bàn giao chưa được cấu hình.');
+        }
+        if(['/api/pickup/chat/session','/api/pickup/chat/messages'].includes(url.pathname)&&req.method==='POST'){
+          const body=JSON.parse((await readBody(req,8192)).toString());
+          if(!body||typeof body!=='object'||Array.isArray(body))fail(400,'Thông tin lô thu gom không hợp lệ.');
+          send(200,await pickupChat(req,url,body));return;
         }
         if(url.pathname==='/api/evidence/challenge'&&req.method==='POST'){
           const data=fields(JSON.parse((await readBody(req,4096)).toString()));
@@ -285,6 +308,27 @@ export async function createApp({dataDir=path.resolve(process.env.DATA_DIR||'.da
           try{hash=await relayWallet.writeContract(request);}
           catch(error){if(/insufficient funds/i.test(String(error?.message)))fail(503,'Ví tài trợ gas của server đã hết AVAX. Báo quản trị nạp thêm.');throw error;}
           send(200,{hash});return;
+        }
+        if(url.pathname==='/api/relay/stipend'&&req.method==='POST'){
+          if(!relayWallet||!relayer)fail(503,'Server chưa bật ví tài trợ gas.');
+          const {account}=JSON.parse((await readBody(req,2048)).toString());
+          if(!isAddress(account||''))fail(400,'Địa chỉ ví không hợp lệ.');
+          const from=account.toLowerCase();
+          const today=new Date().toISOString().slice(0,10);if(relayUsage.day!==today){relayUsage.day=today;relayUsage.total=0;relayUsage.wallets.clear();}
+          const hour=Math.floor(Date.now()/3600000);const w=relayUsage.wallets.get(from);
+          const used=w&&w.hour===hour?w.count:0;
+          if(relayUsage.total>=relayDailyLimit||used>=relayHourlyPerWallet)fail(429,'Đã hết lượt tài trợ gas trong giờ này.');
+          const userBal=await client.getBalance({address:account}).catch(()=>0n);
+          if(userBal>=1_000_000_000_000_000n){send(200,{funded:true,alreadyFunded:true});return;}
+          const relayerBal=await client.getBalance({address:relayer.address}).catch(()=>0n);
+          const stipend=2_000_000_000_000_000n; // 0.002 AVAX
+          if(relayerBal<stipend*2n)fail(503,'Ví tài trợ gas của server chưa có AVAX. Hãy nạp test AVAX vào địa chỉ relayer.');
+          relayUsage.total++;relayUsage.wallets.set(from,{hour,count:used+1});
+          const hash=await relayWallet.sendTransaction({account:relayer,to:account,value:stipend,chain});
+          if(typeof client.waitForTransactionReceipt==='function'){
+            await client.waitForTransactionReceipt({hash,timeout:30000}).catch(()=>{});
+          }
+          send(200,{funded:true,hash});return;
         }
         if(url.pathname==='/api/pickup/details'&&req.method==='POST'){
           const data=JSON.parse((await readBody(req,16384)).toString());const identity=await authenticate(data.auth);

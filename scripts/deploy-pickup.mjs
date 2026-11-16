@@ -1,6 +1,6 @@
 // Deploys the EcoLoop pickup V4 suite and activates it in config/app.json:
 //   1. EcoLoopForwarder (gas-free relay for households)
-//   2. EcoLoopPickup(admin, forwarder) — real AVAX escrow; creates the EcoLoopCertificate NFT contract
+//   2. EcoLoopPickup(admin, forwarder) — ECO escrow; creates the EcoLoopCertificate NFT contract
 // Usage: npm run deploy:pickup:fuji   (needs DEPLOYER_PRIVATE_KEY of a dedicated Fuji test wallet in .env)
 //        npm run deploy:pickup:local  (uses the local Hardhat node's first account)
 import fs from 'node:fs';
@@ -42,7 +42,7 @@ async function deploy(artifact, args) {
   return getAddress(receipt.contractAddress);
 }
 const forwarder = await deploy(forwarderArtifact, []);
-const address = await deploy(pickup, [admin, forwarder]);
+const address = await deploy(pickup, [admin, forwarder, 0n, 0n]);
 const certificate = await publicClient.readContract({ address, abi: pickup.abi, functionName: 'certificate' });
 await checkPreviousEscrow();
 if (config.chainId === chain.id || local) {

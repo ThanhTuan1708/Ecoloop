@@ -1,3 +1,4 @@
+import { parseEther } from 'viem';
 import { materials, short } from './model';
 import { tr, num as fmt, wt } from './settings';
 import { distanceKm, ZERO, type Lot } from './pickupClient';
@@ -34,7 +35,7 @@ export interface MediaAsset {
 export interface PaymentPricing {
   chainId: number;
   tokenAddress: `0x${string}`;
-  tokenSymbol: 'ECO' | 'USDT' | 'AVAX';
+  tokenSymbol: 'ECO';
   tokenDecimals: number;
   amountAtomic: string;
   amountFormatted: string;
@@ -96,7 +97,7 @@ export interface ShopeeWeb3ProductCard {
   thumbnail: MediaAsset;
   mediaCount: number;
   pricing: PaymentPricing;
-  acceptedTokens: ('ECO' | 'USDT' | 'AVAX')[];
+  acceptedTokens: ('ECO')[];
   stock: {
     totalQuantity: number;
     availableQuantity: number;
@@ -347,10 +348,10 @@ export function lotToProductCard(
 
   const dominantSlug = categorySlugs[dominant.index] ?? 'plastic';
   const totalKilograms = Number((weights.reduce((a, b) => a + b, 0) / 1000).toFixed(3));
-  const ecoAmount = Number(
+  const ecoAmount = lot.paymentEco===undefined ? Number(
     weights.reduce((sum, g, i) => sum + (g * (materials[i]?.rate ?? 10)) / 1000, 0).toFixed(2)
-  );
-  const atomicBigInt = BigInt(Math.max(0, Math.round(ecoAmount * 1000))) * 10n ** 15n;
+  ) : Number(lot.paymentEco);
+  const atomicBigInt = parseEther(lot.paymentEco ?? String(ecoAmount));
   const usdEquivalent = Number((ecoAmount * ECO_USD_RATE).toFixed(2));
   const vndEquivalent = Math.round(usdEquivalent * USD_VND_RATE);
 
@@ -415,12 +416,12 @@ export function lotToProductCard(
       tokenSymbol: 'ECO',
       tokenDecimals: 18,
       amountAtomic: atomicBigInt.toString(),
-      amountFormatted: fmt(ecoAmount),
+      amountFormatted: lot.paymentEco ?? fmt(ecoAmount),
       ecoAmount,
       usdEquivalent,
       vndEquivalent,
     },
-    acceptedTokens: ['ECO', 'USDT', 'AVAX'],
+    acceptedTokens: ['ECO'],
     stock: {
       totalQuantity: 1,
       availableQuantity: status === 'ACTIVE' ? 1 : 0,
@@ -579,7 +580,7 @@ export function queryProductCards(
     if (
       allowedTokens.length > 0 &&
       !allowedTokens.some(
-        t => card.pricing.tokenSymbol === t || card.acceptedTokens.includes(t as 'ECO' | 'USDT' | 'AVAX')
+        t => card.pricing.tokenSymbol === t || card.acceptedTokens.includes(t as 'ECO')
       )
     ) {
       return false;
@@ -687,8 +688,6 @@ export function queryProductCards(
         updatedAt: new Date().toISOString(),
         ratesUsd: {
           ECO: ECO_USD_RATE,
-          USDT: 1.0,
-          AVAX: 28.45,
         },
         usdToVnd: USD_VND_RATE,
       },
@@ -706,8 +705,6 @@ export function queryProductCards(
         categoryCounts,
         tokenCounts: [
           { symbol: 'ECO', chainId: context.chainId ?? 43113, count: allCards.length },
-          { symbol: 'USDT', chainId: context.chainId ?? 43113, count: allCards.length },
-          { symbol: 'AVAX', chainId: context.chainId ?? 43113, count: allCards.length },
         ],
       },
     },

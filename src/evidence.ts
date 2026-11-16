@@ -2,7 +2,7 @@ import type { Address } from 'viem';
 import { getContractAddress } from './chain';
 import { signAuthorizationMessage } from './wallet';
 async function checked(response: Response) {if(!response.ok){let message='Không kết nối được server lưu ảnh.';try{message=(await response.json()).error||message;}catch{/* Keep friendly error. */}throw new Error(message);}return response;}
-export async function authorize(action:'upload'|'read'|'pickup-save'|'pickup-read'|'configure-pickup',account:Address,hash:string,contract=getContractAddress()){
+export async function authorize(action:'upload'|'read'|'pickup-save'|'pickup-read'|'configure-pickup'|'pickup-chat',account:Address,hash:string,contract=getContractAddress()){
   if(!contract)throw new Error('Chưa chọn contract.');
   const identity={action,account,contract,hash};
   const response=await checked(await fetch('/api/evidence/challenge',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(identity)}));

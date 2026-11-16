@@ -1,4 +1,8 @@
 const messages: Record<string, string> = {
+  CheckInDayChanged: 'Đã sang ngày mới. Tải lại trạng thái điểm danh rồi thử lại.',
+  EcoRewardAlreadyClaimed: 'Ví này đã nhận phần thưởng ECO này.',
+  EcoMissionIncomplete: 'Ví này chưa đạt mốc tái chế của nhiệm vụ.',
+  EcoRewardsUnderfunded: 'Quỹ thưởng chưa đủ ECO.',
   DuplicateEvidence: 'Ảnh này đã được sử dụng cho một yêu cầu. Hãy chụp ảnh mới của vật liệu cần gửi.',
   SelfApproval: 'Bạn không thể tự duyệt yêu cầu của mình. Hãy dùng một ví thu gom khác đã được cấp quyền.',
   InvalidInput: 'Vật liệu hoặc khối lượng không hợp lệ. Khối lượng phải từ 0,001 đến 1.000 kg.',
@@ -8,8 +12,9 @@ const messages: Record<string, string> = {
   AccessControlUnauthorizedAccount: 'Ví này chưa có quyền thực hiện thao tác. Nhờ quản trị cấp quyền phù hợp cho đúng địa chỉ ví.',
   ERC20InsufficientBalance: 'Bạn chưa đủ ECO để đổi phần thưởng này. Hãy chọn quà ít điểm hơn hoặc tiếp tục tái chế.',
   UnavailableReward: 'Phần thưởng đã hết hoặc tạm ngừng đổi. Hãy chọn món quà khác.',
-  InsufficientDeposit: 'Số AVAX gửi kèm ít hơn mức ký quỹ cần khóa. Làm mới dữ liệu rồi thử lại.',
-  NothingToWithdraw: 'Không có AVAX nào chờ rút.',
+  DepositAboveMaximum: 'Giá ECO ký quỹ đã tăng. Làm mới dữ liệu và kiểm tra số ECO cần khóa.',
+  ExchangeUnavailable: 'Quầy đổi AVAX chưa mở hoặc không đủ ECO dự trữ.',
+  ExchangeQuoteChanged: 'Tỷ lệ đổi đã thay đổi. Làm mới báo giá rồi thử lại.',
   OnlyMinter: 'Chỉ contract thu gom được tạo chứng nhận.',
 };
 export function errorMessage(error: unknown): string {
@@ -26,7 +31,8 @@ export function errorMessage(error: unknown): string {
     if (messages[name]) return messages[name];
   }
   const description = nodes.map(e => [e.name, e.shortMessage, e.message, e.details].filter(Boolean).join(' ')).join(' ');
-  for (const [name, message] of Object.entries(messages)) if (description.includes(name)) return message;
+  // RPC errors such as InvalidInputRpcError are not contract InvalidInput errors.
+  for (const [name, message] of Object.entries(messages)) if (new RegExp(`\\b${name}\\b`).test(description)) return message;
   if (/insufficient funds|exceeds the balance/i.test(description)) return 'Ví chưa đủ AVAX trên Fuji để trả phí. Nạp AVAX testnet vào đúng địa chỉ ví đang kết nối.';
   if (/Timeout|timed out/i.test(description)) return 'Kết nối quá thời gian chờ. Nếu đã ký giao dịch, kiểm tra mục giao dịch đang chờ trước khi gửi lại.';
   if (/fetch failed|Failed to fetch|HTTP request failed|NetworkError/i.test(description)) return 'Không kết nối được server hoặc mạng Avalanche. Kiểm tra kết nối rồi thử lại.';

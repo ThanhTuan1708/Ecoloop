@@ -1,3 +1,4 @@
+import {createOpenStreetMapHandler} from './openstreetmap.mjs';
 import {createVercelNullmaps} from './nullmaps-vercel.mjs';
 
 // Nullmaps stays behind EcoLoop: shared API keys never enter browser bundles.
@@ -22,38 +23,46 @@ export function rewriteMapResource(value,upstream){
  return walk(value);
 }
 export function createMapsHandler({baseUrl=process.env.NULLMAPS_URL,apiKey=process.env.NULLMAPS_API_KEY||'',hosted=process.env.VERCEL==='1',archiveUrl=process.env.NULLMAPS_PMTILES_URL,geocoderUrl=process.env.NULLMAPS_GEOCODER_DB_URL,fetchImpl=fetch}={}){
+ if(process.env.MAP_PROVIDER==='openstreetmap')return createOpenStreetMapHandler({fetchImpl});
  let native;
  let invalidDataset=false;
  try{native=createVercelNullmaps({archiveUrl,geocoderUrl,fetchImpl});}catch{invalidDataset=true;}
- const missingUpstream=hosted&&!baseUrl&&!native;
- baseUrl ||= 'http://127.0.0.1:8088';
- const base=new URL(baseUrl);if(!['http:','https:'].includes(base.protocol)||base.username||base.password)throw new Error('Invalid NULLMAPS_URL');
+ const base=baseUrl?new URL(baseUrl):hosted?undefined:new URL('http://127.0.0.1:8088');
+ if(base&&(!['http:','https:'].includes(base.protocol)||base.username||base.password))throw new Error('Invalid NULLMAPS_URL');
+ const gateway=base&&(!hosted||!['localhost','127.0.0.1','[::1]'].includes(base.hostname))?base:undefined;
+ const gatewaySearch=!!(gateway&&apiKey);
  const requests=new Map();
  return async(req,res,url)=>{
   if(!url.pathname.startsWith('/api/maps/'))return false;
   const json=(status,data)=>{res.writeHead(status,{'Content-Type':'application/json; charset=utf-8','Cache-Control':'no-store'});res.end(JSON.stringify(data));};
   if(req.method!=='GET'){json(405,{error:'Chỉ hỗ trợ GET.'});return true;}
-  if(invalidDataset){json(503,{error:'URL dữ liệu Nullmaps trên Vercel không hợp lệ.'});return true;}
-  if(missingUpstream){json(503,{error:'Chưa cấu hình URL máy chủ Nullmaps trên Vercel.'});return true;}
+  if(!gateway&&!native){json(503,{error:invalidDataset?'URL dữ liệu Nullmaps trên Vercel không hợp lệ.':'Chưa cấu hình URL máy chủ Nullmaps trên Vercel.'});return true;}
   const address=req.socket.remoteAddress;const now=Date.now();for(const [k,v]of requests)if(v.until<now)requests.delete(k);
   const quota=requests.get(address)||{count:0,until:now+60000};requests.set(address,quota);if(++quota.count>1200){json(429,{error:'Quá nhiều yêu cầu bản đồ.'});return true;}
-  if(url.pathname==='/api/maps/config'){json(200,{provider:'Nullmaps',styleUrl:assetPrefix+'/style.json',searchAvailable:native?native.searchAvailable:!!apiKey});return true;}
+  if(url.pathname==='/api/maps/config'){json(200,{provider:'Nullmaps',styleUrl:assetPrefix+'/style.json',searchAvailable:!!native?.searchAvailable||gatewaySearch});return true;}
   try{
-   if(native&&url.pathname===assetPrefix+'/style.json'){json(200,native.style);return true;}
+   if(native&&url.pathname===assetPrefix+'/style.json'){
+    if(await native.archiveAvailable()){json(200,native.style);return true;}
+    if(!gateway){json(503,{error:'Không đọc được tệp bản đồ Nullmaps trên Vercel Blob.'});return true;}
+   }
    let path;let search='';let asset=false;
    if(url.pathname.startsWith(assetPrefix+'/')){
     path=decodeURIComponent(url.pathname.slice(assetPrefix.length));asset=true;
     if(path.includes('..')||path.includes('\\')||(!path.startsWith('/tiles/')&&path!=='/style.json')){json(400,{error:'Tài nguyên bản đồ không hợp lệ.'});return true;}
     const params=new URLSearchParams();for(const k of ['v'])if(url.searchParams.has(k))params.set(k,url.searchParams.get(k));search=params.toString();
    }else if(url.pathname==='/api/maps/geocode'){
-    if(native?!native.searchAvailable:!apiKey){json(503,{error:'Chưa cấu hình tìm địa chỉ Nullmaps trên server EcoLoop.'});return true;}
+    if(!native?.searchAvailable&&!gatewaySearch){json(503,{error:'Chưa cấu hình tìm địa chỉ Nullmaps trên server EcoLoop.'});return true;}
     const query=url.searchParams.get('q')?.trim();if(!query||query.length<3||query.length>200){json(400,{error:'Nhập địa điểm từ 3 đến 200 ký tự.'});return true;}
-    if(native){json(200,{results:await native.geocode(query)});return true;}
+    if(native?.searchAvailable){
+     try{json(200,{results:await native.geocode(query)});return true;}
+     catch{if(!gatewaySearch){json(503,{error:'Không đọc được cơ sở dữ liệu tìm địa chỉ Nullmaps trên Vercel Blob.'});return true;}}
+    }
     path='/maps/api/geocode/json';search=new URLSearchParams({address:query}).toString();
    }else{json(404,{error:'Không có API bản đồ này.'});return true;}
-   const target=new URL(path,base);target.search=search;
+   if(!gateway){json(404,{error:'Không có tài nguyên bản đồ này.'});return true;}
+   const target=new URL(path,gateway);target.search=search;
    const response=await fetchImpl(target,{headers:asset?{}:{'X-API-Key':apiKey},redirect:'error',signal:AbortSignal.timeout(15000)});
-   if(!response.ok){json(502,{error:'Nullmaps chưa sẵn sàng hoặc chưa có dữ liệu bản đồ. Kiểm tra Docker và bộ dữ liệu Việt Nam.'});return true;}
+   if(!response.ok){json(502,{error:hosted?'Máy chủ Nullmaps không trả được dữ liệu bản đồ.':'Nullmaps chưa sẵn sàng hoặc chưa có dữ liệu bản đồ. Kiểm tra Docker và bộ dữ liệu Việt Nam.'});return true;}
    if(asset&&response.status===204){res.writeHead(204,{'Cache-Control':'private, max-age=300'});res.end();return true;}
    const length=Number(response.headers.get('content-length'));if(length>12*1024*1024)throw new Error('Too large');
    const chunks=[];let size=0;for await(const chunk of response.body||[]){size+=chunk.length;if(size>12*1024*1024)throw new Error('Too large');chunks.push(chunk);}const bytes=Buffer.concat(chunks);
@@ -64,7 +73,7 @@ export function createMapsHandler({baseUrl=process.env.NULLMAPS_URL,apiKey=proce
    }
    const type=response.headers.get('content-type')||'application/octet-stream';
    const isJson=path==='/style.json'||type.includes('json');
-   const body=isJson?JSON.stringify(rewriteMapResource(JSON.parse(bytes.toString()),base)):bytes;
+   const body=isJson?JSON.stringify(rewriteMapResource(JSON.parse(bytes.toString()),gateway)):bytes;
    res.writeHead(200,{'Content-Type':isJson?'application/json':type,'Cache-Control':'private, max-age=300'});
    res.end(body);
   }catch{if(!res.headersSent)json(503,{error:hosted?'Không kết nối được máy chủ Nullmaps từ Vercel.':'Không kết nối được Nullmaps local. Khởi động Docker và Nullmaps rồi thử lại.'});else res.end();}

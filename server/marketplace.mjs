@@ -1,7 +1,7 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
-import { isAddress, keccak256 } from 'viem';
-import { codeHash } from './codehash.mjs';
+import { formatEther, isAddress, keccak256, parseEther } from 'viem';
+import { pickupAccess } from './codehash.mjs';
 
 const ZERO = '0x0000000000000000000000000000000000000000';
 const ECO_USD_RATE = 0.05;
@@ -161,10 +161,10 @@ export function lotToProductCard(lot, { chainId = 43113, contractAddress = ZERO,
     };
 
   const totalKilograms = Number((weights.reduce((a, b) => a + b, 0) / 1000).toFixed(3));
-  const ecoAmount = Number(
+  const ecoAmount = lot.paymentEco===undefined ? Number(
     weights.reduce((sum, g, i) => sum + (g * MATERIALS[i].rate) / 1000, 0).toFixed(2)
-  );
-  const atomicBigInt = BigInt(Math.max(0, Math.round(ecoAmount * 1000))) * 10n ** 15n;
+  ) : Number(lot.paymentEco);
+  const atomicBigInt = parseEther(lot.paymentEco ?? String(ecoAmount));
   const usdEquivalent = Number((ecoAmount * ECO_USD_RATE).toFixed(2));
   const vndEquivalent = Math.round(usdEquivalent * USD_VND_RATE);
 
@@ -229,12 +229,12 @@ export function lotToProductCard(lot, { chainId = 43113, contractAddress = ZERO,
       tokenSymbol: 'ECO',
       tokenDecimals: 18,
       amountAtomic: atomicBigInt.toString(),
-      amountFormatted: String(ecoAmount),
+      amountFormatted: lot.paymentEco ?? String(ecoAmount),
       ecoAmount,
       usdEquivalent,
       vndEquivalent,
     },
-    acceptedTokens: ['ECO', 'USDT', 'AVAX'],
+    acceptedTokens: ['ECO'],
     stock: {
       totalQuantity: 1,
       availableQuantity: status === 'ACTIVE' ? 1 : 0,
@@ -486,8 +486,6 @@ export function queryMarketplaceCards(lots, query = {}, { chainId = 43113, contr
         updatedAt: new Date().toISOString(),
         ratesUsd: {
           ECO: ECO_USD_RATE,
-          USDT: 1.0,
-          AVAX: 28.45,
         },
         usdToVnd: USD_VND_RATE,
       },
@@ -505,8 +503,6 @@ export function queryMarketplaceCards(lots, query = {}, { chainId = 43113, contr
         categoryCounts,
         tokenCounts: [
           { symbol: 'ECO', chainId, count: allCards.length },
-          { symbol: 'USDT', chainId, count: allCards.length },
-          { symbol: 'AVAX', chainId, count: allCards.length },
         ],
       },
     },
@@ -563,7 +559,7 @@ export function createMarketplaceHandler({ client, chainId = 43113, configFile, 
 
     if (client.getCode) {
       const code = await client.getCode({ address: pickupContract });
-      if (!code || codeHash(code, pickupArtifact.immutables) !== pickupArtifact.runtimeHash) {
+      if (!code || !pickupAccess(code,pickupArtifact)) {
         json(400, { error: 'Contract không phải phiên bản EcoLoopPickup V4.' });
         return true;
       }
@@ -582,13 +578,9 @@ export function createMarketplaceHandler({ client, chainId = 43113, configFile, 
       const batch = await Promise.all(
         Array.from({ length: Math.min(10, totalCount - i) }, async (_, j) => {
           const id = totalCount - i - j;
-          const raw = await client.readContract({
-            address: pickupContract,
-            abi: pickupArtifact.abi,
-            functionName: 'getLot',
-            args: [BigInt(id)],
-          });
-          return { ...raw, id };
+          const read = functionName => client.readContract({address:pickupContract,abi:pickupArtifact.abi,functionName,args:[BigInt(id)]});
+          const [raw,payment]=await Promise.all([read('getLot'),read('lotPaymentValue')]);
+          return {...raw,id,paymentEco:formatEther(payment)};
         })
       );
       lots.push(...batch);

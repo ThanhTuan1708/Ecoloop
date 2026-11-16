@@ -77,6 +77,21 @@ export function createVercelNullmaps({archiveUrl,geocoderUrl,fetchImpl=fetch}){
   const archive=datasetUrl(archiveUrl,'.pmtiles');
   const database=datasetUrl(geocoderUrl,'.db');
   if(!archive)return;
+  let archiveCheck;
+  let archiveCheckUntil=0;
+  function archiveAvailable(){
+    if(archiveCheck&&Date.now()<archiveCheckUntil)return archiveCheck;
+    archiveCheckUntil=Date.now()+30_000;
+    archiveCheck=(async()=>{
+      try{
+        const response=await fetchImpl(archive,{headers:{Range:'bytes=0-126'},redirect:'error',signal:AbortSignal.timeout(5000)});
+        const available=response.status===206&&/^bytes 0-126\/\d+$/.test(response.headers.get('content-range')||'');
+        await response.body?.cancel();
+        return available;
+      }catch{return false;}
+    })();
+    return archiveCheck;
+  }
   let opening;
   async function openDatabase(){
     const name=createHash('sha256').update(database).digest('hex');
@@ -101,6 +116,7 @@ export function createVercelNullmaps({archiveUrl,geocoderUrl,fetchImpl=fetch}){
     return file;
   }
   return {
+    archiveAvailable,
     style:{...style,sources:{...style.sources,vn:{...style.sources.vn,url:`pmtiles://${archive}`,attribution:'© OpenStreetMap contributors · Overture Maps · Nullmaps'}}},
     searchAvailable:!!database,
     async geocode(query){

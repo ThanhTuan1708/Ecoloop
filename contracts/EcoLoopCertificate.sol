@@ -14,7 +14,7 @@ contract EcoLoopCertificate is ERC721 {
         uint64[4] grams; // plastic, paper, metal, glass
         uint64 completedAt;
         address collector;
-        uint256 paidWei; // AVAX released from escrow to the household
+        uint256 paidEco; // ECO released from escrow to the household
     }
 
     address public immutable minter;
@@ -29,9 +29,9 @@ contract EcoLoopCertificate is ERC721 {
     }
 
     /// @dev tokenId equals the pickup lot id, so a lot can be certified only once.
-    function mint(address to, uint256 lotId, uint64[4] calldata grams, address collector, uint256 paidWei) external {
+    function mint(address to, uint256 lotId, uint64[4] calldata grams, address collector, uint256 paidEco) external {
         if (msg.sender != minter) revert OnlyMinter();
-        certificates[lotId] = Certificate(grams, uint64(block.timestamp), collector, paidWei);
+        certificates[lotId] = Certificate(grams, uint64(block.timestamp), collector, paidEco);
         totalSupply++;
         totalCertifiedGrams += uint256(grams[0]) + grams[1] + grams[2] + grams[3];
         _safeMint(to, lotId);
@@ -49,7 +49,7 @@ contract EcoLoopCertificate is ERC721 {
         string memory id = tokenId.toString();
         string memory json = string.concat(
             '{"name":"EcoLoop Recycling Certificate #', id,
-            '","description":"Verified doorstep recycling on Avalanche: weighed by the collector, accepted by the household, paid from escrow.",',
+            '","description":"Verified doorstep recycling on Avalanche: weighed by the collector, accepted by the household, paid in ECO from escrow.",',
             '"image":"data:image/svg+xml;base64,', Base64.encode(bytes(_svg(id, c.grams, total))),
             '","attributes":[', _attributes(c, total), ']}'
         );

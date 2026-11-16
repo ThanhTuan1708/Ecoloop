@@ -20,20 +20,23 @@ export function useWalletSession(){
   if(!address||!isAddress(address))throw new Error('Ví đã khóa hoặc chưa cấp quyền truy cập tài khoản.');
   return {address,id:Number(id),name:getWalletName()};
  }
- async function connect(kind:'google'|string){
+ async function connect(kind:string,restore=false){
   if(locked.current)return;locked.current=true;setBusy(true);setError('');const token=++operation.current;
   try{
    let nextEmail:string|undefined;
-   if(kind==='google'){const api=await import('./googleWallet');await api.connectGoogle();nextEmail=api.googleEmail();}
+   if(kind==='google'){const api=await import('./googleWallet');await api.connectGoogle(restore);nextEmail=api.googleEmail();}
    else await connectWallet(kind);
    const result=await load();if(!result)throw new Error('Không đọc được tài khoản ví.');
    if(token!==operation.current)return;
    setAccount(result.address);setNetwork(result.id);setName(result.name);setEmail(nextEmail);
-  }catch(e){if(token===operation.current){await Promise.resolve(disconnectWallet()).catch(()=>{});setAccount(undefined);setEmail(undefined);setError(e instanceof Error?e.message:'Không kết nối được ví. Hãy thử lại.');}}
+  }catch(e){if(token===operation.current){await Promise.resolve(disconnectWallet()).catch(()=>{});setAccount(undefined);setEmail(undefined);if(!restore)setError(e instanceof Error?e.message:'Không kết nối được ví. Hãy thử lại.');}}
   finally{locked.current=false;setBusy(false);}
  }
  async function logout(){if(locked.current)return;operation.current++;locked.current=true;setBusy(true);setAccount(undefined);setEmail(undefined);setNetwork(undefined);setName('');setError('');try{await disconnectWallet();}catch{setError('Đã ngắt kết nối ứng dụng nhưng chưa kết thúc được phiên ví Google. Hãy thử lại từ nhà cung cấp.');}finally{locked.current=false;setBusy(false);}}
- useEffect(()=>{discoverWallets();},[]);
+ useEffect(()=>{
+  discoverWallets();
+  if(googleConfigured&&localStorage.getItem('ecoloop-wallet')==='ecoloop.google')void connect('google',true);
+ },[googleConfigured]);
  useEffect(()=>{
   const provider=getProvider();if(!provider||!account)return;
   const changed=()=>{setAccount(undefined);setEmail(undefined);setError('Tài khoản ví đã thay đổi. Kết nối lại để xác nhận tài khoản mới.');};

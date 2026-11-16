@@ -16,6 +16,7 @@ export async function initializeConfiguration() {
   const configured = config.contract || import.meta.env.VITE_ECOLOOP_ADDRESS;
   sharedAddress = configured && isAddress(configured) ? getAddress(configured) : undefined;
   appConfiguration = { collectionName: config.collectionName, collectionInstructions: config.collectionInstructions };
+  return sharedAddress;
 }
 export function getContractAddress(): Address | undefined {
   if (sharedAddress) return sharedAddress;

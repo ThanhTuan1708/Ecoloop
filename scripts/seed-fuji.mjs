@@ -6,7 +6,7 @@
 // .env (dedicated Fuji TEST wallets only, never a wallet holding real funds):
 //   DEPLOYER_PRIVATE_KEY  admin of the pickup contract (grants the collector role)
 //   SEED_HOUSEHOLD_KEYS   one or more household wallets, comma separated
-//   SEED_COLLECTOR_KEY    collector wallet (locks AVAX in escrow, needs ~0.05 test AVAX)
+//   SEED_COLLECTOR_KEY    collector wallet funded with ECO for escrow and test AVAX for gas
 //   SEED_SERVER_URL       optional, e.g. http://127.0.0.1:4174 — uploads photos + contact so "Xem liên hệ" works
 // Optional: put real photos of scrap lots in seed-photos/ (jpg, png, webp). Each lot uses one photo.
 //
@@ -101,6 +101,9 @@ plan.forEach((p, i) => console.log(`  ${i + 1}. ${p.stage.padEnd(9)} ${p.weights
 if (dryRun) { console.log('\n--dry-run: nothing sent.'); process.exit(0); }
 if (photos.length && !server) fail('Photos found but SEED_SERVER_URL is not set: the app could not show them. Set SEED_SERVER_URL or remove seed-photos/.');
 
+const quotes=await Promise.all(plan.filter(p=>p.stage!=='open').map(p=>read('quote',[p.weights])));
+const requiredEco=quotes.reduce((sum,quote)=>sum+quote*12_000n/10_000n,0n);
+if(await read('balanceOf',[collector.address])<requiredEco)fail(`Fund the collector with at least ${formatEther(requiredEco)} ECO before seeding.`);
 
 const log = { chainId: chain.id, contract: address, test: true, createdAt: new Date().toISOString(), lots: [] };
 const tx = h => explorer ? `${explorer}/tx/${h}` : h;
@@ -116,16 +119,16 @@ for (const [i, p] of plan.entries()) {
   entry.id = Number(id);
   if (p.stage !== 'open') {
     const deposit = await read('requiredDeposit', [id]);
-    entry.txs.claim = await send(collector, 'claimLot', [id], deposit);
-    entry.depositAvax = formatEther(deposit);
+    entry.txs.claim = await send(collector, 'claimLot', [id, deposit]);
+    entry.depositEco = formatEther(deposit);
   }
   if (p.stage === 'proposed' || p.stage === 'completed') entry.txs.propose = await send(collector, 'proposeLot', [id, p.actual]);
   if (p.stage === 'completed') {
     entry.txs.accept = await send(household, 'acceptLot', [id]);
-    entry.paidAvax = formatEther((await read('getLot', [id])).paid);
+    entry.paidEco = formatEther((await read('getLot', [id])).paid);
   }
   log.lots.push(entry);
-  console.log(`\nLot #${entry.id} → ${p.stage}${entry.depositAvax ? ` · escrow ${entry.depositAvax} AVAX` : ''}${entry.paidAvax ? ` · paid ${entry.paidAvax} AVAX + NFT` : ''}`);
+  console.log(`\nLot #${entry.id} → ${p.stage}${entry.depositEco ? ` · escrow ${entry.depositEco} ECO` : ''}${entry.paidEco ? ` · paid ${entry.paidEco} ECO + NFT` : ''}`);
   for (const [k, h] of Object.entries(entry.txs)) console.log(`   ${k.padEnd(7)} ${tx(h)}`);
 }
 fs.mkdirSync('deployments', { recursive: true });

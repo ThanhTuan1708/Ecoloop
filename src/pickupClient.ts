@@ -1,30 +1,56 @@
-import { concatHex, encodeDeployData, encodeFunctionData, formatEther, getContractAddress, keccak256, stringToHex, type Address, type Hash } from 'viem';
+import { concatHex, encodeDeployData, encodeFunctionData, formatEther, getContractAddress, keccak256, stringToHex, TransactionNotFoundError, TransactionReceiptNotFoundError, type Abi, type Address, type Hash, type TransactionReceipt } from 'viem';
 import { publicClient } from './chain';
 import { assertWallet, chain, getWalletName } from './wallet';
-import { num, tr } from './settings';
+import { tr } from './settings';
 import { pickupAbi, pickupBytecode, pickupRuntimeHash, pickupImmutables, forwarderAbi, forwarderBytecode, forwarderRuntimeHash, forwarderImmutables, certificateAbi } from './generated/pickup';
 import { authorize, uploadEvidence } from './evidence';
+import pickupRuntime from '../config/pickup-runtime.json';
 
-export type Lot = {id:number; owner:Address; collector:Address; estimated:number[]; actual:number[]; evidence:Hash; latitude:number; longitude:number; updatedAt:number; status:number; deposit?:number; paid?:number};
+export type Lot = {id:number; owner:Address; collector:Address; estimated:number[]; actual:number[]; evidence:Hash; latitude:number; longitude:number; updatedAt:number; status:number; deposit?:number; paid?:number; paymentEco?:string};
 export const lotStatuses=['Không tồn tại','Chờ thu gom','Đã nhận việc','Chờ chủ lô xác nhận','Hoàn tất','Đã hủy'];
 export const ZERO='0x0000000000000000000000000000000000000000' as Address;
-/** Household actions the EcoLoop relayer pays gas for. Collectors lock AVAX and pay their own gas. */
-export const GASLESS_FUNCTIONS=new Set(['createLot','acceptLot','disputeLot','cancelLot','releaseLot','redeemReward','transfer']);
-const RELAY_GAS:Record<string,bigint>={createLot:450_000n,acceptLot:800_000n,disputeLot:150_000n,cancelLot:120_000n,releaseLot:200_000n,redeemReward:250_000n,transfer:150_000n};
+/** Actions for which the EcoLoop relayer pays gas. */
+export const GASLESS_FUNCTIONS=new Set(['createLot','claimLot','proposeLot','acceptLot','disputeLot','cancelLot','releaseLot','redeemReward','transfer']);
+const RELAY_GAS:Record<string,bigint>={createLot:450_000n,claimLot:350_000n,proposeLot:250_000n,acceptLot:800_000n,disputeLot:150_000n,cancelLot:120_000n,releaseLot:200_000n,redeemReward:250_000n,transfer:150_000n};
 const pendingKey=`ecoloop-pickup-pending-${chain.id}`;
 const forwarderKey=`ecoloop-forwarder-${chain.id}`;
 const deploymentProxy='0x4e59b44847b379578588920cA78FbF26c0B4956C';
 const deploymentProxyHash='0x2fa86add0aed31f33a762c9d88e807c475bd51d0f52bd0955754b2608f7e4989';
 export function pendingPickup():Hash|undefined {return localStorage.getItem(pendingKey) as Hash||undefined;}
+function settleReceipt(result:TransactionReceipt, hash:Hash, replaced=false){
+  if(pendingPickup()===hash)localStorage.removeItem(pendingKey);
+  if(replaced)throw new Error('Giao dịch đã bị hủy hoặc thay bằng thao tác khác trong ví. Hãy làm mới dữ liệu trước khi thử lại.');
+  if(result.status!=='success')throw new Error('Giao dịch thu gom thất bại. Dữ liệu chưa thay đổi.');
+  return result;
+}
 async function receipt(hash:Hash){
   let replaced=false;
-  const r=await publicClient.waitForTransactionReceipt({hash,timeout:120000,onReplaced:({transaction,reason})=>{localStorage.setItem(pendingKey,transaction.hash);if(reason!=='repriced')replaced=true;}});
-  localStorage.removeItem(pendingKey);
-  if(replaced)throw new Error('Giao dịch đã bị hủy hoặc thay bằng thao tác khác trong ví. Hãy làm mới dữ liệu trước khi thử lại.');
-  if(r.status!=='success')throw new Error('Giao dịch thu gom thất bại. Dữ liệu chưa thay đổi.');
-  return r;
+  let trackedHash=hash;
+  const r=await publicClient.waitForTransactionReceipt({hash,timeout:120000,onReplaced:({transaction,reason})=>{
+    if(pendingPickup()===trackedHash)localStorage.setItem(pendingKey,transaction.hash);
+    trackedHash=transaction.hash;
+    replaced=reason!=='repriced';
+  }});
+  return settleReceipt(r,trackedHash,replaced);
 }
-export async function resumePickup(){const hash=pendingPickup();if(!hash)return;return receipt(hash);}
+export async function checkPendingPickup(hash:Hash){
+  try{
+    const result=await publicClient.getTransactionReceipt({hash});
+    return {status:'confirmed',receipt:settleReceipt(result,hash)} as const;
+  }catch(error){if(!(error instanceof TransactionReceiptNotFoundError))throw error;}
+  try{
+    await publicClient.getTransaction({hash});
+    return {status:'pending'} as const;
+  }catch(error){
+    if(!(error instanceof TransactionNotFoundError))throw error;
+    return {status:'unseen'} as const;
+  }
+}
+export async function dismissUnseenPickup(hash:Hash) {
+  const result=await checkPendingPickup(hash);
+  if(result.status==='unseen'&&pendingPickup()===hash)localStorage.removeItem(pendingKey);
+  return result;
+}
 /** keccak256 of deployed code with immutable values (set at deploy time) zeroed, comparable to the compiled runtime hash. */
 export function codeHash(code:Hash|undefined,immutables:[number,number][]){
   if(!code||code==='0x')return undefined;
@@ -32,9 +58,13 @@ export function codeHash(code:Hash|undefined,immutables:[number,number][]){
   for(const [start,length] of immutables)hex=hex.slice(0,start*2)+'0'.repeat(length*2)+hex.slice((start+length)*2);
   return keccak256(`0x${hex}`);
 }
-export async function isPickupV4(address:Address){
+export async function pickupAccess(address:Address){
   const code=await publicClient.getCode({address});
-  return codeHash(code,pickupImmutables)===pickupRuntimeHash;
+  if(codeHash(code,pickupImmutables)===pickupRuntimeHash)return 'public';
+  if(codeHash(code,[])===pickupRuntime.roleRestrictedEco)return 'restricted';
+}
+export async function isPickupV4(address:Address){
+  return !!await pickupAccess(address);
 }
 export async function validatePickup(address:Address){
   if(await publicClient.getChainId()!==chain.id)throw new Error('RPC đang trỏ sai mạng.');
@@ -50,8 +80,9 @@ export async function pickupRead(address:Address,limit=100){
   const lots:Lot[]=[];
   for(let i=0;i<Math.min(Number(count),limit);i+=10){
     lots.push(...await Promise.all(Array.from({length:Math.min(10,Number(count)-i,limit-i)},async(_,j)=>{
-      const id=Number(count)-i-j;const l=await read('getLot',[BigInt(id)]);
-      return {...l,id,estimated:l.estimated.map(Number),actual:l.actual.map(Number),latitude:l.latitude/100,longitude:l.longitude/100,updatedAt:Number(l.updatedAt)*1000,deposit:Number(formatEther(l.deposit)),paid:Number(formatEther(l.paid))} as Lot;
+      const id=Number(count)-i-j;
+      const [l,payment]=await Promise.all([read('getLot',[BigInt(id)]),read('lotPaymentValue',[BigInt(id)])]);
+      return {...l,id,estimated:l.estimated.map(Number),actual:l.actual.map(Number),latitude:l.latitude/100,longitude:l.longitude/100,updatedAt:Number(l.updatedAt)*1000,deposit:Number(formatEther(l.deposit)),paid:Number(formatEther(l.paid)),paymentEco:formatEther(payment)} as Lot;
     })));
   }
   return {lots,count:Number(count),paused:!!paused,
@@ -59,43 +90,60 @@ export async function pickupRead(address:Address,limit=100){
 }
 export async function pickupReadWallet(address:Address,account:Address){
   const read=readFrom(address);
-  const [balance,collector,admin,pending]=await Promise.all([
+  const [balance,collector,admin]=await Promise.all([
     read('balanceOf',[account]),
     read('hasRole',[keccak256(stringToHex('COLLECTOR_ROLE')),account]),
     read('hasRole',['0x'+'0'.repeat(64),account]),
-    read('pendingWithdrawals',[account]),
   ]);
-  return {balance:Number(formatEther(balance)),collector:!!collector,admin:!!admin,pending:Number(formatEther(pending))};
+  return {balance:Number(formatEther(balance)),balanceAtomic:balance as bigint,collector:!!collector,admin:!!admin};
 }
-/** AVAX (wei) the collector must lock to claim this lot (estimate value + 20%). */
+/** ECO base units the collector must lock to claim this lot (estimate value + 20%). */
 export async function requiredDeposit(address:Address,id:number):Promise<bigint>{return readFrom(address)('requiredDeposit',[BigInt(id)]);}
-/** AVAX (wei) the household receives for the proposed weights, capped at the locked deposit. */
 export async function payoutPreview(address:Address,lot:Lot):Promise<bigint>{
-  const value:bigint=await readFrom(address)('quote',[lot.actual.map(BigInt)]);
-  const deposit:bigint=(await readFrom(address)('getLot',[BigInt(lot.id)])).deposit;
-  return value<deposit?value:deposit;
+  return readFrom(address)('quotedPayout',[BigInt(lot.id)]);
 }
-async function checkPickupFunds(address:Address,account:Address,functionName:string,args:unknown[],value=0n){
+export async function exchangeState(address:Address) {
+  const [rate,inventory]=await Promise.all([
+    publicClient.readContract({address,abi:pickupAbi,functionName:'ecoPerAvax'}),
+    publicClient.readContract({address,abi:pickupAbi,functionName:'exchangeInventory'}),
+  ]);
+  return {rate,inventory};
+}
+async function checkPickupFunds(address:Address,account:Address,functionName:string,args:unknown[],value=0n,abi:Abi=pickupAbi){
   const sponsored=import.meta.env.VITE_SPONSOR_GAS==='true'&&getWalletName()==='Ví Google';
   if(sponsored&&value===0n)return;
-  const balance=await publicClient.getBalance({address:account});
+  let balance=await publicClient.getBalance({address:account});
   const feeError='Ví chưa đủ AVAX trên Fuji để trả phí. Nạp AVAX testnet vào đúng địa chỉ ví đang kết nối.';
-  if(balance<value)throw new Error(tr('Ví chưa đủ AVAX Fuji để đặt cọc {avax} AVAX.',{avax:num(Number(formatEther(value)),8)}));
+  if(balance<value)throw new Error(tr('Ví chưa đủ AVAX cho số ECO cần đổi.'));
   if(sponsored)return;
+  if(balance<1_000_000_000_000_000n&&value===0n){
+    try{
+      await api('/api/relay/stipend',{account});
+      balance=await publicClient.getBalance({address:account});
+    }catch{/* fall through to standard balance check */}
+  }
   if(balance===0n)throw new Error(tr(feeError));
   const [gas,gasPrice]=await Promise.all([
-    publicClient.estimateContractGas({address,abi:pickupAbi,functionName,args,account,value} as never),
+    publicClient.estimateContractGas({address,abi,functionName,args,account,value} as never),
     publicClient.getGasPrice(),
   ]);
   if(balance<value+gas*gasPrice){
-    throw new Error(tr(value>0n?'Ví cần đủ AVAX Fuji cho cả tiền ký quỹ và phí mạng. Nạp thêm AVAX vào ví đang kết nối.':feeError));
+    throw new Error(tr(value>0n?'Ví cần đủ AVAX để đổi ECO và trả phí mạng.':feeError));
   }
 }
-export async function pickupWrite(address:Address,account:Address,functionName:string,args:unknown[]=[],value?:bigint){
+export async function fundRelayer(account:Address,relayer:Address,value:bigint){
   if(pendingPickup())throw new Error('Có giao dịch thu gom đang chờ. Kiểm tra giao dịch trước khi gửi tiếp.');
   const wallet=await assertWallet(account);
-  await checkPickupFunds(address,account,functionName,args,value);
-  const {request}=await publicClient.simulateContract({address,abi:pickupAbi,functionName,args,account,...(value!==undefined?{value}:{})} as never);
+  const hash=await wallet.sendTransaction({account,to:relayer,value,chain});
+  localStorage.setItem(pendingKey,hash);
+  await receipt(hash);
+  return hash;
+}
+export async function pickupWrite(address:Address,account:Address,functionName:string,args:unknown[]=[],value?:bigint,abi:Abi=pickupAbi){
+  if(pendingPickup())throw new Error('Có giao dịch thu gom đang chờ. Kiểm tra giao dịch trước khi gửi tiếp.');
+  const wallet=await assertWallet(account);
+  await checkPickupFunds(address,account,functionName,args,value,abi);
+  const {request}=await publicClient.simulateContract({address,abi,functionName,args,account,...(value!==undefined?{value}:{})} as never);
   const hash=await wallet.writeContract(request as never);localStorage.setItem(pendingKey,hash);
   await receipt(hash);return hash;
 }
@@ -141,7 +189,7 @@ export async function deployPickup(account:Address){
     };
     const {address:forwarder}=await deploy(forwarderBytecode);
     if(codeHash(await publicClient.getCode({address:forwarder}),forwarderImmutables)!==forwarderRuntimeHash)throw new Error(tr('Không xác minh được contract Forwarder sau khi triển khai.'));
-    const {address,block}=await deploy(encodeDeployData({abi:pickupAbi,bytecode:pickupBytecode,args:[account,forwarder]}));
+    const {address,block}=await deploy(encodeDeployData({abi:pickupAbi,bytecode:pickupBytecode,args:[account,forwarder,0n,0n]}));
     await validatePickup(address);
     rememberDeployment(address,block);
     return address;
@@ -154,7 +202,7 @@ export async function deployPickup(account:Address){
     const fr=await receipt(fHash);if(!fr.contractAddress)throw new Error('Chưa nhận được địa chỉ contract.');
     forwarder=fr.contractAddress as Address;localStorage.setItem(forwarderKey,forwarder);
   }
-  const hash=await wallet.deployContract({abi:pickupAbi,bytecode:pickupBytecode,args:[account,forwarder]} as never);
+  const hash=await wallet.deployContract({abi:pickupAbi,bytecode:pickupBytecode,args:[account,forwarder,0n,0n]} as never);
   localStorage.setItem(pendingKey,hash);
   const r=await receipt(hash);if(!r.contractAddress)throw new Error('Chưa nhận được địa chỉ contract.');
   rememberDeployment(r.contractAddress,r.blockNumber);
