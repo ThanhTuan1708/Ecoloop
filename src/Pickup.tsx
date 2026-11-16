@@ -28,6 +28,16 @@ const points=(weights:number[])=>weights.reduce((a,b,i)=>a+b*materials[i].rate/1
 const buyCashVnd=(weights:number[])=>Math.round(weights.reduce((a,b,i)=>a+b*(materials[i]?.buyVnd??3500)/1000,0));
 const stationCashVnd=(weights:number[])=>Math.round(weights.reduce((a,b,i)=>a+b*(materials[i]?.stationVnd??4200)/1000,0));
 const eprCreditVnd=(weights:number[])=>Math.round(total(weights)*800);
+function calcLotEconomics(weights:number[]){
+  const sellerCash=buyCashVnd(weights);
+  const stationCash=stationCashVnd(weights);
+  const spread=Math.max(0,stationCash-sellerCash);
+  const collectorFee=Math.round(spread*0.6);
+  const appCommission=spread-collectorFee;
+  const eprVnd=eprCreditVnd(weights);
+  const appTotalProfit=appCommission+eprVnd;
+  return {sellerCash,stationCash,collectorFee,appCommission,eprVnd,appTotalProfit};
+}
 
 export default function Pickup({account,admin,onConnect,page='home',role='seller',createRequest=0,onOpenOrders,onBrowseAsCollector,collectorLot,children,walletSlot}:{
   children?:ReactNode;walletSlot?:ReactNode;account?:Address;admin:boolean;
@@ -460,9 +470,8 @@ export default function Pickup({account,admin,onConnect,page='home',role='seller
                   {(()=>{
                     const rawLot=lots.find(l=>l.id===card.lotId);
                     const w=rawLot?([3,4].includes(rawLot.status)&&rawLot.actual.some(x=>x>0)?rawLot.actual:rawLot.estimated):[0,0,0,0];
-                    const cash=buyCashVnd(w);
-                    const profit=Math.max(0,stationCashVnd(w)-cash);
-                    return <small className="fiat-equiv">{seller?tr('Tiền bán ≈ {vnd} ₫',{vnd:fmt(cash)}):tr('Mua {vnd} ₫ · Lãi +{profit} ₫',{vnd:fmt(cash),profit:fmt(profit)})}</small>;
+                    const {sellerCash,collectorFee}=calcLotEconomics(w);
+                    return <small className="fiat-equiv">{seller?tr('Tiền bán ≈ {vnd} ₫',{vnd:fmt(sellerCash)}):tr('Mua {vnd} ₫ · Công thu gom +{profit} ₫',{vnd:fmt(sellerCash),profit:fmt(collectorFee)})}</small>;
                   })()}
                 </span>
                 <span className="shopee-rating-row">
@@ -512,38 +521,33 @@ export default function Pickup({account,admin,onConnect,page='home',role='seller
             {(()=>{
               const activeWeights=[3,4].includes(current.status)&&current.actual.some(x=>x>0)?current.actual:current.estimated;
               const isActual=[3,4].includes(current.status)&&current.actual.some(x=>x>0);
-              const sellerCash=buyCashVnd(activeWeights);
-              const stationCash=stationCashVnd(activeWeights);
-              const totalKg=total(activeWeights);
-              const platformFee=totalKg>=30?Math.round(stationCash*0.03):0;
-              const collectorProfit=Math.max(0,stationCash-sellerCash-platformFee);
-              const eprVnd=eprCreditVnd(activeWeights);
+              const {sellerCash,stationCash,collectorFee,appCommission,eprVnd,appTotalProfit}=calcLotEconomics(activeWeights);
               return (
                 <div className="pricing-breakdown-box">
-                  <strong>{tr('💵 Bảng tính tiền thu mua & Kinh doanh')} ({isActual?tr('Theo cân thực tế'):tr('Tạm tính theo dự kiến')})</strong>
-                  <div className="pricing-row highlight-cash">
-                    <span>{tr('Tiền mặt trả cho người bán:')}</span>
-                    <b>{fmt(sellerCash)} ₫</b>
-                  </div>
+                  <strong>{tr('💵 Bảng tính tiền thu mua & Lợi nhuận Chủ App')} ({isActual?tr('Theo cân thực tế'):tr('Tạm tính theo dự kiến')})</strong>
                   <div className="pricing-row">
-                    <span>{tr('Điểm thưởng phân loại xanh (tặng thêm):')}</span>
-                    <b className="eco-val">+{selectedCard.pricing.amountFormatted} ECO</b>
-                  </div>
-                  <div className="pricing-row">
-                    <span>{tr('Giá bao tiêu tại Trạm tái chế EcoLoop:')}</span>
+                    <span>{tr('Giá bao tiêu gốc từ Nhà máy tái chế:')}</span>
                     <b>{fmt(stationCash)} ₫</b>
                   </div>
+                  <div className="pricing-row highlight-cash">
+                    <span>{tr('Tiền mặt trả cho Người bán:')}</span>
+                    <b>{fmt(sellerCash)} ₫ (+{selectedCard.pricing.amountFormatted} ECO)</b>
+                  </div>
+                  <div className="pricing-row">
+                    <span>{tr('Thù lao vận chuyển cho Người thu gom (60% chênh lệch):')}</span>
+                    <b>+{fmt(collectorFee)} ₫</b>
+                  </div>
+                  <div className="pricing-row">
+                    <span>{tr('Chiết khấu điều phối về Chủ App EcoLoop (40% chênh lệch):')}</span>
+                    <b>+{fmt(appCommission)} ₫</b>
+                  </div>
+                  <div className="pricing-row">
+                    <span>{tr('Doanh thu bán Tín chỉ Tái chế EPR (B2B NFT) về Chủ App:')}</span>
+                    <b>+{fmt(eprVnd)} ₫</b>
+                  </div>
                   <div className="pricing-row highlight-profit">
-                    <span>{tr('Lợi nhuận chuyến đi của Người thu gom:')}</span>
-                    <b>+{fmt(collectorProfit)} ₫</b>
-                  </div>
-                  <div className="pricing-row">
-                    <span>{tr('Phí điều phối nền tảng EcoLoop:')}</span>
-                    <span>{platformFee>0?tr('{vnd} ₫ (3% đơn thương mại ≥ 30 kg)',{vnd:fmt(platformFee)}):tr('0 ₫ (Miễn phí cho hộ dân & thu gom lẻ < 30 kg)')}</span>
-                  </div>
-                  <div className="pricing-row">
-                    <span>{tr('Doanh thu Tín chỉ Tái chế EPR (B2B NFT):')}</span>
-                    <span>+{fmt(eprVnd)} ₫ {tr('(Từ Quỹ EPR doanh nghiệp)')}</span>
+                    <span>{tr('💎 Tổng lợi nhuận ròng về Chủ App EcoLoop:')}</span>
+                    <b>+{fmt(appTotalProfit)} ₫</b>
                   </div>
                 </div>
               );
@@ -635,6 +639,7 @@ export default function Pickup({account,admin,onConnect,page='home',role='seller
         selected={selected}
         onSelectLot={setSelected}
       />}
+      {page==='settings'&&<AdminRevenueDashboard lots={lots}/>}
       {address&&(admin||pickupAdmin)&&account&&page==='settings'&&<section className="pickup-callout"><h3>{tr('Quản lý thu gom')}</h3><button type="button" className="secondary" disabled={busy} onClick={()=>run(async()=>{setHash(await pickupWrite(address,account,'setPaused',[!paused]));await refresh();})}>{paused?tr('Mở lại thu gom'):tr('Tạm dừng thu gom')}</button><p className="footnote">Contract V4: {address}{certAddress?<> · NFT: {certAddress}</>:null}</p></section>}
       {address&&(admin||pickupAdmin)&&account&&page==='settings'&&<form className="pickup-callout" onSubmit={e=>{e.preventDefault();const f=new FormData(e.currentTarget);run(async()=>{const next=[0,1,2,3].map(i=>{const v=String(f.get('price'+i)||'').replace(',','.');if(!/^\d*\.?\d+$/.test(v)||Number(v)>1_000_000 || (v.split(".")[1]?.length ?? 0)>18)throw new Error(tr('Giá phải từ 0 đến 1.000.000 ECO cho mỗi kg (tối đa 18 chữ số thập phân).'));return parseEther(v);});setHash(await pickupWrite(address,account,'setPrices',[next]));await refresh();setMessage(tr('Đã cập nhật giá thu mua.'));});}}><h3>{tr('Giá thu mua (ECO/kg)')}</h3><p>{tr('Người thu gom khóa số ECO = giá × khối lượng ước tính + 20%. Chủ lô nhận theo số cân thực tế.')}</p><div className="pickup-weights">{materials.map((m,i)=><label key={m.name}>{tr(m.name)}<input name={'price'+i} inputMode="decimal" defaultValue={prices[i]??''} key={String(prices[i])}/></label>)}</div><button className="secondary" disabled={busy}>{tr('Cập nhật giá')}</button></form>}
       {page==='wallet'&&!walletSlot&&<div className="pickup-callout wallet-live"><span>{tr('VÍ ĐIỂM THU GOM ECOLOOP')}</span><h2>{fmt(effectiveBalance)} ECO</h2><p>{account?tr('Ví đã kết nối: {wallet} · Số dư ECO on-chain trên contract V4.',{wallet:short(account)}):tr('Kết nối ví để xem số dư ECO on-chain của bạn.')}</p>{address&&<code>{address}</code>}<p>{tr('Bạn nhận ECO khi hoàn tất bàn giao phế liệu.')}</p></div>}
@@ -670,6 +675,94 @@ export default function Pickup({account,admin,onConnect,page='home',role='seller
     {page==='rewards'&&<PickupRewards swap={swap} balanceAtomic={balanceAtomic} gasless={gasless} admin={admin||pickupAdmin} address={address} account={account} collector={canFulfillRewards} busy={busy} balance={effectiveBalance} run={run} onChange={refresh} onConnect={onConnect} onDone={setMessage}/>}
     {busy&&<p role="status" className="pickup-busy">{tr('Đang xử lý… Kiểm tra cửa sổ ví nếu được yêu cầu ký. Không đóng trang khi gửi giao dịch.')}</p>}
   </section>;
+}
+
+function AdminRevenueDashboard({lots}:{lots:Lot[]}){
+  const activeLots=lots.filter(l=>l.status!==5);
+  const rows=activeLots.map(l=>{
+    const w=[3,4].includes(l.status)&&l.actual.some(x=>x>0)?l.actual:l.estimated;
+    const kg=total(w);
+    const eco=points(w);
+    const econ=calcLotEconomics(w);
+    return {lot:l,kg,eco,...econ};
+  });
+  const totalGmv=rows.reduce((s,r)=>s+r.stationCash,0);
+  const totalSellerCash=rows.reduce((s,r)=>s+r.sellerCash,0);
+  const totalCollectorFee=rows.reduce((s,r)=>s+r.collectorFee,0);
+  const totalAppCommission=rows.reduce((s,r)=>s+r.appCommission,0);
+  const totalEprRevenue=rows.reduce((s,r)=>s+r.eprVnd,0);
+  const totalAppProfit=rows.reduce((s,r)=>s+r.appTotalProfit,0);
+  const totalKg=rows.reduce((s,r)=>s+r.kg,0);
+
+  return (
+    <section className="pickup-history-panel" aria-label={tr('Thống kê Doanh thu & Lợi nhuận Chủ App EcoLoop')}>
+      <div className="pickup-history-header">
+        <div>
+          <span className="eyebrow"><Coins size={14}/> {tr('BÁO CÁO QUẢN TRỊ DOANH THU & LỢI NHUẬN NỀN TẢNG')}</span>
+          <h3>{tr('Thống kê Doanh thu & Lợi nhuận Chủ App EcoLoop')}</h3>
+          <p>{tr('Tổng hợp dòng tiền từ chiết khấu điều phối phế liệu (40% chênh lệch bao tiêu) và doanh thu bán Tín chỉ Tái chế EPR (B2B NFT) cho doanh nghiệp.')}</p>
+        </div>
+      </div>
+
+      <div className="history-kpis">
+        <div className="history-kpi-card highlight">
+          <span>{tr('💎 Tổng lợi nhuận ròng Chủ App')}</span>
+          <strong>+{fmt(totalAppProfit)} ₫</strong>
+        </div>
+        <div className="history-kpi-card">
+          <span>{tr('💰 Chiết khấu điều phối Sàn')}</span>
+          <strong>+{fmt(totalAppCommission)} ₫</strong>
+        </div>
+        <div className="history-kpi-card">
+          <span>{tr('🏅 Doanh thu Tín chỉ EPR (NFT)')}</span>
+          <strong>+{fmt(totalEprRevenue)} ₫</strong>
+        </div>
+        <div className="history-kpi-card">
+          <span>{tr('🏭 Tổng giá trị qua Sàn (GMV)')}</span>
+          <strong>{fmt(totalGmv)} ₫</strong>
+        </div>
+        <div className="history-kpi-card">
+          <span>{tr('♻️ Tổng sản lượng & Tạo thu nhập')}</span>
+          <strong>{wt(totalKg,1)} · {fmt(totalSellerCash+totalCollectorFee)} ₫</strong>
+        </div>
+      </div>
+
+      {rows.length>0&&(
+        <div className="history-table-wrap">
+          <table className="history-table">
+            <thead>
+              <tr>
+                <th>{tr('Mã lô & Khối lượng')}</th>
+                <th>{tr('Giá Nhà máy bao tiêu')}</th>
+                <th>{tr('Trả Người bán & Thù lao gom')}</th>
+                <th>{tr('Chiết khấu Sàn (40%)')}</th>
+                <th>{tr('Doanh thu EPR NFT')}</th>
+                <th>{tr('💎 Lợi nhuận Chủ App')}</th>
+              </tr>
+            </thead>
+            <tbody>
+              {rows.map(r=>(
+                <tr key={r.lot.id} className="history-row">
+                  <td>
+                    <strong>#{r.lot.id} · {wt(r.kg,1)}</strong>
+                    <div><small>{tr(lotStatuses[r.lot.status]||'')}</small></div>
+                  </td>
+                  <td><b>{fmt(r.stationCash)} ₫</b></td>
+                  <td>
+                    <div><small>{tr('Người bán:')}</small> <b>{fmt(r.sellerCash)} ₫</b> (+{fmt(r.eco)} ECO)</div>
+                    <div><small>{tr('Công thu gom:')}</small> <b>+{fmt(r.collectorFee)} ₫</b></div>
+                  </td>
+                  <td><b>+{fmt(r.appCommission)} ₫</b></td>
+                  <td><b>+{fmt(r.eprVnd)} ₫</b></td>
+                  <td><strong className="history-eco">+{fmt(r.appTotalProfit)} ₫</strong></td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </section>
+  );
 }
 
 function PickupHistorySection({
