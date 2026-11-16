@@ -6,7 +6,7 @@ import path from 'node:path';
 import { createHash, createHmac, randomUUID, timingSafeEqual } from 'node:crypto';
 import {createPickupStorage} from './pickup-storage.mjs';
 import {createPickupChat} from './pickup-chat.mjs';
-import { createPublicClient, createWalletClient, decodeEventLog, fallback, http as rpcHttp, isAddress, isHex, keccak256, stringToHex, toFunctionSelector, verifyMessage } from 'viem';
+import { createPublicClient, createWalletClient, decodeEventLog, decodeFunctionData, fallback, http as rpcHttp, isAddress, isHex, keccak256, stringToHex, toFunctionSelector, verifyMessage } from 'viem';
 import { privateKeyToAccount } from 'viem/accounts';
 import { codeHash, pickupAccess } from './codehash.mjs';
 import {artifact,pickupArtifact,forwarderArtifact} from './generated-contracts.mjs';
@@ -300,6 +300,40 @@ export async function createApp({dataDir=path.resolve(process.env.DATA_DIR||'.da
           if(codeHash(await client.getCode({address:forwarder}),forwarderArtifact.immutables)!==forwarderArtifact.runtimeHash)fail(503,'Forwarder của contract không đúng phiên bản.');
           const data={from:r.from,to:pickup,value:0n,gas:BigInt(r.gas),deadline:r.deadline,data:r.data,signature:r.signature};
           if(!await client.readContract({address:forwarder,abi:forwarderArtifact.abi,functionName:'verify',args:[data]}))fail(400,'Chữ ký yêu cầu không hợp lệ hoặc đã dùng.');
+          try{
+            const decoded=decodeFunctionData({abi:pickupArtifact.abi,data:r.data});
+            if(decoded.functionName==='claimLot'&&relayer){
+              const lotId=decoded.args[0];
+              const [userEco,required]=await Promise.all([
+                client.readContract({address:pickup,abi:pickupArtifact.abi,functionName:'balanceOf',args:[r.from]}),
+                client.readContract({address:pickup,abi:pickupArtifact.abi,functionName:'requiredDeposit',args:[lotId]}),
+              ]);
+              if(userEco<required){
+                const neededEco=required-userEco;
+                if(neededEco>2000n*10n**18n)fail(400,'Số ECO ký quỹ vượt hạn mức tín nhiệm tự động (tối đa 2.000 ECO).');
+                const relayerEco=await client.readContract({address:pickup,abi:pickupArtifact.abi,functionName:'balanceOf',args:[relayer.address]});
+                if(relayerEco<neededEco){
+                  const [rate,inv]=await Promise.all([
+                    client.readContract({address:pickup,abi:pickupArtifact.abi,functionName:'ecoPerAvax'}),
+                    client.readContract({address:pickup,abi:pickupArtifact.abi,functionName:'exchangeInventory'}),
+                  ]);
+                  const buyTarget=neededEco>500n*10n**18n?neededEco:500n*10n**18n;
+                  const buyAmount=buyTarget<inv?buyTarget:neededEco;
+                  if(rate>0n&&inv>=neededEco){
+                    const avaxCost=(buyAmount*10n**18n+rate-1n)/rate;
+                    const buyTx=await relayWallet.writeContract({address:pickup,abi:pickupArtifact.abi,functionName:'buyEco',args:[buyAmount],value:avaxCost,account:relayer,chain});
+                    if(typeof client.waitForTransactionReceipt==='function'){
+                      await client.waitForTransactionReceipt({hash:buyTx,timeout:30000});
+                    }
+                  }
+                }
+                const transferTx=await relayWallet.writeContract({address:pickup,abi:pickupArtifact.abi,functionName:'transfer',args:[r.from,neededEco],account:relayer,chain});
+                if(typeof client.waitForTransactionReceipt==='function'){
+                  await client.waitForTransactionReceipt({hash:transferTx,timeout:30000});
+                }
+              }
+            }
+          }catch(err){if(err?.status)throw err;}
           let request;
           try{({request}=await client.simulateContract({address:forwarder,abi:forwarderArtifact.abi,functionName:'execute',args:[data],account:relayer||relayWallet.account}));}
           catch(error){const e=new Error(error?.shortMessage||'Contract từ chối thao tác.');e.status=400;e.cause=error;throw e;}

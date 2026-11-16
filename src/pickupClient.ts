@@ -148,12 +148,14 @@ export async function pickupWrite(address:Address,account:Address,functionName:s
   const hash=await wallet.writeContract(request as never);localStorage.setItem(pendingKey,hash);
   await receipt(hash);return hash;
 }
-/** Gas-free household action: the wallet signs an EIP-712 request, the EcoLoop relayer pays the gas. */
+/** Gas-free household & collector action: the wallet signs an EIP-712 request, the EcoLoop relayer pays the gas. */
 export async function relayWrite(address:Address,account:Address,functionName:string,args:unknown[]=[]){
   if(!GASLESS_FUNCTIONS.has(functionName))throw new Error('Thao tác này không hỗ trợ miễn phí gas.');
   if(pendingPickup())throw new Error('Có giao dịch thu gom đang chờ. Kiểm tra giao dịch trước khi gửi tiếp.');
-  // Simulate as the household first so contract errors show before anything is signed.
-  await publicClient.simulateContract({address,abi:pickupAbi,functionName,args,account} as never);
+  // For claimLot, the server relayer auto-credits any missing ECO deposit before executing.
+  if(functionName!=='claimLot'){
+    await publicClient.simulateContract({address,abi:pickupAbi,functionName,args,account} as never);
+  }
   const forwarder=await readFrom(address)('trustedForwarder') as Address;
   const nonce=await publicClient.readContract({address:forwarder,abi:forwarderAbi,functionName:'nonces',args:[account]}) as bigint;
   const data=encodeFunctionData({abi:pickupAbi,functionName,args} as never);
