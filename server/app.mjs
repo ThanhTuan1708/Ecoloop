@@ -311,18 +311,22 @@ export async function createApp({dataDir=path.resolve(process.env.DATA_DIR||'.da
         }
         if(url.pathname==='/api/relay/stipend'&&req.method==='POST'){
           if(!relayWallet||!relayer)fail(503,'Server chưa bật ví tài trợ gas.');
-          const {account}=JSON.parse((await readBody(req,2048)).toString());
+          const body=JSON.parse((await readBody(req,2048)).toString());
+          const account=body.account;
           if(!isAddress(account||''))fail(400,'Địa chỉ ví không hợp lệ.');
+          const maxStipend=50_000_000_000_000_000n; // max 0.05 AVAX
+          const requested=body.needed&&/^\d{1,20}$/.test(String(body.needed))?BigInt(body.needed):4_000_000_000_000_000n;
+          const target=requested>maxStipend?maxStipend:requested<4_000_000_000_000_000n?4_000_000_000_000_000n:requested;
           const from=account.toLowerCase();
           const today=new Date().toISOString().slice(0,10);if(relayUsage.day!==today){relayUsage.day=today;relayUsage.total=0;relayUsage.wallets.clear();}
           const hour=Math.floor(Date.now()/3600000);const w=relayUsage.wallets.get(from);
           const used=w&&w.hour===hour?w.count:0;
           if(relayUsage.total>=relayDailyLimit||used>=relayHourlyPerWallet)fail(429,'Đã hết lượt tài trợ gas trong giờ này.');
           const userBal=await client.getBalance({address:account}).catch(()=>0n);
-          if(userBal>=1_000_000_000_000_000n){send(200,{funded:true,alreadyFunded:true});return;}
+          if(userBal>=target){send(200,{funded:true,alreadyFunded:true});return;}
+          const stipend=target-userBal+1_000_000_000_000_000n;
           const relayerBal=await client.getBalance({address:relayer.address}).catch(()=>0n);
-          const stipend=2_000_000_000_000_000n; // 0.002 AVAX
-          if(relayerBal<stipend*2n)fail(503,'Ví tài trợ gas của server chưa có AVAX. Hãy nạp test AVAX vào địa chỉ relayer.');
+          if(relayerBal<=stipend+1_000_000_000_000_000n)fail(503,'Ví tài trợ gas của server đã hết AVAX. Báo quản trị nạp thêm.');
           relayUsage.total++;relayUsage.wallets.set(from,{hour,count:used+1});
           const hash=await relayWallet.sendTransaction({account:relayer,to:account,value:stipend,chain});
           if(typeof client.waitForTransactionReceipt==='function'){

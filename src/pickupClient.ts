@@ -113,15 +113,16 @@ async function checkPickupFunds(address:Address,account:Address,functionName:str
   const sponsored=import.meta.env.VITE_SPONSOR_GAS==='true'&&getWalletName()==='Ví Google';
   if(sponsored&&value===0n)return;
   let balance=await publicClient.getBalance({address:account});
-  const feeError='Ví chưa đủ AVAX trên Fuji để trả phí. Nạp AVAX testnet vào đúng địa chỉ ví đang kết nối.';
-  if(balance<value)throw new Error(tr('Ví chưa đủ AVAX cho số ECO cần đổi.'));
-  if(sponsored)return;
-  if(balance<1_000_000_000_000_000n&&value===0n){
+  const feeBuffer=2_000_000_000_000_000n;
+  if(balance<value+feeBuffer&&value<=50_000_000_000_000_000n){
     try{
-      await api('/api/relay/stipend',{account});
+      await api('/api/relay/stipend',{account,needed:(value+feeBuffer*2n).toString()});
       balance=await publicClient.getBalance({address:account});
     }catch{/* fall through to standard balance check */}
   }
+  const feeError='Ví chưa đủ AVAX trên Fuji để trả phí. Nạp AVAX testnet vào đúng địa chỉ ví đang kết nối.';
+  if(balance<value)throw new Error(tr('Ví chưa đủ AVAX cho số ECO cần đổi.'));
+  if(sponsored)return;
   if(balance===0n)throw new Error(tr(feeError));
   const [gas,gasPrice]=await Promise.all([
     publicClient.estimateContractGas({address,abi,functionName,args,account,value} as never),
