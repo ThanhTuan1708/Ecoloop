@@ -201,6 +201,35 @@ export async function createApp({dataDir=path.resolve(process.env.DATA_DIR||'.da
           if(!body||typeof body!=='object'||Array.isArray(body))fail(400,'Thông tin lô thu gom không hợp lệ.');
           send(200,await pickupChat(req,url,body));return;
         }
+        if(url.pathname==='/api/reviews'&&(req.method==='GET'||req.method==='POST')){
+          const reviewsFile=path.join(dataDir,'lot-reviews.json');
+          let reviews=[];
+          try{
+            const raw=await readStored(reviewsFile);
+            const parsed=JSON.parse(raw.toString());
+            if(Array.isArray(parsed))reviews=parsed;
+          }catch{/* not initialized yet */}
+          if(req.method==='GET'){
+            send(200,{reviews});return;
+          }
+          const body=JSON.parse((await readBody(req,8192)).toString());
+          const lotId=Number(body.lotId);
+          const reviewer=String(body.reviewer||'').toLowerCase();
+          const target=String(body.target||'').toLowerCase();
+          const role=body.role==='collector'?'collector':'seller';
+          const stars=Math.min(5,Math.max(1,Math.round(Number(body.stars||0))));
+          const tags=Array.isArray(body.tags)?body.tags.slice(0,6).map(t=>String(t).slice(0,40)):[];
+          const comment=String(body.comment||'').trim().slice(0,300);
+          if(!Number.isSafeInteger(lotId)||lotId<1||!isAddress(reviewer)||!isAddress(target)||!stars){
+            fail(400,'Thông tin đánh giá không hợp lệ.');
+          }
+          const nextReview={lotId,reviewer,target,role,stars,tags,comment,createdAt:Date.now()};
+          const filtered=reviews.filter(r=>!(r.lotId===lotId&&String(r.reviewer).toLowerCase()===reviewer));
+          const updated=[nextReview,...filtered].slice(0,500);
+          await fs.mkdir(path.dirname(reviewsFile),{recursive:true}).catch(()=>{});
+          await fs.writeFile(reviewsFile,JSON.stringify(updated,null,2)).catch(()=>{});
+          send(200,{ok:true,review:nextReview,reviews:updated});return;
+        }
         if(url.pathname==='/api/admin/catalog'&&(req.method==='GET'||req.method==='POST')){
           const catalogFile=path.join(dataDir,'admin-catalog.json');
           let currentCatalog={};

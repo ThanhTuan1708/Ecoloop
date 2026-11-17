@@ -17,6 +17,7 @@ import {speakFeedback} from './voiceFeedback';
 import {getAdminCatalog,saveAdminCatalog,useAdminCatalog,type CustomLotItem,type CustomRewardItem} from './adminCatalog';
 import {DummyLotPaymentCard,DummyWalletWidget} from './DummyPaymentBox';
 import {EnvironmentalImpactBanner} from './EnvironmentalImpact';
+import {LotReviewBox,useLotReviews,getWalletRatingSummary} from './LotReviewBox';
 import {qrSvg} from './qr';
 
 const PickupMap=lazy(()=>import('./PickupMap'));
@@ -77,6 +78,7 @@ export default function Pickup({account,admin,onConnect,page='home',role='seller
   const [importAddress,setImportAddress]=useState(localStorage.getItem(`ecoloop-pickup-deployed-${chain.id}`)||'');
 
   const catalog=useAdminCatalog();
+  const reviews=useLotReviews();
   const [adminShowHiddenLots,setAdminShowHiddenLots]=useState(false);
   const [adminAllStatuses,setAdminAllStatuses]=useState(false);
   const [adminAddingLot,setAdminAddingLot]=useState(false);
@@ -599,7 +601,11 @@ export default function Pickup({account,admin,onConnect,page='home',role='seller
                   })()}
                 </span>
                 <span className="shopee-rating-row">
-                  {card.seller.reputationScore>0&&<span className="star-badge"><Star size={11} fill="currentColor"/> {card.seller.reputationScore.toFixed(1)}</span>}
+                  {(()=>{
+                    const liveRating=getWalletRatingSummary(reviews,card.onChain.sellerWallet);
+                    const score=liveRating.count>0?liveRating.avg:card.seller.reputationScore;
+                    return score>0?<span className="star-badge"><Star size={11} fill="currentColor"/> {score.toFixed(1)}{liveRating.count>0?` (${liveRating.count})`:''}</span>:null;
+                  })()}
                   <span className="sales-count">{tr('Đã bán {n}',{n:card.seller.completedSalesCount})}</span>
                   {card.badges.isEscrowProtected&&<span className="escrow-tag">{tr('Đảm bảo')}</span>}
                 </span>
@@ -845,6 +851,7 @@ export default function Pickup({account,admin,onConnect,page='home',role='seller
             {isOwner&&current.status===3&&<><p>{tr('Kiểm tra bảng khối lượng thực tế bên trên trước khi xác nhận hoàn tất.')}</p><label className="checkbox"><input type="checkbox" checked={consent} onChange={e=>setConsent(e.target.checked)}/>{tr('Tôi đã bàn giao vật liệu và đồng ý khối lượng thực tế trên.')}</label><button className="primary full-width" disabled={busy||paused||!consent||Date.now()>current.updatedAt+7*86400000} onClick={()=>run(()=>change('acceptLot',[BigInt(current.id)]))}><CheckCircle2 size={16}/>{isCurrentOnChain&&payoutWei!==undefined?tr('Xác nhận & nhận {eco} ECO',{eco:eco(payoutWei)}):tr('Đồng ý số cân')}{freeGas}</button><button className="secondary" disabled={busy} onClick={()=>run(()=>change('disputeLot',[BigInt(current.id)]))}>{tr('Chưa đồng ý · yêu cầu cân lại')}{freeGas}</button></>}
             {actions.releaseLot&&<button className="text-link" disabled={busy} onClick={()=>run(()=>change('releaseLot',[BigInt(current.id)]))}>{isOwner?tr('Mở lại lô do quá hạn'):tr('Hủy nhận đơn (Nhường cho người khác)')}</button>}
             {current.status===4&&<p className="pickup-success"><CheckCircle2 size={18}/>{tr('Hai bên đã xác nhận. Điểm thưởng ECO đã được cộng vào ví người bán.')}</p>}
+            {current.status===4&&<LotReviewBox lotId={current.id} sellerWallet={current.owner} collectorWallet={current.collector} currentAccount={account} role={role} admin={admin} onReviewed={setMessage}/>}
             {current.status===4&&isCurrentOnChain&&certAddress&&<CertificateCard certificate={certAddress} lotId={current.id}/>}
           </div>
         </div>}
