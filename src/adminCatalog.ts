@@ -64,6 +64,21 @@ export interface ManagedAccount {
   createdAt: number;
 }
 
+export type DummyPaymentMethod = 'vietqr'|'ecopay'|'cash';
+
+export interface DummyPaymentReceipt {
+  lotId: number;
+  txCode: string;
+  method: DummyPaymentMethod;
+  bankName: string;
+  sellerWallet: string;
+  collectorWallet: string;
+  sellerCashVnd: number;
+  collectorFeeVnd: number;
+  appProfitVnd: number;
+  paidAt: number;
+}
+
 export interface AdminCatalogState {
   lotOverrides: Record<number, LotOverride>;
   customLots: CustomLotItem[];
@@ -74,6 +89,8 @@ export interface AdminCatalogState {
   checkInBonusOverride?: number;
   economics: EconomicsConfig;
   accounts: ManagedAccount[];
+  dummyPayments: Record<number, DummyPaymentReceipt>;
+  dummyVndBalances: Record<string, number>;
 }
 
 const STORAGE_KEY = 'ecoloop-admin-catalog-v1';
@@ -94,6 +111,8 @@ export const DEFAULT_ADMIN_CATALOG: AdminCatalogState = {
   hideCheckIn: false,
   economics: DEFAULT_ECONOMICS,
   accounts: [],
+  dummyPayments: {},
+  dummyVndBalances: {},
 };
 
 let currentState: AdminCatalogState = loadLocalCatalog();
@@ -134,6 +153,8 @@ function mergeCatalog(parsed: Partial<AdminCatalogState>): AdminCatalogState {
         : DEFAULT_ECONOMICS.eprVndPerKg,
     },
     accounts: Array.isArray(parsed.accounts) ? parsed.accounts : [],
+    dummyPayments: parsed.dummyPayments && typeof parsed.dummyPayments === 'object' ? parsed.dummyPayments : {},
+    dummyVndBalances: parsed.dummyVndBalances && typeof parsed.dummyVndBalances === 'object' ? parsed.dummyVndBalances : {},
   };
 }
 
@@ -150,7 +171,12 @@ export async function syncAdminCatalogFromServer(): Promise<AdminCatalogState> {
     const res = await fetch('/api/admin/catalog', {cache: 'no-store'});
     if (res.ok) {
       const data = (await res.json()) as Partial<AdminCatalogState>;
-      currentState = mergeCatalog({...currentState, ...data});
+      currentState = mergeCatalog({
+        ...currentState,
+        ...data,
+        dummyPayments: {...currentState.dummyPayments, ...(data.dummyPayments || {})},
+        dummyVndBalances: {...currentState.dummyVndBalances, ...(data.dummyVndBalances || {})},
+      });
       try {
         localStorage.setItem(STORAGE_KEY, JSON.stringify(currentState));
       } catch {
@@ -189,6 +215,45 @@ export async function saveAdminCatalog(
     // local state already updated
   }
   return next;
+}
+
+export async function recordDummyLotPayment(receipt: DummyPaymentReceipt): Promise<AdminCatalogState> {
+  const sellerKey = receipt.sellerWallet.toLowerCase();
+  const collectorKey = receipt.collectorWallet.toLowerCase();
+  const adminKey = ADMIN_WALLET.toLowerCase();
+
+  return saveAdminCatalog(prev => {
+    const alreadyPaid = !!prev.dummyPayments[receipt.lotId];
+    const nextBalances = {...prev.dummyVndBalances};
+    if (!alreadyPaid) {
+      const currentCollectorBal = nextBalances[collectorKey] ?? 2_000_000;
+      nextBalances[collectorKey] = Math.max(0, currentCollectorBal - receipt.sellerCashVnd) + receipt.collectorFeeVnd;
+      nextBalances[sellerKey] = (nextBalances[sellerKey] ?? 0) + receipt.sellerCashVnd;
+      nextBalances[adminKey] = (nextBalances[adminKey] ?? 0) + receipt.appProfitVnd;
+    }
+    return {
+      ...prev,
+      dummyPayments: {
+        ...prev.dummyPayments,
+        [receipt.lotId]: receipt,
+      },
+      dummyVndBalances: nextBalances,
+    };
+  });
+}
+
+export async function adjustDummyVndBalance(wallet: string, deltaVnd: number, defaultStart = 500_000): Promise<AdminCatalogState> {
+  const key = wallet.toLowerCase();
+  return saveAdminCatalog(prev => {
+    const current = prev.dummyVndBalances[key] ?? defaultStart;
+    return {
+      ...prev,
+      dummyVndBalances: {
+        ...prev.dummyVndBalances,
+        [key]: Math.max(0, current + deltaVnd),
+      },
+    };
+  });
 }
 
 export function useAdminCatalog(): AdminCatalogState {

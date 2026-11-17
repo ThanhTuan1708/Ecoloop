@@ -15,6 +15,7 @@ import './rewards.css';
 import EarnEco from './EarnEco';
 import {speakFeedback} from './voiceFeedback';
 import {getAdminCatalog,saveAdminCatalog,useAdminCatalog,type CustomLotItem,type CustomRewardItem} from './adminCatalog';
+import {DummyLotPaymentCard,DummyWalletWidget} from './DummyPaymentBox';
 
 const PickupMap=lazy(()=>import('./PickupMap'));
 // Sample data has been removed from the app; clear what older versions stored in this browser.
@@ -743,6 +744,18 @@ export default function Pickup({account,admin,onConnect,page='home',role='seller
                 </div>
               );
             })()}
+            <DummyLotPaymentCard
+              lotId={current.id}
+              sellerWallet={current.owner}
+              collectorWallet={current.collector===ZERO?account||current.owner:current.collector}
+              currentAccount={account}
+              admin={admin}
+              sellerCash={calcLotEconomics([3,4].includes(current.status)&&current.actual.some(x=>x>0)?current.actual:current.estimated).sellerCash}
+              collectorFee={calcLotEconomics([3,4].includes(current.status)&&current.actual.some(x=>x>0)?current.actual:current.estimated).collectorFee}
+              appTotalProfit={calcLotEconomics([3,4].includes(current.status)&&current.actual.some(x=>x>0)?current.actual:current.estimated).appTotalProfit}
+              ecoFormatted={selectedCard.pricing.amountFormatted}
+              onPaid={setMessage}
+            />
             <p className="lot-points">
               <strong>+{selectedCard.pricing.amountFormatted} ECO</strong>
             </p>
@@ -831,11 +844,13 @@ export default function Pickup({account,admin,onConnect,page='home',role='seller
         onSelectLot={setSelected}
       />}
       {page==='admin'&&admin&&<AdminRevenueDashboard lots={lots}/>}
+      {page==='admin'&&admin&&<DummyWalletWidget account={account} role={role} admin={admin}/>}
       {page==='admin'&&admin&&<AdminEconomicsPanel account={account} onDone={setMessage}/>}
       {page==='admin'&&admin&&<AdminAccountsPanel account={account} address={address} publicPickup={publicPickup} busy={busy} run={run} refresh={refresh} setHash={setHash} onDone={setMessage}/>}
       {address&&admin&&account&&page==='admin'&&<section className="pickup-callout"><h3>{tr('Quản lý thu gom')}</h3><button type="button" className="secondary" disabled={busy} onClick={()=>run(async()=>{setHash(await pickupWrite(address,account,'setPaused',[!paused]));await refresh();})}>{paused?tr('Mở lại thu gom'):tr('Tạm dừng thu gom')}</button><p className="footnote">Contract V4: {address}{certAddress?<> · NFT: {certAddress}</>:null}</p></section>}
       {address&&admin&&account&&page==='admin'&&<form className="pickup-callout" onSubmit={e=>{e.preventDefault();const f=new FormData(e.currentTarget);run(async()=>{const next=[0,1,2,3].map(i=>{const v=String(f.get('price'+i)||'').replace(',','.');if(!/^\d*\.?\d+$/.test(v)||Number(v)>1_000_000 || (v.split(".")[1]?.length ?? 0)>18)throw new Error(tr('Giá phải từ 0 đến 1.000.000 ECO cho mỗi kg (tối đa 18 chữ số thập phân).'));return parseEther(v);});setHash(await pickupWrite(address,account,'setPrices',[next]));await refresh();setMessage(tr('Đã cập nhật giá thu mua.'));});}}><h3>{tr('Giá thu mua (ECO/kg)')}</h3><p>{tr('Người thu gom khóa số ECO = giá × khối lượng ước tính + 20%. Chủ lô nhận theo số cân thực tế.')}</p><div className="pickup-weights">{materials.map((m,i)=><label key={m.name}>{tr(m.name)}<input name={'price'+i} inputMode="decimal" defaultValue={prices[i]??''} key={String(prices[i])}/></label>)}</div><button className="secondary" disabled={busy}>{tr('Cập nhật giá')}</button></form>}
       {page==='wallet'&&!walletSlot&&<div className="pickup-callout wallet-live"><span>{tr('VÍ ĐIỂM THU GOM ECOLOOP')}</span><h2>{fmt(effectiveBalance)} ECO</h2><p>{account?tr('Ví đã kết nối: {wallet} · Số dư ECO on-chain trên contract V4.',{wallet:short(account)}):tr('Kết nối ví để xem số dư ECO on-chain của bạn.')}</p>{address&&<code>{address}</code>}<p>{tr('Bạn nhận ECO khi hoàn tất bàn giao phế liệu.')}</p></div>}
+      {page==='wallet'&&<DummyWalletWidget account={account} role={role} admin={admin}/>}
       {page==='wallet'&&swap&&<EcoExchange {...swap}/>}
       {page==='admin'&&address&&account&&admin&&exchange&&<ExchangeSettings exchange={exchange} busy={busy} submit={(fn,value)=>void run(async()=>{
         if(fn==='withdrawExchangeProceeds'){
