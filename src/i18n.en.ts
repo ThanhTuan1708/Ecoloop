@@ -1096,6 +1096,7 @@ export const en:Record<string,string>={
  "Bạn đã đánh giá {n} sao cho đơn này. Cảm ơn đóng góp của bạn!":"You rated this order {n} stars. Thank you for your feedback!",
  "🏠 Người bán đánh giá":"🏠 Seller rated",
  "🚚 Người thu gom đánh giá":"🚚 Collector rated",
+ "⭐ Đánh giá & Xem":"⭐ Rate & View",
 };
 
 // Messages with a dynamic part (from wallet/server errors).

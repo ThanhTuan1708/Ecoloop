@@ -636,6 +636,7 @@ export default function Pickup({account,admin,onConnect,page='home',role='seller
           <div className="lot-detail" role="dialog" aria-label={selectedCard.title}><span className="lot-sheet-handle" aria-hidden="true"/><button className="text-link" onClick={()=>setSelected(undefined)}>{tr('Đóng chi tiết ×')}</button>
             <span className="eyebrow">{tr('BIÊN NHẬN WEB3 #{id}',{id:current.id})} · {selectedCard.uiState.status}</span>
             <h3>{selectedCard.title}</h3>
+            {(current.status===4||!!catalog.dummyPayments[current.id])&&<LotReviewBox lotId={current.id} sellerWallet={current.owner} collectorWallet={current.collector} currentAccount={account} role={role} admin={admin} onReviewed={setMessage}/>}
             {admin&&<div className="pickup-callout" style={{marginBottom:'12px'}}>
               <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',gap:'8px',flexWrap:'wrap'}}>
                 <strong>🛠️ {tr('Quyền Quản trị Lô #{id}',{id:current.id})}</strong>
@@ -851,7 +852,6 @@ export default function Pickup({account,admin,onConnect,page='home',role='seller
             {isOwner&&current.status===3&&<><p>{tr('Kiểm tra bảng khối lượng thực tế bên trên trước khi xác nhận hoàn tất.')}</p><label className="checkbox"><input type="checkbox" checked={consent} onChange={e=>setConsent(e.target.checked)}/>{tr('Tôi đã bàn giao vật liệu và đồng ý khối lượng thực tế trên.')}</label><button className="primary full-width" disabled={busy||paused||!consent||Date.now()>current.updatedAt+7*86400000} onClick={()=>run(()=>change('acceptLot',[BigInt(current.id)]))}><CheckCircle2 size={16}/>{isCurrentOnChain&&payoutWei!==undefined?tr('Xác nhận & nhận {eco} ECO',{eco:eco(payoutWei)}):tr('Đồng ý số cân')}{freeGas}</button><button className="secondary" disabled={busy} onClick={()=>run(()=>change('disputeLot',[BigInt(current.id)]))}>{tr('Chưa đồng ý · yêu cầu cân lại')}{freeGas}</button></>}
             {actions.releaseLot&&<button className="text-link" disabled={busy} onClick={()=>run(()=>change('releaseLot',[BigInt(current.id)]))}>{isOwner?tr('Mở lại lô do quá hạn'):tr('Hủy nhận đơn (Nhường cho người khác)')}</button>}
             {current.status===4&&<p className="pickup-success"><CheckCircle2 size={18}/>{tr('Hai bên đã xác nhận. Điểm thưởng ECO đã được cộng vào ví người bán.')}</p>}
-            {current.status===4&&<LotReviewBox lotId={current.id} sellerWallet={current.owner} collectorWallet={current.collector} currentAccount={account} role={role} admin={admin} onReviewed={setMessage}/>}
             {current.status===4&&isCurrentOnChain&&certAddress&&<CertificateCard certificate={certAddress} lotId={current.id}/>}
           </div>
         </div>}
@@ -1151,7 +1151,7 @@ function PickupHistorySection({
                         className={selected===card.lotId?'primary history-action-btn':'secondary history-action-btn'}
                         onClick={()=>onSelectLot(card.lotId)}
                       >
-                        {selected===card.lotId?tr('Đang xem'):tr('Xem & xử lý →')}
+                        {selected===card.lotId?tr('Đang xem'):lot?.status===4?tr('⭐ Đánh giá & Xem'):tr('Xem & xử lý →')}
                       </button>
                     </td>
                   </tr>
