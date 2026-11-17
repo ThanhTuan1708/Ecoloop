@@ -1045,6 +1045,19 @@ export const en:Record<string,string>={
  "🏦 Đã rút giả lập 200.000 ₫ về tài khoản Ngân hàng thành công!":"🏦 Simulated withdrawal of 200,000 ₫ to Bank Account succeeded!",
  "Rút thử 200.000 ₫ về Ngân hàng":"Withdraw 200,000 ₫ to Bank (Dummy)",
  "Biên lai thanh toán VNĐ giả lập gần đây ({n})":"Recent Dummy VND Payment Receipts ({n})",
+ "🎉 Đã đổi quà thành công (-{cost} ECO). Mã QR Voucher & Mã Code nhận quà đã sẵn sàng bên dưới!":"🎉 Redeemed reward (-{cost} ECO). Your Voucher QR & Redemption Code are ready below!",
+ "Mã Code:":"Code:",
+ "Đã chép mã":"Copied code",
+ "Sao chép mã":"Copy code",
+ "Ẩn Mã QR":"Hide QR",
+ "Mã QR Nhận Quà":"Voucher QR Code",
+ "Đã xác nhận giao quà cho mã {code}.":"Confirmed reward fulfillment for code {code}.",
+ "PHIẾU VOUCHER ĐIỆN TỬ ECOLOOP":"ECOLOOP DIGITAL VOUCHER",
+ "Mã Code đổi quà:":"Redemption Code:",
+ "Trạng thái phiếu:":"Voucher status:",
+ "✅ Đã sử dụng / Đã nhận quà":"✅ Used / Fulfilled",
+ "🟢 Có hiệu lực — Sẵn sàng quét nhận quà":"🟢 Active — Ready to scan at partner store",
+ "Đưa mã QR hoặc đọc mã Code này cho nhân viên cửa hàng đối tác / trạm thu gom EcoLoop để nhận phần thưởng.":"Show this QR code or read the Redemption Code to staff at partner stores or EcoLoop stations to claim your reward.",
 };
 
 // Messages with a dynamic part (from wallet/server errors).

@@ -79,11 +79,20 @@ export interface DummyPaymentReceipt {
   paidAt: number;
 }
 
+export interface CustomReceiptItem {
+  id: number;
+  reward: number;
+  owner: string;
+  done: boolean;
+  createdAt: number;
+}
+
 export interface AdminCatalogState {
   lotOverrides: Record<number, LotOverride>;
   customLots: CustomLotItem[];
   rewardOverrides: Record<number, RewardOverride>;
   customRewards: CustomRewardItem[];
+  customReceipts: CustomReceiptItem[];
   customMissions: CustomMissionItem[];
   hideCheckIn?: boolean;
   checkInBonusOverride?: number;
@@ -107,6 +116,7 @@ export const DEFAULT_ADMIN_CATALOG: AdminCatalogState = {
   customLots: [],
   rewardOverrides: {},
   customRewards: [],
+  customReceipts: [],
   customMissions: [],
   hideCheckIn: false,
   economics: DEFAULT_ECONOMICS,
@@ -135,6 +145,7 @@ function mergeCatalog(parsed: Partial<AdminCatalogState>): AdminCatalogState {
     customLots: Array.isArray(parsed.customLots) ? parsed.customLots : [],
     rewardOverrides: parsed.rewardOverrides && typeof parsed.rewardOverrides === 'object' ? parsed.rewardOverrides : {},
     customRewards: Array.isArray(parsed.customRewards) ? parsed.customRewards : [],
+    customReceipts: Array.isArray(parsed.customReceipts) ? parsed.customReceipts : [],
     customMissions: Array.isArray(parsed.customMissions) ? parsed.customMissions : [],
     hideCheckIn: !!parsed.hideCheckIn,
     checkInBonusOverride: typeof parsed.checkInBonusOverride === 'number' ? parsed.checkInBonusOverride : undefined,

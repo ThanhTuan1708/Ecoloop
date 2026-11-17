@@ -1,5 +1,5 @@
 import {lazy,Suspense,useEffect,useRef,useState,type FormEvent,type ReactNode} from 'react';
-import {MapPin,Plus,RefreshCw,Navigation,ArrowRight,CheckCircle2,PackageCheck,ShieldCheck,Lock,Star,Coins,SlidersHorizontal,ChevronLeft,ChevronRight,History,Award,ExternalLink,Database,Fuel,Gift,Pencil,Trash2,Eye,EyeOff,Download,Users} from 'lucide-react';
+import {MapPin,Plus,RefreshCw,Navigation,ArrowRight,CheckCircle2,PackageCheck,ShieldCheck,Lock,Star,Coins,SlidersHorizontal,ChevronLeft,ChevronRight,History,Award,ExternalLink,Database,Fuel,Gift,Pencil,Trash2,Eye,EyeOff,Download,Users,QrCode,Copy,Check} from 'lucide-react';
 import {formatEther,isAddress,keccak256,parseEther,stringToHex,type Address,type Hash} from 'viem';
 import {chain,getWalletName} from './wallet';
 import {errorMessage,txUrl,publicClient} from './chain';
@@ -16,6 +16,7 @@ import EarnEco from './EarnEco';
 import {speakFeedback} from './voiceFeedback';
 import {getAdminCatalog,saveAdminCatalog,useAdminCatalog,type CustomLotItem,type CustomRewardItem} from './adminCatalog';
 import {DummyLotPaymentCard,DummyWalletWidget} from './DummyPaymentBox';
+import {qrSvg} from './qr';
 
 const PickupMap=lazy(()=>import('./PickupMap'));
 // Sample data has been removed from the app; clear what older versions stored in this browser.
@@ -1439,8 +1440,16 @@ function PickupRewards({balanceAtomic,gasless,admin,address,account,collector,bu
   const [showHiddenRewards,setShowHiddenRewards]=useState(false);
   const [addingReward,setAddingReward]=useState(false);
   const [receiptFilter,setReceiptFilter]=useState<'all'|'pending'|'done'>('all');
+  const [expandedQrReceiptId,setExpandedQrReceiptId]=useState<number|null>(null);
+  const [copiedCodeId,setCopiedCodeId]=useState<number|null>(null);
 
-  async function reload(){
+  function voucherCodeFor(r:ReceiptItem){
+    const prefix=r.reward===1?'CF':r.reward===2?'TB':r.reward===3?'SH':'VC';
+    const ownerSuffix=(r.owner||'0x0000').slice(2,6).toUpperCase();
+    return `ECO-${prefix}-${String(r.id).padStart(4,'0')}-${ownerSuffix}`;
+  }
+
+  async function reload(autoExpandLatest=false){
     if(!address){setRewards([]);setReceipts([]);return;}
     try{
       const read=(functionName:string,args:unknown[]=[])=>publicClient.readContract({address,abi:pickupAbi,functionName,args} as never) as Promise<any>;
@@ -1454,6 +1463,7 @@ function PickupRewards({balanceAtomic,gasless,admin,address,account,collector,bu
         if(same(owner,account)||collector)list.push({id:i,reward:Number(reward),owner,done});
       }
       setReceipts(list);
+      if(autoExpandLatest&&list.length>0)setExpandedQrReceiptId(list[0].id);
     }catch{/* keep the last loaded list when RPC fails */}
   }
   useEffect(()=>{reload().catch(()=>{});},[address,account,balance,collector]);
@@ -1490,7 +1500,9 @@ function PickupRewards({balanceAtomic,gasless,admin,address,account,collector,bu
     if(tone==='tote')return {image:'/rewards/tote.webp',tone:'tote'};
     return rewardArtwork.get(name||'');
   };
-  const filteredReceipts=receipts.filter(r=>receiptFilter==='all'?true:receiptFilter==='pending'?!r.done:r.done);
+  const customReceiptsForUser:ReceiptItem[]=catalog.customReceipts.filter(r=>same(r.owner,account)||collector);
+  const allReceipts=[...customReceiptsForUser,...receipts];
+  const filteredReceipts=allReceipts.filter(r=>receiptFilter==='all'?true:receiptFilter==='pending'?!r.done:r.done);
 
   return <section className="reward-shop" aria-labelledby="reward-shop-title">
     <header className="reward-shop-header">
@@ -1659,14 +1671,17 @@ function PickupRewards({balanceAtomic,gasless,admin,address,account,collector,bu
                     if(isOnChainReward){
                       await householdWrite(address,account,'redeemReward',[BigInt(reward.id)],gasless);
                       await onChange();
-                      await reload();
+                      await reload(true);
                     }else{
+                      const nextReceiptId=Math.max(500,...allReceipts.map(x=>x.id))+1;
                       await saveAdminCatalog(prev=>({
                         ...prev,
                         customRewards:prev.customRewards.map(c=>c.id===reward.id?{...c,stock:Math.max(0,c.stock-1)}:c),
+                        customReceipts:[{id:nextReceiptId,reward:reward.id,owner:account,done:false,createdAt:Date.now()},...prev.customReceipts],
                       }),account);
+                      setExpandedQrReceiptId(nextReceiptId);
                     }
-                    onDone(tr('Đã đổi quà thành công (-{cost} ECO). Biên nhận đã được tạo!',{cost:fmt(reward.cost)}));
+                    onDone(tr('🎉 Đã đổi quà thành công (-{cost} ECO). Mã QR Voucher & Mã Code nhận quà đã sẵn sàng bên dưới!',{cost:fmt(reward.cost)}));
                   });
                 }}>{unavailable?tr('Hết lượt đổi'):shortfall?tr('Cần thêm {n} ECO',{n:formatEther(reward.costAtomic-balanceAtomic)}):tr('Đổi quà ngay')}<ArrowRight size={17} aria-hidden="true"/></button>
               )}
@@ -1712,7 +1727,85 @@ function PickupRewards({balanceAtomic,gasless,admin,address,account,collector,bu
           </div>
         )}
       </div>
-      {filteredReceipts.length?filteredReceipts.map(r=><div className="pickup-receipt" key={r.id}><span>#{r.id} · <strong>{rewardName(mergedRewards.find(x=>x.id===r.reward)?.name||'')||tr('Quà #{id}',{id:r.reward})}</strong> {tr('· Ví nhận:')} <code>{short(r.owner)}</code> · {r.done?tr('✅ Đã giao quà'):tr('⏳ Chờ nhận tại trạm')}</span>{collector&&!r.done&&<button className="secondary" disabled={busy} onClick={()=>run(async()=>{if(!address||!account)throw new Error(tr('Kết nối ví để xác nhận.'));await pickupWrite(address,account,'fulfillRedemption',[BigInt(r.id)]);await reload();})}>{tr('Xác nhận đã giao quà')}</button>}</div>):<p>{tr('Chưa có biên nhận.')}</p>}
+      {filteredReceipts.length?filteredReceipts.map(r=>{
+        const code=voucherCodeFor(r);
+        const rName=rewardName(mergedRewards.find(x=>x.id===r.reward)?.name||'')||tr('Quà #{id}',{id:r.reward});
+        const qrOpen=expandedQrReceiptId===r.id;
+        const isCustomReceipt=catalog.customReceipts.some(c=>c.id===r.id);
+        const qrPayload=`ECOLOOP-VOUCHER|CODE:${code}|RECEIPT:#${r.id}|REWARD:${rName}|OWNER:${r.owner}|STATUS:${r.done?'USED':'ACTIVE'}`;
+        return (
+          <div className="pickup-receipt" key={r.id} style={{display:'grid',gap:'10px'}}>
+            <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',gap:'10px',flexWrap:'wrap'}}>
+              <span>
+                #{r.id} · <strong>{rName}</strong> · {tr('Mã Code:')} <code>{code}</code> {tr('· Ví nhận:')} <code>{short(r.owner)}</code> ·{' '}
+                {r.done?tr('✅ Đã giao quà'):tr('⏳ Chờ nhận tại trạm')}
+              </span>
+              <div style={{display:'flex',gap:'6px',flexWrap:'wrap'}}>
+                <button
+                  type="button"
+                  className="secondary"
+                  onClick={()=>{
+                    void navigator.clipboard?.writeText(code);
+                    setCopiedCodeId(r.id);
+                    setTimeout(()=>setCopiedCodeId(prev=>prev===r.id?null:prev),1800);
+                  }}
+                >
+                  {copiedCodeId===r.id?<Check size={14}/>:<Copy size={14}/>}{' '}
+                  {copiedCodeId===r.id?tr('Đã chép mã'):tr('Sao chép mã')}
+                </button>
+                <button
+                  type="button"
+                  className={qrOpen?'primary':'secondary'}
+                  onClick={()=>setExpandedQrReceiptId(qrOpen?null:r.id)}
+                >
+                  <QrCode size={14}/> {qrOpen?tr('Ẩn Mã QR'):tr('Mã QR Nhận Quà')}
+                </button>
+                {collector&&!r.done&&(
+                  <button
+                    className="secondary"
+                    disabled={busy}
+                    onClick={()=>run(async()=>{
+                      if(!address||!account)throw new Error(tr('Kết nối ví để xác nhận.'));
+                      if(isCustomReceipt){
+                        await saveAdminCatalog(prev=>({
+                          ...prev,
+                          customReceipts:prev.customReceipts.map(c=>c.id===r.id?{...c,done:true}:c),
+                        }),account);
+                      }else{
+                        await pickupWrite(address,account,'fulfillRedemption',[BigInt(r.id)]);
+                        await reload();
+                      }
+                      onDone(tr('Đã xác nhận giao quà cho mã {code}.',{code}));
+                    })}
+                  >
+                    {tr('Xác nhận đã giao quà')}
+                  </button>
+                )}
+              </div>
+            </div>
+            {qrOpen&&(
+              <div style={{display:'flex',gap:'16px',alignItems:'center',flexWrap:'wrap',background:'rgba(16,185,129,0.07)',padding:'14px',borderRadius:'14px',border:'1px dashed rgba(16,185,129,0.4)'}}>
+                <div
+                  style={{background:'#fff',padding:'8px',borderRadius:'12px',lineHeight:0,boxShadow:'0 2px 8px rgba(0,0,0,0.06)'}}
+                  dangerouslySetInnerHTML={{__html:qrSvg(qrPayload,164)}}
+                />
+                <div style={{flex:1,minWidth:'200px',display:'grid',gap:'6px'}}>
+                  <span className="eyebrow">🎟️ {tr('PHIẾU VOUCHER ĐIỆN TỬ ECOLOOP')}</span>
+                  <h4 style={{margin:0}}>{rName}</h4>
+                  <div>
+                    <span>{tr('Mã Code đổi quà:')} </span>
+                    <code style={{fontSize:'1.08em',fontWeight:700,padding:'2px 8px',background:'rgba(16,185,129,0.15)',borderRadius:'6px'}}>{code}</code>
+                  </div>
+                  <div><span>{tr('Trạng thái phiếu:')} </span><strong>{r.done?tr('✅ Đã sử dụng / Đã nhận quà'):tr('🟢 Có hiệu lực — Sẵn sàng quét nhận quà')}</strong></div>
+                  <p className="footnote" style={{margin:0}}>
+                    {tr('Đưa mã QR hoặc đọc mã Code này cho nhân viên cửa hàng đối tác / trạm thu gom EcoLoop để nhận phần thưởng.')}
+                  </p>
+                </div>
+              </div>
+            )}
+          </div>
+        );
+      }):<p>{tr('Chưa có biên nhận.')}</p>}
     </section></section>;
 }
 function CertificateCard({certificate,lotId,compact}:{certificate:Address;lotId:number;compact?:boolean}){
