@@ -362,36 +362,21 @@ export async function createApp({dataDir=path.resolve(process.env.DATA_DIR||'.da
           const existingInCatalog=currentCatalog.accounts.find(a=>String(a.username||'').toLowerCase()===username.toLowerCase());
           if(existingInCatalog?.blocked)fail(403,'Tài khoản này đã bị Quản trị viên tạm khóa.');
           const userKey=username.toLowerCase().replace(/[^a-z0-9._@-]/g,'_');
+          const accountKey=`accounts/${userKey}.json`;
           const accountFile=path.join(dataDir,'accounts',`${userKey}.json`);
-          let saved=null;
-          try{
-            const raw=await readStored(accountFile);
-            saved=JSON.parse(raw.toString());
-          }catch{/* account not registered on server yet */}
+          const saved=await readJsonState(accountKey,accountFile,null);
           if(mode==='register'){
-            if(saved&&saved.address!==address)fail(409,'Tên tài khoản này đã tồn tại. Vui lòng chọn tên khác hoặc chuyển sang Đăng nhập.');
-            if(!saved){
-              await fs.mkdir(path.dirname(accountFile),{recursive:true}).catch(()=>{});
-              const record=JSON.stringify({username,address,role,createdAt:Date.now()});
-              await writeStored(accountFile,Buffer.from(record)).catch(()=>{});
-            }
-            if(!existingInCatalog){
-              currentCatalog.accounts.push({username,address,role:saved?.role||role,blocked:false,createdAt:Date.now()});
-              await writeJsonState('admin-catalog.json',catalogFile,currentCatalog);
-            }
-            send(200,{ok:true,username,address,role:existingInCatalog?.role||saved?.role||role});return;
-          }
-          if(saved&&saved.address!==address)fail(401,'Sai tài khoản hoặc mật khẩu.');
-          if(!saved){
-            await fs.mkdir(path.dirname(accountFile),{recursive:true}).catch(()=>{});
-            const record=JSON.stringify({username,address,role,createdAt:Date.now()});
-            await writeStored(accountFile,Buffer.from(record)).catch(()=>{});
-          }
-          if(!existingInCatalog){
-            currentCatalog.accounts.push({username:saved?.username||username,address,role:saved?.role||role,blocked:false,createdAt:Date.now()});
+            if(saved||existingInCatalog)fail(409,'Tên tài khoản này đã được đăng ký. Vui lòng chọn tên khác hoặc chuyển sang tab Đăng nhập.');
+            const newRecord={username,address,role,createdAt:Date.now()};
+            await writeJsonState(accountKey,accountFile,newRecord);
+            currentCatalog.accounts.push({username,address,role,blocked:false,createdAt:Date.now()});
             await writeJsonState('admin-catalog.json',catalogFile,currentCatalog);
+            send(200,{ok:true,username,address,role});return;
           }
-          send(200,{ok:true,username:saved?.username||username,address,role:existingInCatalog?.role||saved?.role||role});return;
+          const knownAddress=(saved?.address||existingInCatalog?.address||'').toLowerCase();
+          if(!knownAddress)fail(401,'Tài khoản chưa được đăng ký. Vui lòng chuyển sang tab "Tạo tài khoản mới" để đăng ký trước.');
+          if(knownAddress!==address)fail(401,'Sai tài khoản hoặc mật khẩu.');
+          send(200,{ok:true,username:saved?.username||existingInCatalog?.username||username,address,role:existingInCatalog?.role||saved?.role||role});return;
         }
         if(url.pathname==='/api/evidence/challenge'&&req.method==='POST'){
           const data=fields(JSON.parse((await readBody(req,4096)).toString()));
