@@ -1,6 +1,6 @@
 import {lazy,Suspense,useEffect,useRef,useState,type FormEvent} from 'react';
 import {Recycle,Home,PackageCheck,Gift,Wallet,Plus,Leaf,ArrowUpRight,ChevronDown,X,LogOut,Settings,ShieldCheck,RefreshCw,Truck,MessageCircle,UserPlus,KeyRound} from 'lucide-react';
-import {useWalletSession,ADMIN_WALLET,isDesignatedAdminWallet} from './useWalletSession';
+import {useWalletSession,isDesignatedAdminWallet} from './useWalletSession';
 import {initializeConfiguration,walletBalance} from './chain';
 import {short} from './model';
 import Pickup from './Pickup';
@@ -52,7 +52,7 @@ export default function EcoLoopWeb(){
        speakFeedback(targetRole==='collector'?'Đã đăng nhập vai trò Người thu gom.':'Đã đăng nhập vai trò Người bán.');
      }
    }
-   if(prevAccount.current&&!session.account&&page==='admin'){
+   if(!isDesignatedAdminWallet(session.account)&&page==='admin'){
      setPage('home');
    }
    prevAccount.current=session.account;
@@ -82,7 +82,7 @@ export default function EcoLoopWeb(){
     {page==='home'&&seller&&<><section className="web-hero"><div><p>{tr('GOM ĐIỀU CŨ · GIEO ĐIỀU XANH')}</p><h1>{tr('Dọn nhà nhẹ tênh.')}<br/><span>{tr('Tích điểm xanh.')}</span></h1><div>{tr('Thu gom tận nơi, gần bạn hơn.')}<br/>{tr('Google hoặc Core. Bạn tự chọn.')}</div><button onClick={post}>{tr('Đăng lô phế liệu')} <ArrowUpRight size={16}/></button></div><Recycle className="web-hero-art" strokeWidth={1.2}/></section><div className="web-rates"><b>{tr('ĐIỂM THAM KHẢO')}</b><span>{tr('Giấy')} <strong>10 ECO/kg</strong></span><span>{tr('Nhựa')} <strong>20 ECO/kg</strong></span><span>{tr('Kim loại')} <strong>40 ECO/kg</strong></span><span>{tr('Thủy tinh')} <strong>8 ECO/kg</strong></span><small>{tr('Theo số cân được xác nhận')}</small></div></>}
     {page==='home'&&!seller&&<section className="web-hero"><div><p>{tr('NGƯỜI THU GOM')}</p><h1>{tr('Tìm lô thu gom gần bạn')}</h1><div>{tr('Chọn lô phế liệu gần bạn, bấm nhận đơn để xem địa chỉ, đến nơi cân thực tế và gửi kết quả.')}</div><button onClick={()=>navigate('orders')}>{tr('Lô đã nhận')} <ArrowUpRight size={16}/></button></div><Truck className="web-hero-art" strokeWidth={1.2}/></section>}
     <Pickup collectorLot={collectorLot} onBrowseAsCollector={id=>switchRole('collector',id)} onOpenOrders={()=>navigate('orders')} account={session.account} admin={admin} demo={false} page={page} role={role} createRequest={createRequest} onConnect={()=>setProfile(true)} walletSlot={<WalletCard account={session.account} holder={session.email||session.name} onConnect={()=>setProfile(true)}/>}><SettingsPanel account={session.account} network={session.network} chainId={session.chain.id} chainName={session.chain.name} walletName={session.name}/></Pickup>
-    {page==='settings'&&<details className="nullmaps-settings"><summary>{tr('Bản đồ Nullmaps local · kiểm tra kết nối')}</summary><p>{tr('Nền bản đồ Việt Nam và tìm địa điểm từ máy chủ của bạn. Chưa cấu hình dịch vụ sẽ có thông báo tại đây.')}</p><Suspense fallback={<p>{tr('Đang tải bản đồ…')}</p>}><PickupMap lots={[]}/></Suspense></details>}
+    {page==='admin'&&admin&&<details className="nullmaps-settings"><summary>{tr('Bản đồ Nullmaps local · kiểm tra kết nối')}</summary><p>{tr('Nền bản đồ Việt Nam và tìm địa điểm từ máy chủ của bạn. Chưa cấu hình dịch vụ sẽ có thông báo tại đây.')}</p><Suspense fallback={<p>{tr('Đang tải bản đồ…')}</p>}><PickupMap lots={[]}/></Suspense></details>}
     <footer className="web-footer">© EcoLoop · Make good things go round.<span>● Avalanche Fuji · 43113</span></footer>
    </div>
    <nav className="web-bottom" aria-label={tr("Điều hướng điện thoại")}>{links.filter(l=>l.id==='home'||l.id==='orders').map(n=><button key={n.id} aria-current={page===n.id?'page':undefined} onClick={()=>navigate(n.id)}><n.icon size={22}/><span>{n.label}</span></button>)}{seller&&<button className="web-bottom-post" onClick={post} aria-label={tr('Đăng lô phế liệu')}><i><Plus size={26}/></i><span>{tr('Đăng lô')}</span></button>}{links.filter(l=>l.id==='rewards'||l.id==='wallet'||l.id==='admin').map(n=><button key={n.id} aria-current={page===n.id?'page':undefined} onClick={()=>navigate(n.id)}><n.icon size={22}/><span>{n.label}</span></button>)}{page!=='messages'&&<button className="web-chat-bubble" type="button" aria-label={tr('Tin nhắn')} onClick={()=>navigate('messages')}><MessageCircle size={26} aria-hidden="true"/></button>}</nav>
@@ -118,7 +118,6 @@ export default function EcoLoopWeb(){
     <button className="web-secondary" disabled={session.busy||!session.googleConfigured} onClick={()=>void session.connect('google',false,loginRole)}>{session.busy?tr('Đang kết nối…'):tr('Tiếp tục với Google')}</button>
     {!session.googleConfigured&&<p className="web-warning">{tr('Google chưa được cấu hình. Cần Client ID công khai của dự án thirdweb; Core vẫn dùng được.')}</p>}
     {session.wallets.filter(w=>w.id!=='embedded-google'&&w.id!=='embedded-password').map(w=><button className="web-secondary" key={w.id} disabled={session.busy} onClick={()=>void session.connect(w.id,false,loginRole)}><Wallet size={17}/>{w.name}</button>)}
-    <p className="web-note">{tr('🛡️ Quyền Quản trị viên (Chủ App) thuộc ví:')} <code>{short(ADMIN_WALLET)}</code></p>
     <button className="web-text-button" disabled={session.busy} onClick={session.refresh}>{tr('Quét lại ví')}</button>
    </>}
   </div></dialog>

@@ -891,6 +891,7 @@ export const en:Record<string,string>={
  "Kết nối ví Quản trị":"Connect Admin Wallet",
  "💵 Bảng tính giá trị thu mua phế liệu":"💵 Scrap Purchase Value Breakdown",
  "Đang xử lý…":"Processing…",
+ "Ngôn ngữ, giao diện, đơn vị và thông báo cá nhân.":"Language, appearance, units, and personal notifications.",
 };
 
 // Messages with a dynamic part (from wallet/server errors).

@@ -47,7 +47,7 @@ export default function Pickup({account,admin,onConnect,page='home',role='seller
 }){
   const [rewardsAddress,setRewardsAddress]=useState<Address>();
   const [address,setAddress]=useState<Address>();const [onChainLots,setOnChainLots]=useState<Lot[]>([]);const [count,setCount]=useState(0);const [limit,setLimit]=useState(100);
-  const [balanceAtomic,setBalanceAtomic]=useState(0n);const [view,setView]=useState<'grid'|'map'>('grid');const [pickupAdmin,setPickupAdmin]=useState(false);const [loading,setLoading]=useState(true);const [marketError,setMarketError]=useState(false);const [category,setCategory]=useState(-1);const [query,setQuery]=useState('');const [canFulfillRewards,setCanFulfillRewards]=useState(false);const [paused,setPaused]=useState(false);
+  const [balanceAtomic,setBalanceAtomic]=useState(0n);const [view,setView]=useState<'grid'|'map'>('grid');const [loading,setLoading]=useState(true);const [marketError,setMarketError]=useState(false);const [category,setCategory]=useState(-1);const [query,setQuery]=useState('');const [canFulfillRewards,setCanFulfillRewards]=useState(false);const [paused,setPaused]=useState(false);
   const [selected,setSelected]=useState<number>();const [creating,setCreating]=useState(false);const [radius,setRadius]=useState(0);const [center,setCenter]=useState<[number,number]>();
   const [filtersOpen,setFiltersOpen]=useState(false);const [sort,setSort]=useState<SortOption>('newest');const [pageNum,setPageNum]=useState(1);const [pageSize,setPageSize]=useState(12);
   const [busy,setBusy]=useState(false);const lock=useRef(false);const version=useRef(0);const detailVersion=useRef(0);
@@ -164,7 +164,7 @@ export default function Pickup({account,admin,onConnect,page='home',role='seller
       if(account){
         const wallet=await pickupReadWallet(configured,account).catch(()=>undefined);
         if(v!==version.current)return;
-        setBalanceAtomic(wallet?.balanceAtomic??0n);setCanFulfillRewards(!!wallet?.collector);setPickupAdmin(!!wallet?.admin);
+        setBalanceAtomic(wallet?.balanceAtomic??0n);setCanFulfillRewards(!!wallet?.collector);
       }
     }catch{
       if(v!==version.current)return;
@@ -186,7 +186,7 @@ export default function Pickup({account,admin,onConnect,page='home',role='seller
     setPhoto('');
     setHash(undefined);
     setMessage('');
-    setBalanceAtomic(0n);setCanFulfillRewards(false);setPickupAdmin(false);
+    setBalanceAtomic(0n);setCanFulfillRewards(false);
     setLoading(true);
     const requestVersion=version.current;
     refresh().finally(()=>{if(requestVersion===version.current)setLoading(false);});
@@ -309,7 +309,7 @@ export default function Pickup({account,admin,onConnect,page='home',role='seller
     {page!=='rewards'&&page!=='messages'&&<div className="pickup-page-title">
       <span className="eyebrow">{tr('ECOLOOP · SÀN C2C WEB3 AVALANCHE FUJI')}</span>
       <h2>{({home:seller?tr('Bán phế liệu'):tr('Lô đang chờ thu gom'),orders:seller?tr('Lô của tôi'):tr('Lô đã nhận'),wallet:tr('Ví xanh của bạn'),messages:tr('Tin nhắn'),admin:tr('Quản trị Doanh thu & Hệ thống'),settings:tr('Thiết lập hệ thống')})[page]}</h2>
-      <p>{page==='settings'?tr('Ngôn ngữ, giao diện, đơn vị, thông báo và cấu hình hệ thống.'):page==='admin'?tr('Bảng điều khiển dành riêng cho ví Quản trị viên (0xcCb9…7098): theo dõi lợi nhuận ròng, chiết khấu điều phối và cấu hình sàn.'):tr('Bán và thu gom phế liệu tận nơi minh bạch. Địa chỉ và số điện thoại được bảo mật, chỉ người bán và người nhận đơn xem được.')}</p>
+      <p>{page==='settings'?tr('Ngôn ngữ, giao diện, đơn vị và thông báo cá nhân.'):page==='admin'?tr('Bảng điều khiển dành riêng cho ví Quản trị viên (0xcCb9…7098): theo dõi lợi nhuận ròng, chiết khấu điều phối và cấu hình sàn.'):tr('Bán và thu gom phế liệu tận nơi minh bạch. Địa chỉ và số điện thoại được bảo mật, chỉ người bán và người nhận đơn xem được.')}</p>
     </div>}
     {page==='messages'&&(!account?<button className="primary" onClick={onConnect}>{tr('Kết nối ví')}</button>:
       <div className={`messenger ${chatLot?'messenger-selected':''}`}>
@@ -335,7 +335,7 @@ export default function Pickup({account,admin,onConnect,page='home',role='seller
     {seller&&page==='home'&&<div className="pickup-intro"><div><h2>{tr('Đăng lô để hẹn thu gom')}</h2><p>{tr('Thêm ảnh, khối lượng dự kiến và địa chỉ bàn giao. Xác nhận số cân sau khi người thu gom gửi đề xuất.')}</p></div>{creating?<button className="secondary" disabled={busy} onClick={()=>setCreating(false)}>{tr('Đóng biểu mẫu')}</button>:<button className="primary" onClick={onOpenOrders}>{tr('Lô của tôi')}</button>}</div>}
     {page==='orders'&&!account&&<button className="secondary" onClick={onConnect}>{tr('Kết nối ví')}</button>}
     {loading&&!lots.length&&<p role="status">{tr('Đang tải dữ liệu từ mạng…')}</p>}
-    {(page==='admin'||page==='settings')&&account&&admin&&canConfigurePickup&&!address&&!loading&&!marketError&&<section className="pickup-callout">
+    {page==='admin'&&account&&admin&&canConfigurePickup&&!address&&!loading&&!marketError&&<section className="pickup-callout">
       <h3>{tr('Triển khai contract thu gom V4')}</h3>
         <label className="checkbox"><input type="checkbox" checked={deployConsent} onChange={e=>setDeployConsent(e.target.checked)}/>{tr('Tôi đồng ý tạo contract trên Fuji và xác nhận các giao dịch trong ví.')}</label>
         <button className="primary" disabled={busy||!deployConsent||!!pendingPickup()} onClick={()=>run(async()=>{
@@ -374,7 +374,7 @@ export default function Pickup({account,admin,onConnect,page='home',role='seller
     {message&&!(failure&&current)&&<div className={failure?'pickup-feedback error':'pickup-feedback'} role={failure?'alert':'status'}>{tr(message)}</div>}
     {hash&&<a className="text-link" href={txUrl(hash)} target="_blank" rel="noreferrer">{tr('Xem giao dịch trên Fuji ↗')}</a>}
     {paused&&<p role="alert">{tr('Thu gom đang tạm dừng. Vẫn có thể hủy, yêu cầu cân lại hoặc trả việc.')}</p>}
-    {address&&page!=='settings'&&<div className="data-mode-bar"><span className="live-chip"><ShieldCheck size={15}/>{tr('Dữ liệu thật trên Avalanche')}</span>{gasless?<span className="gasless-chip"><Fuel size={14}/>{tr('Miễn phí gas cho hộ gia đình')}</span>:relayerAddress&&account&&<button type="button" className="text-link" disabled={busy} onClick={()=>void run(async()=>{setHash(await fundRelayer(account,relayerAddress,parseEther('0.1')));await refresh();setMessage(tr('🎉 Đã nạp 0.1 AVAX vào ví tài trợ gas! Tất cả ví Google hiện đã được miễn phí gas.'));})}><Fuel size={14}/>{tr('Nạp 0.1 AVAX bật miễn phí gas cho Ví Google')} ({short(relayerAddress)})</button>}</div>}
+    {address&&page!=='settings'&&<div className="data-mode-bar"><span className="live-chip"><ShieldCheck size={15}/>{tr('Dữ liệu thật trên Avalanche')}</span>{gasless?<span className="gasless-chip"><Fuel size={14}/>{tr('Miễn phí gas cho hộ gia đình')}</span>:admin&&relayerAddress&&account&&<button type="button" className="text-link" disabled={busy} onClick={()=>void run(async()=>{setHash(await fundRelayer(account,relayerAddress,parseEther('0.1')));await refresh();setMessage(tr('🎉 Đã nạp 0.1 AVAX vào ví tài trợ gas! Tất cả ví Google hiện đã được miễn phí gas.'));})}><Fuel size={14}/>{tr('Nạp 0.1 AVAX bật miễn phí gas cho Ví Google')} ({short(relayerAddress)})</button>}</div>}
     {marketError&&(page==='home'||page==='orders')&&<div className="pickup-callout" role="status"><p>{tr('Chưa tải được dữ liệu lô mới nhất. Vui lòng thử lại.')}</p><button type="button" className="secondary" onClick={()=>void refresh()}>{tr('Thử lại')}</button></div>}
     {!address&&page!=='settings'&&page!=='rewards'&&!loading&&!marketError&&<div className="pickup-callout"><strong>{tr('Chưa có contract thu gom V4')}</strong><p>{tr('Các lô sẽ xuất hiện sau khi sàn được cấu hình địa chỉ V4 dùng chung.')}</p></div>}
     {page==='wallet'&&walletSlot}
@@ -382,7 +382,7 @@ export default function Pickup({account,admin,onConnect,page='home',role='seller
       {browseMarket&&<div className="pickup-summary">
         <span><strong>{marketLots.length}</strong> {tr('đang mở bán')}</span>
         <span><strong>{fmt(effectiveBalance)}</strong> {tr('ECO khả dụng')}</span>
-        <a className="text-link" href={addressUrl(address)} target="_blank" rel="noreferrer"><Database size={14}/>{tr('Contract trên Snowtrace')}<ExternalLink size={12}/></a>
+        {admin&&<a className="text-link" href={addressUrl(address)} target="_blank" rel="noreferrer"><Database size={14}/>{tr('Contract trên Snowtrace')}<ExternalLink size={12}/></a>}
       </div>}
       {seller&&creating&&page==='home'&&<LotForm busy={busy||paused} center={center} onCreate={(...args)=>run(()=>create(...args))}/>}
       {browseMarket&&<>
@@ -513,8 +513,10 @@ export default function Pickup({account,admin,onConnect,page='home',role='seller
               <div><span>{tr('Người bán:')}</span> <strong>{selectedCard.seller.displayName}</strong> (<code>{short(current.owner)}</code>) · {tr('({n} lô hoàn tất)',{n:selectedCard.seller.completedSalesCount})}</div>
               <div><span>{tr('Người nhận thu gom:')}</span> <code>{current.collector===ZERO?tr('Chưa có người nhận'):short(current.collector)}</code></div>
               <div><span>{tr('Khu vực bàn giao:')}</span> {selectedCard.seller.location.district}, {selectedCard.seller.location.province}</div>
-              <div><span>Contract V4 (Chain {chain.id}):</span> <code>{address?short(address):'—'}</code></div>
-              <div><span>{tr('SHA-256 ảnh lô:')}</span> <code>{short(current.evidence)}</code></div>
+              {admin&&<>
+                <div><span>Contract V4 (Chain {chain.id}):</span> <code>{address?short(address):'—'}</code></div>
+                <div><span>{tr('SHA-256 ảnh lô:')}</span> <code>{short(current.evidence)}</code></div>
+              </>}
               {selectedCard.onChain.escrowLockExpiresAt&&<div><span>{tr('Thời hạn xử lý đơn:')}</span> {dateTime(selectedCard.onChain.escrowLockExpiresAt)}</div>}
             </div>
             <table><thead><tr><th>{tr('Vật liệu')}</th><th>{tr('Đơn giá thu mua')}</th><th>{tr('Dự kiến')}</th><th>{tr('Thực tế')}</th></tr></thead><tbody>{materials.map((m,i)=><tr key={m.name}><td>{m.symbol} {tr(m.name)}</td><td>{fmt(m.buyVnd)} ₫/kg</td><td>{wt(current.estimated[i]/1000)}</td><td>{[3,4].includes(current.status)?wt(current.actual[i]/1000):'—'}</td></tr>)}</tbody></table>
@@ -641,12 +643,12 @@ export default function Pickup({account,admin,onConnect,page='home',role='seller
         selected={selected}
         onSelectLot={setSelected}
       />}
-      {(page==='admin'||(page==='settings'&&admin))&&admin&&<AdminRevenueDashboard lots={lots}/>}
-      {address&&admin&&account&&(page==='admin'||page==='settings')&&<section className="pickup-callout"><h3>{tr('Quản lý thu gom')}</h3><button type="button" className="secondary" disabled={busy} onClick={()=>run(async()=>{setHash(await pickupWrite(address,account,'setPaused',[!paused]));await refresh();})}>{paused?tr('Mở lại thu gom'):tr('Tạm dừng thu gom')}</button><p className="footnote">Contract V4: {address}{certAddress?<> · NFT: {certAddress}</>:null}</p></section>}
-      {address&&admin&&account&&(page==='admin'||page==='settings')&&<form className="pickup-callout" onSubmit={e=>{e.preventDefault();const f=new FormData(e.currentTarget);run(async()=>{const next=[0,1,2,3].map(i=>{const v=String(f.get('price'+i)||'').replace(',','.');if(!/^\d*\.?\d+$/.test(v)||Number(v)>1_000_000 || (v.split(".")[1]?.length ?? 0)>18)throw new Error(tr('Giá phải từ 0 đến 1.000.000 ECO cho mỗi kg (tối đa 18 chữ số thập phân).'));return parseEther(v);});setHash(await pickupWrite(address,account,'setPrices',[next]));await refresh();setMessage(tr('Đã cập nhật giá thu mua.'));});}}><h3>{tr('Giá thu mua (ECO/kg)')}</h3><p>{tr('Người thu gom khóa số ECO = giá × khối lượng ước tính + 20%. Chủ lô nhận theo số cân thực tế.')}</p><div className="pickup-weights">{materials.map((m,i)=><label key={m.name}>{tr(m.name)}<input name={'price'+i} inputMode="decimal" defaultValue={prices[i]??''} key={String(prices[i])}/></label>)}</div><button className="secondary" disabled={busy}>{tr('Cập nhật giá')}</button></form>}
+      {page==='admin'&&admin&&<AdminRevenueDashboard lots={lots}/>}
+      {address&&admin&&account&&page==='admin'&&<section className="pickup-callout"><h3>{tr('Quản lý thu gom')}</h3><button type="button" className="secondary" disabled={busy} onClick={()=>run(async()=>{setHash(await pickupWrite(address,account,'setPaused',[!paused]));await refresh();})}>{paused?tr('Mở lại thu gom'):tr('Tạm dừng thu gom')}</button><p className="footnote">Contract V4: {address}{certAddress?<> · NFT: {certAddress}</>:null}</p></section>}
+      {address&&admin&&account&&page==='admin'&&<form className="pickup-callout" onSubmit={e=>{e.preventDefault();const f=new FormData(e.currentTarget);run(async()=>{const next=[0,1,2,3].map(i=>{const v=String(f.get('price'+i)||'').replace(',','.');if(!/^\d*\.?\d+$/.test(v)||Number(v)>1_000_000 || (v.split(".")[1]?.length ?? 0)>18)throw new Error(tr('Giá phải từ 0 đến 1.000.000 ECO cho mỗi kg (tối đa 18 chữ số thập phân).'));return parseEther(v);});setHash(await pickupWrite(address,account,'setPrices',[next]));await refresh();setMessage(tr('Đã cập nhật giá thu mua.'));});}}><h3>{tr('Giá thu mua (ECO/kg)')}</h3><p>{tr('Người thu gom khóa số ECO = giá × khối lượng ước tính + 20%. Chủ lô nhận theo số cân thực tế.')}</p><div className="pickup-weights">{materials.map((m,i)=><label key={m.name}>{tr(m.name)}<input name={'price'+i} inputMode="decimal" defaultValue={prices[i]??''} key={String(prices[i])}/></label>)}</div><button className="secondary" disabled={busy}>{tr('Cập nhật giá')}</button></form>}
       {page==='wallet'&&!walletSlot&&<div className="pickup-callout wallet-live"><span>{tr('VÍ ĐIỂM THU GOM ECOLOOP')}</span><h2>{fmt(effectiveBalance)} ECO</h2><p>{account?tr('Ví đã kết nối: {wallet} · Số dư ECO on-chain trên contract V4.',{wallet:short(account)}):tr('Kết nối ví để xem số dư ECO on-chain của bạn.')}</p>{address&&<code>{address}</code>}<p>{tr('Bạn nhận ECO khi hoàn tất bàn giao phế liệu.')}</p></div>}
       {page==='wallet'&&swap&&<EcoExchange {...swap}/>}
-      {(page==='admin'||page==='settings')&&address&&account&&admin&&<form className="pickup-callout" onSubmit={e=>{
+      {page==='admin'&&address&&account&&admin&&<form className="pickup-callout" onSubmit={e=>{
         e.preventDefault();
         const collector=String(new FormData(e.currentTarget).get('collector')).trim();
         void run(async()=>{
@@ -659,7 +661,7 @@ export default function Pickup({account,admin,onConnect,page='home',role='seller
         <label>{publicPickup?tr('Địa chỉ ví giao quà'):tr('Địa chỉ ví thu gom')}<input name="collector" placeholder="0x…" required/></label>
         <button className="secondary" disabled={busy}>{publicPickup?tr('Cấp quyền giao quà'):tr('Cấp quyền thu gom')}</button>
       </form>}
-      {(page==='admin'||page==='settings')&&address&&account&&admin&&exchange&&<ExchangeSettings exchange={exchange} busy={busy} submit={(fn,value)=>void run(async()=>{
+      {page==='admin'&&address&&account&&admin&&exchange&&<ExchangeSettings exchange={exchange} busy={busy} submit={(fn,value)=>void run(async()=>{
         setHash(await pickupWrite(address,account,fn,[value]));
         await refresh();
         setMessage(tr('Đã cập nhật quầy đổi ECO.'));
@@ -674,7 +676,7 @@ export default function Pickup({account,admin,onConnect,page='home',role='seller
           await refresh();
         }}/>
     </>}
-    {page==='rewards'&&<PickupRewards swap={swap} balanceAtomic={balanceAtomic} gasless={gasless} admin={admin||pickupAdmin} address={address} account={account} collector={canFulfillRewards} busy={busy} balance={effectiveBalance} run={run} onChange={refresh} onConnect={onConnect} onDone={setMessage}/>}
+    {page==='rewards'&&<PickupRewards swap={swap} balanceAtomic={balanceAtomic} gasless={gasless} admin={admin} address={address} account={account} collector={admin} busy={busy} balance={effectiveBalance} run={run} onChange={refresh} onConnect={onConnect} onDone={setMessage}/>}
     {busy&&<p role="status" className="pickup-busy">{tr('Đang xử lý… Kiểm tra cửa sổ ví nếu được yêu cầu ký. Không đóng trang khi gửi giao dịch.')}</p>}
   </section>;
 }
