@@ -744,20 +744,6 @@ export default function Pickup({account,admin,onConnect,page='home',role='seller
                 </div>
               );
             })()}
-            {!seller&&!admin&&(
-              <DummyLotPaymentCard
-                lotId={current.id}
-                sellerWallet={current.owner}
-                collectorWallet={current.collector===ZERO?account||current.owner:current.collector}
-                currentAccount={account}
-                admin={admin}
-                sellerCash={calcLotEconomics([3,4].includes(current.status)&&current.actual.some(x=>x>0)?current.actual:current.estimated).sellerCash}
-                collectorFee={calcLotEconomics([3,4].includes(current.status)&&current.actual.some(x=>x>0)?current.actual:current.estimated).collectorFee}
-                appTotalProfit={calcLotEconomics([3,4].includes(current.status)&&current.actual.some(x=>x>0)?current.actual:current.estimated).appTotalProfit}
-                ecoFormatted={selectedCard.pricing.amountFormatted}
-                onPaid={setMessage}
-              />
-            )}
             <p className="lot-points">
               <strong>+{selectedCard.pricing.amountFormatted} ECO</strong>
             </p>
@@ -832,6 +818,27 @@ export default function Pickup({account,admin,onConnect,page='home',role='seller
             {collectorMarket&&(!account||actions.claimLot)&&<button className="primary full-width" disabled={busy||paused||!!account&&(depositWei===undefined||(!gasless&&balanceAtomic<depositWei))} onClick={()=>account?run(()=>change('claimLot',[BigInt(current.id)])):onConnect()}>{!account?tr('Kết nối ví'):tr('Nhận đơn đi thu gom ngay')} <ArrowRight size={16}/></button>}
             {current.status===1&&isOwner&&<button className="secondary" disabled={busy} onClick={()=>run(()=>change('cancelLot',[BigInt(current.id)]))}>{tr('Hủy bài đăng')}{freeGas}</button>}
             {isAssignedCollector&&current.status===2&&<form onSubmit={e=>{e.preventDefault();run(async()=>{const weights=actual.map(s=>Math.round(Number(s)*1000));if(weights.some(n=>!Number.isSafeInteger(n)||n<0)||total(weights)<=0||total(weights)>1000)throw new Error(tr('Tổng khối lượng thực tế từ 0,001 đến 1.000 kg.'));await change('proposeLot',[BigInt(current.id),weights.map(BigInt)]);});}}><h4>{tr('Kết quả cân thực tế tại điểm bàn giao')}</h4><WeightInputs values={actual} onChange={setActual}/><p>{tr('Nhập số cân thực tế sau khi cân tại nhà để gửi cho người bán kiểm tra và xác nhận.')}</p><button className="primary" disabled={busy||paused}>{tr('Gửi số cân')}</button></form>}
+            {!seller&&!admin&&isAssignedCollector&&[2,3,4].includes(current.status)&&(()=>{
+              const liveGrams=current.status===2
+                ?actual.map(s=>Math.max(0,Math.round((Number(s)||0)*1000)))
+                :current.actual.some(x=>x>0)?current.actual:current.estimated;
+              const effectiveGrams=total(liveGrams)>0?liveGrams:current.estimated;
+              const econ=calcLotEconomics(effectiveGrams);
+              return (
+                <DummyLotPaymentCard
+                  lotId={current.id}
+                  sellerWallet={current.owner}
+                  collectorWallet={current.collector}
+                  currentAccount={account}
+                  admin={admin}
+                  sellerCash={econ.sellerCash}
+                  collectorFee={econ.collectorFee}
+                  appTotalProfit={econ.appTotalProfit}
+                  ecoFormatted={fmt(points(effectiveGrams))}
+                  onPaid={setMessage}
+                />
+              );
+            })()}
             {isOwner&&current.status===3&&<><p>{tr('Kiểm tra bảng khối lượng thực tế bên trên trước khi xác nhận hoàn tất.')}</p><label className="checkbox"><input type="checkbox" checked={consent} onChange={e=>setConsent(e.target.checked)}/>{tr('Tôi đã bàn giao vật liệu và đồng ý khối lượng thực tế trên.')}</label><button className="primary full-width" disabled={busy||paused||!consent||Date.now()>current.updatedAt+7*86400000} onClick={()=>run(()=>change('acceptLot',[BigInt(current.id)]))}><CheckCircle2 size={16}/>{isCurrentOnChain&&payoutWei!==undefined?tr('Xác nhận & nhận {eco} ECO',{eco:eco(payoutWei)}):tr('Đồng ý số cân')}{freeGas}</button><button className="secondary" disabled={busy} onClick={()=>run(()=>change('disputeLot',[BigInt(current.id)]))}>{tr('Chưa đồng ý · yêu cầu cân lại')}{freeGas}</button></>}
             {actions.releaseLot&&<button className="text-link" disabled={busy} onClick={()=>run(()=>change('releaseLot',[BigInt(current.id)]))}>{isOwner?tr('Mở lại lô do quá hạn'):tr('Hủy nhận đơn (Nhường cho người khác)')}</button>}
             {current.status===4&&<p className="pickup-success"><CheckCircle2 size={18}/>{tr('Hai bên đã xác nhận. Điểm thưởng ECO đã được cộng vào ví người bán.')}</p>}
