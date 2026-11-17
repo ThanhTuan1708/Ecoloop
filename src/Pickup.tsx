@@ -332,7 +332,7 @@ export default function Pickup({account,admin,onConnect,page='home',role='seller
       </div>)}
     {page==='settings'&&children}
     {page==='admin'&&!admin&&<section className="pickup-callout"><h3>{tr('🛡️ Khu vực dành riêng cho Quản trị viên')}</h3><p>{tr('Quyền quản trị hệ thống và thống kê lợi nhuận Chủ App chỉ thuộc về ví 0xcCb958ed2931073568359336344088A914f57098. Vui lòng kết nối đúng ví quản trị.')}</p><button className="primary" onClick={onConnect}>{tr('Kết nối ví Quản trị')}</button></section>}
-    {seller&&page==='home'&&<div className="pickup-intro"><div><h2>{tr('Đăng lô để hẹn thu gom')}</h2><p>{tr('Thêm ảnh, khối lượng dự kiến và địa chỉ bàn giao. Xác nhận số cân sau khi người thu gom gửi đề xuất.')}</p></div>{creating?<button className="secondary" disabled={busy} onClick={()=>setCreating(false)}>{tr('Đóng biểu mẫu')}</button>:<button className="primary" onClick={onOpenOrders}>{tr('Lô của tôi')}</button>}</div>}
+    {seller&&!admin&&page==='home'&&<div className="pickup-intro"><div><h2>{tr('Đăng lô để hẹn thu gom')}</h2><p>{tr('Thêm ảnh, khối lượng dự kiến và địa chỉ bàn giao. Xác nhận số cân sau khi người thu gom gửi đề xuất.')}</p></div>{creating?<button className="secondary" disabled={busy} onClick={()=>setCreating(false)}>{tr('Đóng biểu mẫu')}</button>:<button className="primary" onClick={onOpenOrders}>{tr('Lô của tôi')}</button>}</div>}
     {page==='orders'&&!account&&<button className="secondary" onClick={onConnect}>{tr('Kết nối ví')}</button>}
     {loading&&!lots.length&&<p role="status">{tr('Đang tải dữ liệu từ mạng…')}</p>}
     {page==='admin'&&account&&admin&&canConfigurePickup&&!address&&!loading&&!marketError&&<section className="pickup-callout">
@@ -384,7 +384,7 @@ export default function Pickup({account,admin,onConnect,page='home',role='seller
         <span><strong>{fmt(effectiveBalance)}</strong> {tr('ECO khả dụng')}</span>
         {admin&&<a className="text-link" href={addressUrl(address)} target="_blank" rel="noreferrer"><Database size={14}/>{tr('Contract trên Snowtrace')}<ExternalLink size={12}/></a>}
       </div>}
-      {seller&&creating&&page==='home'&&<LotForm busy={busy||paused} center={center} onCreate={(...args)=>run(()=>create(...args))}/>}
+      {seller&&!admin&&creating&&page==='home'&&<LotForm busy={busy||paused} center={center} onCreate={(...args)=>run(()=>create(...args))}/>}
       {browseMarket&&<>
         {seller&&<h3>{tr('Lô đang chờ thu gom')}</h3>}
         <div className={filtersOpen?'pickup-toolbar filters-open':'pickup-toolbar'}>
