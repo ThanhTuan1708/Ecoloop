@@ -1058,6 +1058,22 @@ export const en:Record<string,string>={
  "✅ Đã sử dụng / Đã nhận quà":"✅ Used / Fulfilled",
  "🟢 Có hiệu lực — Sẵn sàng quét nhận quà":"🟢 Active — Ready to scan at partner store",
  "Đưa mã QR hoặc đọc mã Code này cho nhân viên cửa hàng đối tác / trạm thu gom EcoLoop để nhận phần thưởng.":"Show this QR code or read the Redemption Code to staff at partner stores or EcoLoop stations to claim your reward.",
+ "Đóng góp Môi trường của bạn":"Your Environmental Impact",
+ "Thống kê Tác động Môi trường Toàn Sàn EcoLoop":"EcoLoop Platform Environmental Impact Analytics",
+ "HỒ SƠ TÁC ĐỘNG XANH CÁ NHÂN":"PERSONAL GREEN IMPACT PROFILE",
+ "CHỈ SỐ TÁC ĐỘNG MÔI TRƯỜNG & ESG TOÀN SÀN":"PLATFORM ENVIRONMENTAL & ESG IMPACT METRICS",
+ "Đóng góp Môi trường của bạn cùng EcoLoop":"Your Environmental Impact with EcoLoop",
+ "Thống kê Tác động Môi trường & Giảm phát thải CO₂":"Environmental Impact & CO₂ Emission Reduction Analytics",
+ "Quy đổi lượng phế liệu bạn đã đăng bán / thu gom thành lượng khí nhà kính CO₂ giảm phát thải, nước sạch và năng lượng tiết kiệm được.":"Converts your listed / collected recyclables into avoided CO₂ greenhouse gas emissions, clean water, and energy saved.",
+ "Dữ liệu thực tế từ {n} lô phế liệu trên Avalanche Fuji ({kg} thu hồi tái chế), quy đổi theo hệ số Đánh giá Vòng đời Sản phẩm (LCA).":"Real-time data from {n} scrap lots on Avalanche Fuji ({kg} recovered for recycling), converted using Life Cycle Assessment (LCA) factors.",
+ "🌍 Giảm phát thải CO₂":"🌍 CO₂ Emissions Avoided",
+ "🌳 Cây xanh tương đương":"🌳 Trees Equivalent",
+ "cây/năm":"trees/yr",
+ "💧 Nước sạch tiết kiệm":"💧 Clean Water Saved",
+ "lít":"L",
+ "⚡ Điện năng tiết kiệm":"⚡ Energy Saved",
+ "Tổng khối lượng tái sinh":"Total Volume Recycled",
+ "lít nước":"L water",
 };
 
 // Messages with a dynamic part (from wallet/server errors).

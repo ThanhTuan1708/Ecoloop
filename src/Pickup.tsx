@@ -16,6 +16,7 @@ import EarnEco from './EarnEco';
 import {speakFeedback} from './voiceFeedback';
 import {getAdminCatalog,saveAdminCatalog,useAdminCatalog,type CustomLotItem,type CustomRewardItem} from './adminCatalog';
 import {DummyLotPaymentCard,DummyWalletWidget} from './DummyPaymentBox';
+import {EnvironmentalImpactBanner} from './EnvironmentalImpact';
 import {qrSvg} from './qr';
 
 const PickupMap=lazy(()=>import('./PickupMap'));
@@ -450,6 +451,7 @@ export default function Pickup({account,admin,onConnect,page='home',role='seller
       </div>}
       {seller&&!admin&&creating&&page==='home'&&<LotForm busy={busy||paused} center={center} onCreate={(...args)=>run(()=>create(...args))}/>}
       {browseMarket&&<>
+        <EnvironmentalImpactBanner lots={lots}/>
         {admin&&<section className="pickup-callout" aria-label={tr('Quản trị Trang bán')}>
           <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',gap:'12px',flexWrap:'wrap'}}>
             <div>
@@ -846,13 +848,17 @@ export default function Pickup({account,admin,onConnect,page='home',role='seller
             {current.status===4&&isCurrentOnChain&&certAddress&&<CertificateCard certificate={certAddress} lotId={current.id}/>}
           </div>
         </div>}
-      {page==='orders'&&account&&<PickupHistorySection
-        allCards={allCards}
-        lots={lots}
-        seller={seller}
-        selected={selected}
-        onSelectLot={setSelected}
-      />}
+      {page==='orders'&&account&&<>
+        <EnvironmentalImpactBanner lots={myLots} personal/>
+        <PickupHistorySection
+          allCards={allCards}
+          lots={lots}
+          seller={seller}
+          selected={selected}
+          onSelectLot={setSelected}
+        />
+      </>}
+      {page==='admin'&&admin&&<EnvironmentalImpactBanner lots={lots}/>}
       {page==='admin'&&admin&&<AdminRevenueDashboard lots={lots}/>}
       {page==='admin'&&admin&&<AdminEconomicsPanel account={account} onDone={setMessage}/>}
       {page==='admin'&&admin&&<AdminAccountsPanel account={account} address={address} publicPickup={publicPickup} busy={busy} run={run} refresh={refresh} setHash={setHash} onDone={setMessage}/>}
