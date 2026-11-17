@@ -137,6 +137,11 @@
 :root[data-theme=dark] .pricing-row.highlight-cash b{color:hsl(26 72.4% 69.6%)}
 :root[data-theme=dark] .pricing-row.highlight-profit b{color:hsl(166 70% 76.2%)}
 :root[data-theme=dark] .pricing-row .eco-val{color:#ee4d2d}
+:root[data-theme=dark] .auth-role-picker{background:hsl(132 14.5% 12%);border:1px solid hsl(132 10.7% 24.9%)}
+:root[data-theme=dark] .auth-role-picker strong{color:hsl(157 43.5% 80.1%)}
+:root[data-theme=dark] .auth-password-form{background:hsl(0 0% 10.5%);border:1px solid hsl(130 9.3% 24.5%)}
+:root[data-theme=dark] .auth-password-form label{color:hsl(149 25.7% 77.6%)}
+:root[data-theme=dark] .auth-password-form input{background:hsl(100 12.7% 11.5%);border:1px solid hsl(129 9% 25.5%);color:hsl(150 29.8% 80.7%)}
 :root[data-theme=dark] .shopee-pagination-footer{background:hsl(0 0% 10.5%);border:1px solid hsl(120 8.3% 24.2%)}
 :root[data-theme=dark] .pickup-history-panel{background:hsl(0 0% 10.5%);border:1px solid hsl(120 9.3% 24.5%)}
 :root[data-theme=dark] .pickup-history-header{border-bottom:1px solid hsl(120 9.6% 22.2%)}

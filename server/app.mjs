@@ -200,6 +200,37 @@ export async function createApp({dataDir=path.resolve(process.env.DATA_DIR||'.da
           if(!body||typeof body!=='object'||Array.isArray(body))fail(400,'Thông tin lô thu gom không hợp lệ.');
           send(200,await pickupChat(req,url,body));return;
         }
+        if(url.pathname==='/api/auth/account'&&req.method==='POST'){
+          const body=JSON.parse((await readBody(req,4096)).toString());
+          const username=String(body.username||'').trim();
+          const address=String(body.address||'').toLowerCase();
+          const mode=body.mode==='register'?'register':'login';
+          const role=body.role==='collector'?'collector':'seller';
+          if(username.length<3||username.length>64||!isAddress(address))fail(400,'Thông tin tài khoản không hợp lệ.');
+          const userKey=username.toLowerCase().replace(/[^a-z0-9._@-]/g,'_');
+          const accountFile=path.join(dataDir,'accounts',`${userKey}.json`);
+          let saved=null;
+          try{
+            const raw=await readStored(accountFile);
+            saved=JSON.parse(raw.toString());
+          }catch{/* account not registered on server yet */}
+          if(mode==='register'){
+            if(saved&&saved.address!==address)fail(409,'Tên tài khoản này đã tồn tại. Vui lòng chọn tên khác hoặc chuyển sang Đăng nhập.');
+            if(!saved){
+              await fs.mkdir(path.dirname(accountFile),{recursive:true}).catch(()=>{});
+              const record=JSON.stringify({username,address,role,createdAt:Date.now()});
+              await writeStored(accountFile,Buffer.from(record)).catch(()=>{});
+            }
+            send(200,{ok:true,username,address,role:saved?.role||role});return;
+          }
+          if(saved&&saved.address!==address)fail(401,'Sai tài khoản hoặc mật khẩu.');
+          if(!saved){
+            await fs.mkdir(path.dirname(accountFile),{recursive:true}).catch(()=>{});
+            const record=JSON.stringify({username,address,role,createdAt:Date.now()});
+            await writeStored(accountFile,Buffer.from(record)).catch(()=>{});
+          }
+          send(200,{ok:true,username:saved?.username||username,address,role:saved?.role||role});return;
+        }
         if(url.pathname==='/api/evidence/challenge'&&req.method==='POST'){
           const data=fields(JSON.parse((await readBody(req,4096)).toString()));
           const now=Date.now();for(const [nonce,record]of challenges)if(record.expiry<now)challenges.delete(nonce);

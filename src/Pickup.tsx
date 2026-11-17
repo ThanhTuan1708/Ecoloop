@@ -41,7 +41,7 @@ function calcLotEconomics(weights:number[]){
 
 export default function Pickup({account,admin,onConnect,page='home',role='seller',createRequest=0,onOpenOrders,onBrowseAsCollector,collectorLot,children,walletSlot}:{
   children?:ReactNode;walletSlot?:ReactNode;account?:Address;admin:boolean;
-  demo?:boolean;onConnect:()=>void;page?:'home'|'orders'|'wallet'|'rewards'|'settings'|'messages';
+  demo?:boolean;onConnect:()=>void;page?:'home'|'orders'|'wallet'|'rewards'|'settings'|'messages'|'admin';
   role?:'seller'|'collector';createRequest?:number;collectorLot?:number;
   onOpenOrders:()=>void;onBrowseAsCollector:(lotId:number)=>void;
 }){
@@ -308,8 +308,8 @@ export default function Pickup({account,admin,onConnect,page='home',role='seller
   return <section className={`pickup-workspace pickup-page-${page}`}>
     {page!=='rewards'&&page!=='messages'&&<div className="pickup-page-title">
       <span className="eyebrow">{tr('ECOLOOP · SÀN C2C WEB3 AVALANCHE FUJI')}</span>
-      <h2>{({home:seller?tr('Bán phế liệu'):tr('Lô đang chờ thu gom'),orders:seller?tr('Lô của tôi'):tr('Lô đã nhận'),wallet:tr('Ví xanh của bạn'),messages:tr('Tin nhắn'),settings:tr('Thiết lập hệ thống')})[page]}</h2>
-      <p>{page==='settings'?tr('Ngôn ngữ, giao diện, đơn vị, thông báo và cấu hình hệ thống.'):tr('Bán và thu gom phế liệu tận nơi minh bạch. Địa chỉ và số điện thoại được bảo mật, chỉ người bán và người nhận đơn xem được.')}</p>
+      <h2>{({home:seller?tr('Bán phế liệu'):tr('Lô đang chờ thu gom'),orders:seller?tr('Lô của tôi'):tr('Lô đã nhận'),wallet:tr('Ví xanh của bạn'),messages:tr('Tin nhắn'),admin:tr('Quản trị Doanh thu & Hệ thống'),settings:tr('Thiết lập hệ thống')})[page]}</h2>
+      <p>{page==='settings'?tr('Ngôn ngữ, giao diện, đơn vị, thông báo và cấu hình hệ thống.'):page==='admin'?tr('Bảng điều khiển dành riêng cho ví Quản trị viên (0xcCb9…7098): theo dõi lợi nhuận ròng, chiết khấu điều phối và cấu hình sàn.'):tr('Bán và thu gom phế liệu tận nơi minh bạch. Địa chỉ và số điện thoại được bảo mật, chỉ người bán và người nhận đơn xem được.')}</p>
     </div>}
     {page==='messages'&&(!account?<button className="primary" onClick={onConnect}>{tr('Kết nối ví')}</button>:
       <div className={`messenger ${chatLot?'messenger-selected':''}`}>
@@ -331,11 +331,11 @@ export default function Pickup({account,admin,onConnect,page='home',role='seller
         </section>
       </div>)}
     {page==='settings'&&children}
-    {page==='settings'&&(admin||pickupAdmin)&&<h3 className="set-section-title">{tr('Quản trị hệ thống')}</h3>}
+    {page==='admin'&&!admin&&<section className="pickup-callout"><h3>{tr('🛡️ Khu vực dành riêng cho Quản trị viên')}</h3><p>{tr('Quyền quản trị hệ thống và thống kê lợi nhuận Chủ App chỉ thuộc về ví 0xcCb958ed2931073568359336344088A914f57098. Vui lòng kết nối đúng ví quản trị.')}</p><button className="primary" onClick={onConnect}>{tr('Kết nối ví Quản trị')}</button></section>}
     {seller&&page==='home'&&<div className="pickup-intro"><div><h2>{tr('Đăng lô để hẹn thu gom')}</h2><p>{tr('Thêm ảnh, khối lượng dự kiến và địa chỉ bàn giao. Xác nhận số cân sau khi người thu gom gửi đề xuất.')}</p></div>{creating?<button className="secondary" disabled={busy} onClick={()=>setCreating(false)}>{tr('Đóng biểu mẫu')}</button>:<button className="primary" onClick={onOpenOrders}>{tr('Lô của tôi')}</button>}</div>}
     {page==='orders'&&!account&&<button className="secondary" onClick={onConnect}>{tr('Kết nối ví')}</button>}
     {loading&&!lots.length&&<p role="status">{tr('Đang tải dữ liệu từ mạng…')}</p>}
-    {page==='settings'&&account&&admin&&canConfigurePickup&&!address&&!loading&&!marketError&&<section className="pickup-callout">
+    {(page==='admin'||page==='settings')&&account&&admin&&canConfigurePickup&&!address&&!loading&&!marketError&&<section className="pickup-callout">
       <h3>{tr('Triển khai contract thu gom V4')}</h3>
         <label className="checkbox"><input type="checkbox" checked={deployConsent} onChange={e=>setDeployConsent(e.target.checked)}/>{tr('Tôi đồng ý tạo contract trên Fuji và xác nhận các giao dịch trong ví.')}</label>
         <button className="primary" disabled={busy||!deployConsent||!!pendingPickup()} onClick={()=>run(async()=>{
@@ -524,11 +524,7 @@ export default function Pickup({account,admin,onConnect,page='home',role='seller
               const {sellerCash,stationCash,collectorFee,appCommission,eprVnd,appTotalProfit}=calcLotEconomics(activeWeights);
               return (
                 <div className="pricing-breakdown-box">
-                  <strong>{tr('💵 Bảng tính tiền thu mua & Lợi nhuận Chủ App')} ({isActual?tr('Theo cân thực tế'):tr('Tạm tính theo dự kiến')})</strong>
-                  <div className="pricing-row">
-                    <span>{tr('Giá bao tiêu gốc từ Nhà máy tái chế:')}</span>
-                    <b>{fmt(stationCash)} ₫</b>
-                  </div>
+                  <strong>{admin?tr('💵 Bảng tính tiền thu mua & Lợi nhuận Chủ App'):tr('💵 Bảng tính giá trị thu mua phế liệu')} ({isActual?tr('Theo cân thực tế'):tr('Tạm tính theo dự kiến')})</strong>
                   <div className="pricing-row highlight-cash">
                     <span>{tr('Tiền mặt trả cho Người bán:')}</span>
                     <b>{fmt(sellerCash)} ₫ (+{selectedCard.pricing.amountFormatted} ECO)</b>
@@ -537,18 +533,24 @@ export default function Pickup({account,admin,onConnect,page='home',role='seller
                     <span>{tr('Thù lao vận chuyển cho Người thu gom (60% chênh lệch):')}</span>
                     <b>+{fmt(collectorFee)} ₫</b>
                   </div>
-                  <div className="pricing-row">
-                    <span>{tr('Chiết khấu điều phối về Chủ App EcoLoop (40% chênh lệch):')}</span>
-                    <b>+{fmt(appCommission)} ₫</b>
-                  </div>
-                  <div className="pricing-row">
-                    <span>{tr('Doanh thu bán Tín chỉ Tái chế EPR (B2B NFT) về Chủ App:')}</span>
-                    <b>+{fmt(eprVnd)} ₫</b>
-                  </div>
-                  <div className="pricing-row highlight-profit">
-                    <span>{tr('💎 Tổng lợi nhuận ròng về Chủ App EcoLoop:')}</span>
-                    <b>+{fmt(appTotalProfit)} ₫</b>
-                  </div>
+                  {admin&&<>
+                    <div className="pricing-row">
+                      <span>{tr('Giá bao tiêu gốc từ Nhà máy tái chế:')}</span>
+                      <b>{fmt(stationCash)} ₫</b>
+                    </div>
+                    <div className="pricing-row">
+                      <span>{tr('Chiết khấu điều phối về Chủ App EcoLoop (40% chênh lệch):')}</span>
+                      <b>+{fmt(appCommission)} ₫</b>
+                    </div>
+                    <div className="pricing-row">
+                      <span>{tr('Doanh thu bán Tín chỉ Tái chế EPR (B2B NFT) về Chủ App:')}</span>
+                      <b>+{fmt(eprVnd)} ₫</b>
+                    </div>
+                    <div className="pricing-row highlight-profit">
+                      <span>{tr('💎 Tổng lợi nhuận ròng về Chủ App EcoLoop:')}</span>
+                      <b>+{fmt(appTotalProfit)} ₫</b>
+                    </div>
+                  </>}
                 </div>
               );
             })()}
@@ -639,12 +641,12 @@ export default function Pickup({account,admin,onConnect,page='home',role='seller
         selected={selected}
         onSelectLot={setSelected}
       />}
-      {page==='settings'&&<AdminRevenueDashboard lots={lots}/>}
-      {address&&(admin||pickupAdmin)&&account&&page==='settings'&&<section className="pickup-callout"><h3>{tr('Quản lý thu gom')}</h3><button type="button" className="secondary" disabled={busy} onClick={()=>run(async()=>{setHash(await pickupWrite(address,account,'setPaused',[!paused]));await refresh();})}>{paused?tr('Mở lại thu gom'):tr('Tạm dừng thu gom')}</button><p className="footnote">Contract V4: {address}{certAddress?<> · NFT: {certAddress}</>:null}</p></section>}
-      {address&&(admin||pickupAdmin)&&account&&page==='settings'&&<form className="pickup-callout" onSubmit={e=>{e.preventDefault();const f=new FormData(e.currentTarget);run(async()=>{const next=[0,1,2,3].map(i=>{const v=String(f.get('price'+i)||'').replace(',','.');if(!/^\d*\.?\d+$/.test(v)||Number(v)>1_000_000 || (v.split(".")[1]?.length ?? 0)>18)throw new Error(tr('Giá phải từ 0 đến 1.000.000 ECO cho mỗi kg (tối đa 18 chữ số thập phân).'));return parseEther(v);});setHash(await pickupWrite(address,account,'setPrices',[next]));await refresh();setMessage(tr('Đã cập nhật giá thu mua.'));});}}><h3>{tr('Giá thu mua (ECO/kg)')}</h3><p>{tr('Người thu gom khóa số ECO = giá × khối lượng ước tính + 20%. Chủ lô nhận theo số cân thực tế.')}</p><div className="pickup-weights">{materials.map((m,i)=><label key={m.name}>{tr(m.name)}<input name={'price'+i} inputMode="decimal" defaultValue={prices[i]??''} key={String(prices[i])}/></label>)}</div><button className="secondary" disabled={busy}>{tr('Cập nhật giá')}</button></form>}
+      {(page==='admin'||(page==='settings'&&admin))&&admin&&<AdminRevenueDashboard lots={lots}/>}
+      {address&&admin&&account&&(page==='admin'||page==='settings')&&<section className="pickup-callout"><h3>{tr('Quản lý thu gom')}</h3><button type="button" className="secondary" disabled={busy} onClick={()=>run(async()=>{setHash(await pickupWrite(address,account,'setPaused',[!paused]));await refresh();})}>{paused?tr('Mở lại thu gom'):tr('Tạm dừng thu gom')}</button><p className="footnote">Contract V4: {address}{certAddress?<> · NFT: {certAddress}</>:null}</p></section>}
+      {address&&admin&&account&&(page==='admin'||page==='settings')&&<form className="pickup-callout" onSubmit={e=>{e.preventDefault();const f=new FormData(e.currentTarget);run(async()=>{const next=[0,1,2,3].map(i=>{const v=String(f.get('price'+i)||'').replace(',','.');if(!/^\d*\.?\d+$/.test(v)||Number(v)>1_000_000 || (v.split(".")[1]?.length ?? 0)>18)throw new Error(tr('Giá phải từ 0 đến 1.000.000 ECO cho mỗi kg (tối đa 18 chữ số thập phân).'));return parseEther(v);});setHash(await pickupWrite(address,account,'setPrices',[next]));await refresh();setMessage(tr('Đã cập nhật giá thu mua.'));});}}><h3>{tr('Giá thu mua (ECO/kg)')}</h3><p>{tr('Người thu gom khóa số ECO = giá × khối lượng ước tính + 20%. Chủ lô nhận theo số cân thực tế.')}</p><div className="pickup-weights">{materials.map((m,i)=><label key={m.name}>{tr(m.name)}<input name={'price'+i} inputMode="decimal" defaultValue={prices[i]??''} key={String(prices[i])}/></label>)}</div><button className="secondary" disabled={busy}>{tr('Cập nhật giá')}</button></form>}
       {page==='wallet'&&!walletSlot&&<div className="pickup-callout wallet-live"><span>{tr('VÍ ĐIỂM THU GOM ECOLOOP')}</span><h2>{fmt(effectiveBalance)} ECO</h2><p>{account?tr('Ví đã kết nối: {wallet} · Số dư ECO on-chain trên contract V4.',{wallet:short(account)}):tr('Kết nối ví để xem số dư ECO on-chain của bạn.')}</p>{address&&<code>{address}</code>}<p>{tr('Bạn nhận ECO khi hoàn tất bàn giao phế liệu.')}</p></div>}
       {page==='wallet'&&swap&&<EcoExchange {...swap}/>}
-      {page==='settings'&&address&&account&&pickupAdmin&&<form className="pickup-callout" onSubmit={e=>{
+      {(page==='admin'||page==='settings')&&address&&account&&admin&&<form className="pickup-callout" onSubmit={e=>{
         e.preventDefault();
         const collector=String(new FormData(e.currentTarget).get('collector')).trim();
         void run(async()=>{
@@ -657,7 +659,7 @@ export default function Pickup({account,admin,onConnect,page='home',role='seller
         <label>{publicPickup?tr('Địa chỉ ví giao quà'):tr('Địa chỉ ví thu gom')}<input name="collector" placeholder="0x…" required/></label>
         <button className="secondary" disabled={busy}>{publicPickup?tr('Cấp quyền giao quà'):tr('Cấp quyền thu gom')}</button>
       </form>}
-      {page==='settings'&&address&&account&&pickupAdmin&&exchange&&<ExchangeSettings exchange={exchange} busy={busy} submit={(fn,value)=>void run(async()=>{
+      {(page==='admin'||page==='settings')&&address&&account&&admin&&exchange&&<ExchangeSettings exchange={exchange} busy={busy} submit={(fn,value)=>void run(async()=>{
         setHash(await pickupWrite(address,account,fn,[value]));
         await refresh();
         setMessage(tr('Đã cập nhật quầy đổi ECO.'));

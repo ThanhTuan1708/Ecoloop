@@ -42,13 +42,13 @@ export function subscribeWallets(callback: () => void) { subscribers.add(callbac
 export function walletSnapshot() { return snapshot; }
 export function getProvider() { return active; }
 export function getWalletName() { return discovered.get(activeId)?.name || 'Core / ví trình duyệt'; }
-export function disconnectWallet() { const cleanup=activeId==='embedded-google'?embeddedDisconnect:undefined;if(activeId==='embedded-google'){discovered.delete(activeId);publish();} active = undefined; activeId = ''; localStorage.removeItem('ecoloop-wallet'); return cleanup?.(); }
-export function registerEmbedded(provider:Provider,disconnect:()=>Promise<void>,signMessage?:(account:Address,message:string)=>Promise<Hex>){
+export function disconnectWallet() { const isEmbedded=activeId==='embedded-google'||activeId==='embedded-password'; const cleanup=isEmbedded?embeddedDisconnect:undefined;if(isEmbedded){discovered.delete(activeId);publish();} active = undefined; activeId = ''; localStorage.removeItem('ecoloop-wallet'); return cleanup?.(); }
+export function registerEmbedded(provider:Provider,disconnect:()=>Promise<void>,signMessage?:(account:Address,message:string)=>Promise<Hex>,meta:{id:string;name:string;rdns:string}={id:'embedded-google',name:'Ví Google',rdns:'ecoloop.google'}){
   embeddedDisconnect=disconnect;
   embeddedSignMessage=signMessage;
-  add({id:'embedded-google',name:'Ví Google',rdns:'ecoloop.google',provider});
-  selectProvider('embedded-google');
-  localStorage.setItem('ecoloop-wallet','ecoloop.google');
+  add({id:meta.id,name:meta.name,rdns:meta.rdns,provider});
+  selectProvider(meta.id);
+  localStorage.setItem('ecoloop-wallet',meta.rdns);
 }
 export function selectProvider(id: string) {
   const option = discovered.get(id);
@@ -99,7 +99,7 @@ export async function assertWallet(account: Address) {
 }
 export async function signAuthorizationMessage(account:Address,message:string){
   const wallet=await assertWallet(account);
-  if(activeId==='embedded-google'&&embeddedSignMessage)return embeddedSignMessage(account,message);
+  if((activeId==='embedded-google'||activeId==='embedded-password')&&embeddedSignMessage)return embeddedSignMessage(account,message);
   return wallet.signMessage({message});
 }
 discoverWallets();
