@@ -1,5 +1,7 @@
 import {useEffect,useState} from 'react';
+import type {Address} from 'viem';
 import {ADMIN_WALLET} from './useWalletSession';
+import {signAuthorizationMessage} from './wallet';
 
 export interface LotOverride {
   lotId: number;
@@ -87,6 +89,13 @@ export interface CustomReceiptItem {
   createdAt: number;
 }
 
+export interface MissionClaimRecord {
+  missionId: string;
+  account: string;
+  rewardEco: number;
+  claimedAt: number;
+}
+
 export interface AdminCatalogState {
   lotOverrides: Record<number, LotOverride>;
   customLots: CustomLotItem[];
@@ -94,6 +103,7 @@ export interface AdminCatalogState {
   customRewards: CustomRewardItem[];
   customReceipts: CustomReceiptItem[];
   customMissions: CustomMissionItem[];
+  missionClaims: Record<string, MissionClaimRecord>;
   hideCheckIn?: boolean;
   checkInBonusOverride?: number;
   economics: EconomicsConfig;
@@ -118,6 +128,7 @@ export const DEFAULT_ADMIN_CATALOG: AdminCatalogState = {
   customRewards: [],
   customReceipts: [],
   customMissions: [],
+  missionClaims: {},
   hideCheckIn: false,
   economics: DEFAULT_ECONOMICS,
   accounts: [],
@@ -147,6 +158,7 @@ function mergeCatalog(parsed: Partial<AdminCatalogState>): AdminCatalogState {
     customRewards: Array.isArray(parsed.customRewards) ? parsed.customRewards : [],
     customReceipts: Array.isArray(parsed.customReceipts) ? parsed.customReceipts : [],
     customMissions: Array.isArray(parsed.customMissions) ? parsed.customMissions : [],
+    missionClaims: parsed.missionClaims && typeof parsed.missionClaims === 'object' ? parsed.missionClaims : {},
     hideCheckIn: !!parsed.hideCheckIn,
     checkInBonusOverride: typeof parsed.checkInBonusOverride === 'number' ? parsed.checkInBonusOverride : undefined,
     economics: {
@@ -169,8 +181,20 @@ function mergeCatalog(parsed: Partial<AdminCatalogState>): AdminCatalogState {
   };
 }
 
-function notifyListeners() {
+function persistLocal(next: AdminCatalogState) {
+  currentState = next;
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
+  } catch {
+    // ignore storage quota errors
+  }
   for (const fn of listeners) fn();
+}
+
+async function sha256Hex(text: string): Promise<string> {
+  const bytes = new TextEncoder().encode(text);
+  const hash = await crypto.subtle.digest('SHA-256', bytes);
+  return Array.from(new Uint8Array(hash), b => b.toString(16).padStart(2, '0')).join('');
 }
 
 export function getAdminCatalog(): AdminCatalogState {
@@ -179,22 +203,22 @@ export function getAdminCatalog(): AdminCatalogState {
 
 export async function syncAdminCatalogFromServer(): Promise<AdminCatalogState> {
   try {
-    const res = await fetch('/api/admin/catalog', {cache: 'no-store'});
-    if (res.ok) {
-      const data = (await res.json()) as Partial<AdminCatalogState>;
-      currentState = mergeCatalog({
-        ...currentState,
-        ...data,
-        dummyPayments: {...currentState.dummyPayments, ...(data.dummyPayments || {})},
-        dummyVndBalances: {...currentState.dummyVndBalances, ...(data.dummyVndBalances || {})},
-      });
-      try {
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(currentState));
-      } catch {
-        // ignore storage quota errors
-      }
-      notifyListeners();
-    }
+    const [adminRes, userRes] = await Promise.all([
+      fetch('/api/admin/catalog', {cache: 'no-store'}),
+      fetch('/api/user-state', {cache: 'no-store'}),
+    ]);
+    const adminData = adminRes.ok ? ((await adminRes.json()) as Partial<AdminCatalogState>) : {};
+    const userData = userRes.ok ? ((await userRes.json()) as Partial<AdminCatalogState>) : {};
+    persistLocal(mergeCatalog({
+      ...currentState,
+      ...adminData,
+      dummyPayments: {...currentState.dummyPayments, ...(userData.dummyPayments || {})},
+      dummyVndBalances: {...currentState.dummyVndBalances, ...(userData.dummyVndBalances || {})},
+      customReceipts: Array.isArray(userData.customReceipts) && userData.customReceipts.length
+        ? userData.customReceipts
+        : currentState.customReceipts,
+      missionClaims: {...currentState.missionClaims, ...(userData.missionClaims || {})},
+    }));
   } catch {
     // offline or local fallback
   }
@@ -205,66 +229,156 @@ export async function saveAdminCatalog(
   updater: (prev: AdminCatalogState) => AdminCatalogState,
   adminAccount?: string
 ): Promise<AdminCatalogState> {
+  if (!adminAccount || adminAccount.toLowerCase() !== ADMIN_WALLET.toLowerCase()) {
+    throw new Error('Chỉ ví Quản trị viên mới có quyền lưu thay đổi quản trị.');
+  }
   const next = mergeCatalog(updater(currentState));
-  currentState = next;
-  try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
-  } catch {
-    // ignore storage quota errors
+  const adminPayload = {
+    lotOverrides: next.lotOverrides,
+    customLots: next.customLots,
+    rewardOverrides: next.rewardOverrides,
+    customRewards: next.customRewards,
+    customMissions: next.customMissions,
+    hideCheckIn: next.hideCheckIn,
+    checkInBonusOverride: next.checkInBonusOverride,
+    economics: next.economics,
+    accounts: next.accounts,
+  };
+  const timestamp = Date.now();
+  const digest = await sha256Hex(JSON.stringify(adminPayload));
+  const message = `EcoLoop Admin Catalog Update\nAdmin: ${adminAccount.toLowerCase()}\nHash: ${digest}\nTimestamp: ${timestamp}`;
+  const signature = await signAuthorizationMessage(adminAccount as Address, message);
+
+  const res = await fetch('/api/admin/catalog', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({
+      adminAccount,
+      timestamp,
+      signature,
+      catalog: adminPayload,
+    }),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.error || 'Không lưu được cấu hình quản trị lên máy chủ.');
   }
-  notifyListeners();
-  try {
-    await fetch('/api/admin/catalog', {
-      method: 'POST',
-      headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({
-        adminAccount: adminAccount || ADMIN_WALLET,
-        catalog: next,
-      }),
-    });
-  } catch {
-    // local state already updated
-  }
+  persistLocal(next);
   return next;
 }
 
-export async function recordDummyLotPayment(receipt: DummyPaymentReceipt): Promise<AdminCatalogState> {
+export async function recordDummyLotPayment(account: string, receipt: DummyPaymentReceipt): Promise<AdminCatalogState> {
   const sellerKey = receipt.sellerWallet.toLowerCase();
   const collectorKey = receipt.collectorWallet.toLowerCase();
   const adminKey = ADMIN_WALLET.toLowerCase();
+  const timestamp = Date.now();
+  const msg = `EcoLoop Dummy Payment\nAccount: ${account.toLowerCase()}\nLot: ${receipt.lotId}\nAmount: ${receipt.sellerCashVnd}\nTimestamp: ${timestamp}`;
+  const signature = await signAuthorizationMessage(account as Address, msg);
 
-  return saveAdminCatalog(prev => {
-    const alreadyPaid = !!prev.dummyPayments[receipt.lotId];
-    const nextBalances = {...prev.dummyVndBalances};
-    if (!alreadyPaid) {
-      const currentCollectorBal = nextBalances[collectorKey] ?? 2_000_000;
-      nextBalances[collectorKey] = Math.max(0, currentCollectorBal - receipt.sellerCashVnd) + receipt.collectorFeeVnd;
-      nextBalances[sellerKey] = (nextBalances[sellerKey] ?? 0) + receipt.sellerCashVnd;
-      nextBalances[adminKey] = (nextBalances[adminKey] ?? 0) + receipt.appProfitVnd;
-    }
-    return {
-      ...prev,
-      dummyPayments: {
-        ...prev.dummyPayments,
-        [receipt.lotId]: receipt,
-      },
-      dummyVndBalances: nextBalances,
-    };
+  const alreadyPaid = !!currentState.dummyPayments[receipt.lotId];
+  const nextBalances = {...currentState.dummyVndBalances};
+  if (!alreadyPaid) {
+    const currentCollectorBal = nextBalances[collectorKey] ?? 2_000_000;
+    nextBalances[collectorKey] = Math.max(0, currentCollectorBal - receipt.sellerCashVnd) + receipt.collectorFeeVnd;
+    nextBalances[sellerKey] = (nextBalances[sellerKey] ?? 0) + receipt.sellerCashVnd;
+    nextBalances[adminKey] = (nextBalances[adminKey] ?? 0) + receipt.appProfitVnd;
+  }
+  persistLocal({
+    ...currentState,
+    dummyPayments: {...currentState.dummyPayments, [receipt.lotId]: receipt},
+    dummyVndBalances: nextBalances,
   });
+
+  try {
+    const res = await fetch('/api/payments', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({account, timestamp, signature, receipt}),
+    });
+    if (res.ok) {
+      const data = await res.json();
+      if (data.state) persistLocal(mergeCatalog({...currentState, ...data.state}));
+    }
+  } catch {
+    // local state already updated
+  }
+  return currentState;
 }
 
 export async function adjustDummyVndBalance(wallet: string, deltaVnd: number, defaultStart = 500_000): Promise<AdminCatalogState> {
   const key = wallet.toLowerCase();
-  return saveAdminCatalog(prev => {
-    const current = prev.dummyVndBalances[key] ?? defaultStart;
-    return {
-      ...prev,
-      dummyVndBalances: {
-        ...prev.dummyVndBalances,
-        [key]: Math.max(0, current + deltaVnd),
-      },
-    };
+  const timestamp = Date.now();
+  const msg = `EcoLoop Dummy Balance\nAccount: ${key}\nDelta: ${Math.round(deltaVnd)}\nTimestamp: ${timestamp}`;
+  const signature = await signAuthorizationMessage(wallet as Address, msg);
+
+  const cur = currentState.dummyVndBalances[key] ?? defaultStart;
+  persistLocal({
+    ...currentState,
+    dummyVndBalances: {...currentState.dummyVndBalances, [key]: Math.max(0, cur + deltaVnd)},
   });
+
+  try {
+    const res = await fetch('/api/payments', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({
+        action: 'balance',
+        account: key,
+        deltaVnd: Math.round(deltaVnd),
+        defaultStart,
+        timestamp,
+        signature,
+      }),
+    });
+    if (res.ok) {
+      const data = await res.json();
+      if (data.state) persistLocal(mergeCatalog({...currentState, ...data.state}));
+    }
+  } catch {
+    // local state already updated
+  }
+  return currentState;
+}
+
+export async function redeemCustomRewardOnServer(account: string, rewardId: number): Promise<CustomReceiptItem> {
+  const timestamp = Date.now();
+  const msg = `EcoLoop Custom Redeem\nAccount: ${account.toLowerCase()}\nReward: ${rewardId}\nTimestamp: ${timestamp}`;
+  const signature = await signAuthorizationMessage(account as Address, msg);
+
+  const res = await fetch('/api/rewards/custom-redeem', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({account, rewardId, timestamp, signature}),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.error || 'Không thể đổi phần thưởng này.');
+  }
+  const data = await res.json();
+  persistLocal(mergeCatalog({
+    ...currentState,
+    ...(data.catalog || {}),
+    ...(data.state || {}),
+  }));
+  return data.receipt as CustomReceiptItem;
+}
+
+export async function claimCustomMissionOnServer(account: string, missionId: string, rewardEco: number): Promise<void> {
+  const timestamp = Date.now();
+  const msg = `EcoLoop Custom Mission Claim\nAccount: ${account.toLowerCase()}\nMission: ${missionId}\nTimestamp: ${timestamp}`;
+  const signature = await signAuthorizationMessage(account as Address, msg);
+
+  const res = await fetch('/api/missions/custom-claim', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({account, missionId, rewardEco, timestamp, signature}),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.error || 'Không thể nhận thưởng nhiệm vụ.');
+  }
+  const data = await res.json();
+  persistLocal(mergeCatalog({...currentState, ...(data.state || {})}));
 }
 
 export function useAdminCatalog(): AdminCatalogState {

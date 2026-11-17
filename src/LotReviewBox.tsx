@@ -1,8 +1,10 @@
 import {useEffect,useState,type FormEvent} from 'react';
 import {Star,CheckCircle2,MessageSquare} from 'lucide-react';
+import type {Address} from 'viem';
 import {short} from './model';
 import {tr,dateTime} from './settings';
 import {speakFeedback} from './voiceFeedback';
+import {signAuthorizationMessage} from './wallet';
 
 export interface LotReview {
   lotId: number;
@@ -61,6 +63,9 @@ export async function syncLotReviewsFromServer(): Promise<LotReview[]> {
 
 export async function submitLotReview(review: Omit<LotReview, 'createdAt'>): Promise<LotReview[]> {
   const full: LotReview = {...review, createdAt: Date.now()};
+  const timestamp = full.createdAt;
+  const msg = `EcoLoop Review\nLot: ${full.lotId}\nReviewer: ${full.reviewer.toLowerCase()}\nStars: ${full.stars}\nTimestamp: ${timestamp}`;
+  const signature = await signAuthorizationMessage(full.reviewer as Address, msg);
   const filtered = cachedReviews.filter(
     r => !(r.lotId === full.lotId && r.reviewer.toLowerCase() === full.reviewer.toLowerCase())
   );
@@ -69,7 +74,7 @@ export async function submitLotReview(review: Omit<LotReview, 'createdAt'>): Pro
     const res = await fetch('/api/reviews', {
       method: 'POST',
       headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify(full),
+      body: JSON.stringify({...full, timestamp, signature}),
     });
     if (res.ok) {
       const data = await res.json();

@@ -20,7 +20,6 @@ const canReadPickupAsCollector = (lot,account) =>
   account===ADMIN_WALLET_LOWER||(lot.collector.toLowerCase()===account&&[2,3,4].includes(lot.status));
 // All pickup & token actions the relayer pays gas for (both seller and collector actions use ERC-2771 _msgSender()).
 const GASLESS_FUNCTIONS = ['createLot','claimLot','proposeLot','acceptLot','disputeLot','cancelLot','releaseLot','redeemReward','transfer','addReward','configureReward','fulfillRedemption','setPrices','setPaused','grantRole','revokeRole','setExchangeRate','fundExchange'];
-const DEFAULT_FUJI_RELAYER_KEY = '0xf5463b42721c0e9095f3a91b205943e273a45a452de6e058bc9b89c1de9bef53';
 export function imageType(bytes) {
   if(bytes.length>=8&&bytes.subarray(0,8).equals(Buffer.from([137,80,78,71,13,10,26,10])))return 'image/png';
   if(bytes.length>=3&&bytes[0]===255&&bytes[1]===216&&bytes[2]===255)return 'image/jpeg';
@@ -49,7 +48,7 @@ export async function createApp({dataDir=path.resolve(process.env.DATA_DIR||'.da
     : [rpcUrl];
   client ||= createPublicClient({chain,transport:fallback(readUrls.map(url=>rpcHttp(url,{timeout:6000,retryCount:0})),{retryCount:1})});
   // Gas-free relayer: a dedicated, small testnet wallet that pays gas for household & collector actions. Never a deployer/admin key.
-  const effectiveRelayerKey=relayerKey||(chainId===avalancheFuji.id?DEFAULT_FUJI_RELAYER_KEY:undefined);
+  const effectiveRelayerKey=relayerKey;
   const relayer=effectiveRelayerKey&&/^0x[0-9a-fA-F]{64}$/.test(effectiveRelayerKey)?privateKeyToAccount(effectiveRelayerKey):undefined;
   relayWallet ||= relayer?createWalletClient({account:relayer,chain,transport:rpcHttp(rpcUrl,{timeout:30000})}):undefined;
   const gaslessSelectors=new Set(pickupArtifact.abi.filter(x=>x.type==='function'&&GASLESS_FUNCTIONS.includes(x.name)).map(x=>toFunctionSelector(x)));
@@ -111,6 +110,33 @@ export async function createApp({dataDir=path.resolve(process.env.DATA_DIR||'.da
     if(!await storage.write(prefix+path.relative(dataDir,file).split(path.sep).join('/'),value)){
       throw Object.assign(new Error('Record already exists'),{code:'EEXIST'});
     }
+  }
+  async function readJsonState(key,fallbackFile,defaultValue){
+    if(storage){
+      const raw=await storage.read(prefix+key).catch(()=>undefined);
+      if(raw){
+        try{return JSON.parse(raw.toString());}catch{/* fall through */}
+      }
+    }
+    try{return JSON.parse(await fs.readFile(fallbackFile,'utf8'));}
+    catch{return defaultValue;}
+  }
+  async function writeJsonState(key,fallbackFile,nextValue){
+    const buf=Buffer.from(JSON.stringify(nextValue,null,2));
+    if(storage){
+      await storage.update(prefix+key,()=>buf);
+      return;
+    }
+    await fs.mkdir(path.dirname(fallbackFile),{recursive:true}).catch(()=>{});
+    await fs.writeFile(fallbackFile,buf).catch(()=>{});
+  }
+  async function verifySignedAction(account,message,signature,timestamp){
+    if(!isAddress(account||'')||typeof signature!=='string'||!signature)fail(401,'Thiếu chữ ký xác thực ví.');
+    const ts=Number(timestamp);
+    if(!Number.isFinite(ts)||Math.abs(Date.now()-ts)>5*60*1000)fail(401,'Phiên ký xác thực đã hết hạn. Vui lòng thử lại.');
+    const signed={address:account,message,signature};
+    const valid=await verifyMessage(signed).catch(()=>false)||await client.verifyMessage?.(signed).catch(()=>false);
+    if(!valid)fail(401,'Chữ ký ví không hợp lệ.');
   }
   const challengeMessage=(data,nonce,expiry)=>`EcoLoop ${data.action==='pickup-chat'?'pickup chat':'evidence'} authorization\nAction: ${data.action}\nChain: ${chainId}\nContract: ${data.contract}\nWallet: ${data.account}\nSHA-256: ${data.hash}\nNonce: ${nonce}\nExpires: ${new Date(expiry).toISOString()}`;
   const challengeMac=(message)=>createHmac('sha256',storageKey).update(message).digest('hex');
@@ -203,12 +229,8 @@ export async function createApp({dataDir=path.resolve(process.env.DATA_DIR||'.da
         }
         if(url.pathname==='/api/reviews'&&(req.method==='GET'||req.method==='POST')){
           const reviewsFile=path.join(dataDir,'lot-reviews.json');
-          let reviews=[];
-          try{
-            const raw=await readStored(reviewsFile);
-            const parsed=JSON.parse(raw.toString());
-            if(Array.isArray(parsed))reviews=parsed;
-          }catch{/* not initialized yet */}
+          const reviewsData=await readJsonState('lot-reviews.json',reviewsFile,[]);
+          const reviews=Array.isArray(reviewsData)?reviewsData:[];
           if(req.method==='GET'){
             send(200,{reviews});return;
           }
@@ -223,20 +245,97 @@ export async function createApp({dataDir=path.resolve(process.env.DATA_DIR||'.da
           if(!Number.isSafeInteger(lotId)||lotId<1||!isAddress(reviewer)||!isAddress(target)||!stars){
             fail(400,'Thông tin đánh giá không hợp lệ.');
           }
+          const expectedMsg=`EcoLoop Review\nLot: ${lotId}\nReviewer: ${reviewer}\nStars: ${stars}\nTimestamp: ${body.timestamp}`;
+          await verifySignedAction(reviewer,expectedMsg,body.signature,body.timestamp);
           const nextReview={lotId,reviewer,target,role,stars,tags,comment,createdAt:Date.now()};
           const filtered=reviews.filter(r=>!(r.lotId===lotId&&String(r.reviewer).toLowerCase()===reviewer));
           const updated=[nextReview,...filtered].slice(0,500);
-          await fs.mkdir(path.dirname(reviewsFile),{recursive:true}).catch(()=>{});
-          await fs.writeFile(reviewsFile,JSON.stringify(updated,null,2)).catch(()=>{});
+          await writeJsonState('lot-reviews.json',reviewsFile,updated);
           send(200,{ok:true,review:nextReview,reviews:updated});return;
+        }
+        if(url.pathname==='/api/user-state'&&req.method==='GET'){
+          const userStateFile=path.join(dataDir,'user-state.json');
+          const state=await readJsonState('user-state.json',userStateFile,{dummyPayments:{},dummyVndBalances:{},customReceipts:[],missionClaims:{}});
+          send(200,state);return;
+        }
+        if(url.pathname==='/api/payments'&&req.method==='POST'){
+          const body=JSON.parse((await readBody(req,8192)).toString());
+          const account=String(body.account||'').toLowerCase();
+          const timestamp=body.timestamp;
+          const userStateFile=path.join(dataDir,'user-state.json');
+          const state=await readJsonState('user-state.json',userStateFile,{dummyPayments:{},dummyVndBalances:{},customReceipts:[],missionClaims:{}});
+          state.dummyPayments||={};
+          state.dummyVndBalances||={};
+          if(body.action==='balance'){
+            const delta=Math.round(Number(body.deltaVnd||0));
+            const defaultStart=Math.max(0,Math.round(Number(body.defaultStart||0)));
+            const expectedMsg=`EcoLoop Dummy Balance\nAccount: ${account}\nDelta: ${delta}\nTimestamp: ${timestamp}`;
+            await verifySignedAction(account,expectedMsg,body.signature,timestamp);
+            const cur=state.dummyVndBalances[account]??defaultStart;
+            state.dummyVndBalances[account]=Math.max(0,cur+delta);
+            await writeJsonState('user-state.json',userStateFile,state);
+            send(200,{ok:true,state});return;
+          }
+          const receipt=body.receipt;
+          if(!receipt||!Number.isSafeInteger(Number(receipt.lotId)))fail(400,'Thông tin thanh toán không hợp lệ.');
+          const expectedMsg=`EcoLoop Dummy Payment\nAccount: ${account}\nLot: ${receipt.lotId}\nAmount: ${receipt.sellerCashVnd}\nTimestamp: ${timestamp}`;
+          await verifySignedAction(account,expectedMsg,body.signature,timestamp);
+          const sellerKey=String(receipt.sellerWallet||'').toLowerCase();
+          const collectorKey=String(receipt.collectorWallet||'').toLowerCase();
+          if(!state.dummyPayments[receipt.lotId]){
+            const curCol=state.dummyVndBalances[collectorKey]??2_000_000;
+            state.dummyVndBalances[collectorKey]=Math.max(0,curCol-Number(receipt.sellerCashVnd||0))+Number(receipt.collectorFeeVnd||0);
+            state.dummyVndBalances[sellerKey]=(state.dummyVndBalances[sellerKey]??0)+Number(receipt.sellerCashVnd||0);
+            state.dummyVndBalances[ADMIN_WALLET_LOWER]=(state.dummyVndBalances[ADMIN_WALLET_LOWER]??0)+Number(receipt.appProfitVnd||0);
+          }
+          state.dummyPayments[receipt.lotId]=receipt;
+          await writeJsonState('user-state.json',userStateFile,state);
+          send(200,{ok:true,state});return;
+        }
+        if(url.pathname==='/api/rewards/custom-redeem'&&req.method==='POST'){
+          const body=JSON.parse((await readBody(req,8192)).toString());
+          const account=String(body.account||'').toLowerCase();
+          const rewardId=Number(body.rewardId);
+          const timestamp=body.timestamp;
+          if(!Number.isSafeInteger(rewardId))fail(400,'Mã phần thưởng không hợp lệ.');
+          const expectedMsg=`EcoLoop Custom Redeem\nAccount: ${account}\nReward: ${rewardId}\nTimestamp: ${timestamp}`;
+          await verifySignedAction(account,expectedMsg,body.signature,timestamp);
+          const catalogFile=path.join(dataDir,'admin-catalog.json');
+          const catalog=await readJsonState('admin-catalog.json',catalogFile,{customRewards:[]});
+          const userStateFile=path.join(dataDir,'user-state.json');
+          const state=await readJsonState('user-state.json',userStateFile,{dummyPayments:{},dummyVndBalances:{},customReceipts:[],missionClaims:{}});
+          state.customReceipts||=[];
+          const target=(catalog.customRewards||[]).find(r=>r.id===rewardId);
+          if(!target||target.hidden||target.stock<=0)fail(409,'Phần thưởng đã hết suất hoặc tạm ẩn.');
+          target.stock-=1;
+          const nextId=Math.max(500,...state.customReceipts.map(r=>Number(r.id)||0))+1;
+          const newReceipt={id:nextId,reward:rewardId,owner:account,done:false,createdAt:Date.now()};
+          state.customReceipts.unshift(newReceipt);
+          await writeJsonState('admin-catalog.json',catalogFile,catalog);
+          await writeJsonState('user-state.json',userStateFile,state);
+          send(200,{ok:true,receipt:newReceipt,state,catalog});return;
+        }
+        if(url.pathname==='/api/missions/custom-claim'&&req.method==='POST'){
+          const body=JSON.parse((await readBody(req,4096)).toString());
+          const account=String(body.account||'').toLowerCase();
+          const missionId=String(body.missionId||'').trim();
+          const rewardEco=Number(body.rewardEco||0);
+          const timestamp=body.timestamp;
+          if(!missionId||rewardEco<=0)fail(400,'Thông tin nhiệm vụ không hợp lệ.');
+          const expectedMsg=`EcoLoop Custom Mission Claim\nAccount: ${account}\nMission: ${missionId}\nTimestamp: ${timestamp}`;
+          await verifySignedAction(account,expectedMsg,body.signature,timestamp);
+          const userStateFile=path.join(dataDir,'user-state.json');
+          const state=await readJsonState('user-state.json',userStateFile,{dummyPayments:{},dummyVndBalances:{},customReceipts:[],missionClaims:{}});
+          state.missionClaims||={};
+          const claimKey=`${account}:${missionId}`;
+          if(state.missionClaims[claimKey])fail(409,'Bạn đã nhận thưởng nhiệm vụ này rồi.');
+          state.missionClaims[claimKey]={missionId,account,rewardEco,claimedAt:Date.now()};
+          await writeJsonState('user-state.json',userStateFile,state);
+          send(200,{ok:true,state});return;
         }
         if(url.pathname==='/api/admin/catalog'&&(req.method==='GET'||req.method==='POST')){
           const catalogFile=path.join(dataDir,'admin-catalog.json');
-          let currentCatalog={};
-          try{
-            const raw=await readStored(catalogFile);
-            currentCatalog=JSON.parse(raw.toString());
-          }catch{/* not initialized yet */}
+          const currentCatalog=await readJsonState('admin-catalog.json',catalogFile,{});
           if(req.method==='GET'){
             send(200,currentCatalog);return;
           }
@@ -244,8 +343,10 @@ export async function createApp({dataDir=path.resolve(process.env.DATA_DIR||'.da
           const adminAccount=String(body.adminAccount||'').toLowerCase();
           if(adminAccount!==ADMIN_WALLET_LOWER)fail(403,'Chỉ ví Quản trị viên mới có quyền lưu cấu hình hệ thống.');
           const nextCatalog=body.catalog&&typeof body.catalog==='object'?body.catalog:{};
-          await fs.mkdir(path.dirname(catalogFile),{recursive:true}).catch(()=>{});
-          await fs.writeFile(catalogFile,JSON.stringify(nextCatalog,null,2)).catch(()=>{});
+          const catalogDigest=createHash('sha256').update(JSON.stringify(nextCatalog)).digest('hex');
+          const expectedMsg=`EcoLoop Admin Catalog Update\nAdmin: ${adminAccount}\nHash: ${catalogDigest}\nTimestamp: ${body.timestamp}`;
+          await verifySignedAction(adminAccount,expectedMsg,body.signature,body.timestamp);
+          await writeJsonState('admin-catalog.json',catalogFile,nextCatalog);
           send(200,nextCatalog);return;
         }
         if(url.pathname==='/api/auth/account'&&req.method==='POST'){
@@ -256,12 +357,8 @@ export async function createApp({dataDir=path.resolve(process.env.DATA_DIR||'.da
           const role=body.role==='collector'?'collector':'seller';
           if(username.length<3||username.length>64||!isAddress(address))fail(400,'Thông tin tài khoản không hợp lệ.');
           const catalogFile=path.join(dataDir,'admin-catalog.json');
-          let currentCatalog={accounts:[]};
-          try{
-            const raw=await readStored(catalogFile);
-            currentCatalog=JSON.parse(raw.toString());
-            if(!Array.isArray(currentCatalog.accounts))currentCatalog.accounts=[];
-          }catch{/* ignore */}
+          const currentCatalog=await readJsonState('admin-catalog.json',catalogFile,{accounts:[]});
+          if(!Array.isArray(currentCatalog.accounts))currentCatalog.accounts=[];
           const existingInCatalog=currentCatalog.accounts.find(a=>String(a.username||'').toLowerCase()===username.toLowerCase());
           if(existingInCatalog?.blocked)fail(403,'Tài khoản này đã bị Quản trị viên tạm khóa.');
           const userKey=username.toLowerCase().replace(/[^a-z0-9._@-]/g,'_');
@@ -280,7 +377,7 @@ export async function createApp({dataDir=path.resolve(process.env.DATA_DIR||'.da
             }
             if(!existingInCatalog){
               currentCatalog.accounts.push({username,address,role:saved?.role||role,blocked:false,createdAt:Date.now()});
-              await fs.writeFile(catalogFile,JSON.stringify(currentCatalog,null,2)).catch(()=>{});
+              await writeJsonState('admin-catalog.json',catalogFile,currentCatalog);
             }
             send(200,{ok:true,username,address,role:existingInCatalog?.role||saved?.role||role});return;
           }
@@ -292,7 +389,7 @@ export async function createApp({dataDir=path.resolve(process.env.DATA_DIR||'.da
           }
           if(!existingInCatalog){
             currentCatalog.accounts.push({username:saved?.username||username,address,role:saved?.role||role,blocked:false,createdAt:Date.now()});
-            await fs.writeFile(catalogFile,JSON.stringify(currentCatalog,null,2)).catch(()=>{});
+            await writeJsonState('admin-catalog.json',catalogFile,currentCatalog);
           }
           send(200,{ok:true,username:saved?.username||username,address,role:existingInCatalog?.role||saved?.role||role});return;
         }

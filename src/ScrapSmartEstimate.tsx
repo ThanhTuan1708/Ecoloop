@@ -2,6 +2,7 @@ import {useEffect,useState} from 'react';
 import {Sparkles,RotateCcw,Check,Camera} from 'lucide-react';
 import {materials} from './model';
 import {tr,num as fmt} from './settings';
+import {useAdminCatalog} from './adminCatalog';
 
 export interface PhotoAnalysisResult {
   primaryIndex: number;
@@ -190,6 +191,7 @@ export function ScrapPhotoSmartBox({
   file?: File;
   onApplyWeights: (next: string[]) => void;
 }) {
+  const catalog = useAdminCatalog();
   const [previewUrl, setPreviewUrl] = useState('');
   const [analyzing, setAnalyzing] = useState(false);
   const [result, setResult] = useState<PhotoAnalysisResult | null>(null);
@@ -226,7 +228,7 @@ export function ScrapPhotoSmartBox({
   if (!file) return null;
 
   const estVnd = result
-    ? Math.round(result.suggestedKg.reduce((s, kg, i) => s + kg * (materials[i]?.buyVnd ?? 3500), 0))
+    ? Math.round(result.suggestedKg.reduce((s, kg, i) => s + kg * (catalog.economics.buyVnd[i] ?? materials[i]?.buyVnd ?? 3500), 0))
     : 0;
   const estEco = result
     ? result.suggestedKg.reduce((s, kg, i) => s + kg * (materials[i]?.rate ?? 10), 0)
@@ -254,8 +256,8 @@ export function ScrapPhotoSmartBox({
             <Sparkles size={15} color="#059669"/>
             <strong>
               {analyzing
-                ? tr('AI đang nhận diện vật liệu & gợi ý giá từ ảnh chụp…')
-                : tr('Nhận diện nhanh từ ảnh: {label}', {label: result?.summaryLabel || ''})}
+                ? tr('Đang phân tích màu sắc ảnh chụp để gợi ý vật liệu & giá…')
+                : tr('Gợi ý nhanh từ ảnh chụp: {label}', {label: result?.summaryLabel || ''})}
             </strong>
             {result && !analyzing && (
               <span className="web3-status-pill pill-green">

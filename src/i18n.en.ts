@@ -1113,6 +1113,16 @@ export const en:Record<string,string>={
  "🥫 1 thùng vỏ lon (~0.5 kg)":"🥫 1 crate of beverage cans (~0.5 kg)",
  "🔧 Sắt / nhôm vụn (~2 kg)":"🔧 Scrap iron / aluminum (~2 kg)",
  "🍾 1 két chai thủy tinh (~4 kg)":"🍾 1 crate of glass bottles (~4 kg)",
+ "Tổng hợp dòng tiền từ chiết khấu điều phối phế liệu ({pct}% chênh lệch bao tiêu) và doanh thu bán Tín chỉ Tái chế EPR (B2B NFT) cho doanh nghiệp.":"Summary of platform revenue from coordination spread ({pct}% buyback margin) and B2B EPR Recycling Credit NFT sales.",
+ "Chiết khấu Sàn ({pct}%)":"Platform Commission ({pct}%)",
+ "Chưa lưu được cấu hình quản trị.":"Could not save admin configuration.",
+ "🎉 Đã nhận thưởng +{n} ECO từ nhiệm vụ \"{title}\"!":"🎉 Claimed +{n} ECO reward from mission \"{title}\"!",
+ "Tối thiểu 8 ký tự (gồm chữ & số)":"At least 8 characters (letters & numbers)",
+ "Hệ thống tạo ví thử nghiệm (Avalanche Fuji Testnet) gắn với tài khoản & mật khẩu (miễn phí gas 100%). Không dùng mật khẩu yếu hoặc mật khẩu ngân hàng thật.":"Creates a test wallet (Avalanche Fuji Testnet) linked to your username & password (100% gas-free). Do not reuse weak or real banking passwords.",
+ "Thù lao vận chuyển cho Người thu gom ({pct}% chênh lệch):":"Collector transport fee ({pct}% spread):",
+ "Chiết khấu điều phối về Chủ App EcoLoop ({pct}% chênh lệch):":"EcoLoop App Owner commission ({pct}% spread):",
+ "Đang phân tích màu sắc ảnh chụp để gợi ý vật liệu & giá…":"Analyzing photo colors to suggest materials & price…",
+ "Gợi ý nhanh từ ảnh chụp: {label}":"Quick photo suggestion: {label}",
 };
 
 // Messages with a dynamic part (from wallet/server errors).

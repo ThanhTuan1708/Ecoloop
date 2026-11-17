@@ -55,24 +55,29 @@ export function DummyLotPaymentCard({
 
   async function handleSimulatePay() {
     if (processing) return;
+    const signer = currentAccount || collectorWallet || sellerWallet;
+    if (!signer) return;
     setProcessing(true);
-    await new Promise(r => setTimeout(r, 650));
-    const txCode = `ECOPAY-${lotId}-${String(Date.now()).slice(-6)}`;
-    await recordDummyLotPayment({
-      lotId,
-      txCode,
-      method,
-      bankName,
-      sellerWallet,
-      collectorWallet: collectorWallet || currentAccount || sellerWallet,
-      sellerCashVnd: sellerCash,
-      collectorFeeVnd: collectorFee,
-      appProfitVnd: appTotalProfit,
-      paidAt: Date.now(),
-    });
-    setProcessing(false);
-    speakFeedback('Đã hoàn tất thanh toán giả lập cho lô phế liệu.');
-    onPaid?.(tr('🎉 Đã thanh toán giả lập thành công {vnd} ₫ (Mã GD: {tx})!', {vnd: fmt(sellerCash), tx: txCode}));
+    try {
+      await new Promise(r => setTimeout(r, 450));
+      const txCode = `ECOPAY-${lotId}-${String(Date.now()).slice(-6)}`;
+      await recordDummyLotPayment(signer, {
+        lotId,
+        txCode,
+        method,
+        bankName,
+        sellerWallet,
+        collectorWallet: collectorWallet || currentAccount || sellerWallet,
+        sellerCashVnd: sellerCash,
+        collectorFeeVnd: collectorFee,
+        appProfitVnd: appTotalProfit,
+        paidAt: Date.now(),
+      });
+      speakFeedback('Đã hoàn tất thanh toán giả lập cho lô phế liệu.');
+      onPaid?.(tr('🎉 Đã thanh toán giả lập thành công {vnd} ₫ (Mã GD: {tx})!', {vnd: fmt(sellerCash), tx: txCode}));
+    } finally {
+      setProcessing(false);
+    }
   }
 
   return (

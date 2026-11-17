@@ -5,7 +5,7 @@ import {publicClient} from './chain';
 import {rewardsAbi} from './generated/rewards';
 import {pendingPickup, pickupWrite} from './pickupClient';
 import {num, tr} from './settings';
-import {saveAdminCatalog, useAdminCatalog, type CustomMissionItem} from './adminCatalog';
+import {saveAdminCatalog, useAdminCatalog, claimCustomMissionOnServer, type CustomMissionItem} from './adminCatalog';
 
 const readStatus = (address: Address, user: Address) =>
   publicClient.readContract({address, abi: rewardsAbi, functionName: 'rewardStatus', args: [user]});
@@ -214,6 +214,8 @@ export default function EarnEco({pool, token, account, admin, busy, onConnect, r
         {visibleCustomMissions.map(mission => {
           const progress = Math.min(mission.targetKg, recycledKg);
           const eligible = recycledKg >= mission.targetKg;
+          const claimKey = account ? `${account.toLowerCase()}:${mission.id}` : '';
+          const alreadyClaimed = !!(claimKey && catalog.missionClaims[claimKey]);
           return <div key={mission.id}>
             <Target size={20} aria-hidden="true"/>
             {editingId === mission.id && admin ? (
@@ -234,8 +236,19 @@ export default function EarnEco({pool, token, account, admin, busy, onConnect, r
                 <p>{num(progress, 2)} / {num(mission.targetKg)} kg</p>
                 <progress aria-label={mission.title} value={progress} max={mission.targetKg}/>
                 <p><strong>+{num(mission.rewardEco)} ECO</strong></p>
-                <button type="button" className="secondary" disabled={!eligible}>
-                  {eligible ? tr('Nhận thưởng') : tr('Chưa đạt mục tiêu')}
+                <button
+                  type="button"
+                  className="secondary"
+                  disabled={!eligible || alreadyClaimed || busy}
+                  onClick={() => {
+                    if (!account) { onConnect(); return; }
+                    void run(async () => {
+                      await claimCustomMissionOnServer(account, mission.id, mission.rewardEco);
+                      onAdminMessage?.(tr('🎉 Đã nhận thưởng +{n} ECO từ nhiệm vụ "{title}"!', {n: num(mission.rewardEco), title: mission.title}));
+                    });
+                  }}
+                >
+                  {alreadyClaimed ? tr('Đã nhận ECO') : eligible ? tr('Nhận thưởng') : tr('Chưa đạt mục tiêu')}
                 </button>
                 {admin && (
                   <div style={{display:'flex',gap:'6px',marginTop:'8px',flexWrap:'wrap'}}>
