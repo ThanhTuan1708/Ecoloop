@@ -1097,6 +1097,22 @@ export const en:Record<string,string>={
  "🏠 Người bán đánh giá":"🏠 Seller rated",
  "🚚 Người thu gom đánh giá":"🚚 Collector rated",
  "⭐ Đánh giá & Xem":"⭐ Rate & View",
+ "Không có cân? Chạm chọn nhanh theo vật dụng quen thuộc:":"No scale? Tap quick household presets:",
+ "Đặt lại 0 kg":"Reset 0 kg",
+ "Ảnh lô phế liệu vừa chọn":"Selected scrap lot photo",
+ "AI đang nhận diện vật liệu & gợi ý giá từ ảnh chụp…":"AI is recognizing materials & suggesting price from photo…",
+ "Nhận diện nhanh từ ảnh: {label}":"Photo recognition: {label}",
+ "Độ tin cậy {n}%":"Confidence {n}%",
+ "Ước lượng gợi ý:":"Suggested estimate:",
+ "Giá gợi ý: ≈ {vnd} ₫ (+{eco} ECO)":"Suggested value: ≈ {vnd} ₫ (+{eco} ECO)",
+ "Đã điền gợi ý vào bảng cân":"Applied suggestion to weight table",
+ "Áp dụng gợi ý vào bảng cân":"Apply suggestion to weights",
+ "🧴 1 bao chai nhựa (~3 kg)":"🧴 1 bag of plastic bottles (~3 kg)",
+ "📦 1 chồng thùng carton (~5 kg)":"📦 1 stack of cardboard boxes (~5 kg)",
+ "📰 1 bó sách báo cũ (~2.5 kg)":"📰 1 bundle of old newspapers (~2.5 kg)",
+ "🥫 1 thùng vỏ lon (~0.5 kg)":"🥫 1 crate of beverage cans (~0.5 kg)",
+ "🔧 Sắt / nhôm vụn (~2 kg)":"🔧 Scrap iron / aluminum (~2 kg)",
+ "🍾 1 két chai thủy tinh (~4 kg)":"🍾 1 crate of glass bottles (~4 kg)",
 };
 
 // Messages with a dynamic part (from wallet/server errors).
