@@ -676,7 +676,7 @@ export default function Pickup({account,admin,onConnect,page='home',role='seller
           await refresh();
         }}/>
     </>}
-    {page==='rewards'&&<PickupRewards swap={swap} balanceAtomic={balanceAtomic} gasless={gasless} admin={admin} address={address} account={account} collector={admin} busy={busy} balance={effectiveBalance} run={run} onChange={refresh} onConnect={onConnect} onDone={setMessage}/>}
+    {page==='rewards'&&<PickupRewards balanceAtomic={balanceAtomic} gasless={gasless} admin={admin} address={address} account={account} collector={admin} busy={busy} balance={effectiveBalance} run={run} onChange={refresh} onConnect={onConnect} onDone={setMessage}/>}
     {busy&&<p role="status" className="pickup-busy">{tr('Đang xử lý… Kiểm tra cửa sổ ví nếu được yêu cầu ký. Không đóng trang khi gửi giao dịch.')}</p>}
   </section>;
 }
@@ -1029,7 +1029,7 @@ function ExchangeSettings({exchange,busy,submit}:{exchange:NonNullable<EcoExchan
   </div>;
 }
 
-function PickupRewards({swap,balanceAtomic,gasless,admin,address,account,collector,busy,balance,run,onChange,onConnect,onDone}:{swap?:EcoExchangeProps;balanceAtomic:bigint;gasless:boolean;admin:boolean;address?:Address;account?:Address;collector:boolean;busy:boolean;balance:number;run:(f:()=>Promise<void>)=>Promise<void>;onChange:()=>Promise<void>;onConnect:()=>void;onDone:(message:string)=>void}){
+function PickupRewards({balanceAtomic,gasless,admin,address,account,collector,busy,balance,run,onChange,onConnect,onDone}:{balanceAtomic:bigint;gasless:boolean;admin:boolean;address?:Address;account?:Address;collector:boolean;busy:boolean;balance:number;run:(f:()=>Promise<void>)=>Promise<void>;onChange:()=>Promise<void>;onConnect:()=>void;onDone:(message:string)=>void}){
   const [rewards,setRewards]=useState<RewardItem[]>([]);
   const [receipts,setReceipts]=useState<ReceiptItem[]>([]);
   async function reload(){
@@ -1087,7 +1087,6 @@ function PickupRewards({swap,balanceAtomic,gasless,admin,address,account,collect
               onDone(tr('Đã đổi quà thành công (-{cost} ECO). Biên nhận đã được tạo!',{cost:fmt(reward.cost)}));
             });
           }}>{unavailable?tr('Hết lượt đổi'):shortfall?tr('Cần thêm {n} ECO',{n:formatEther(reward.costAtomic-balanceAtomic)}):tr('Đổi quà ngay')}<ArrowRight size={17} aria-hidden="true"/></button>
-          {shortfall&&!unavailable&&swap&&<EcoExchange {...swap} needed={reward.costAtomic-balanceAtomic}/>}
         </div>
       </article>;
     })}</div>}
