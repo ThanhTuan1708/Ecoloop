@@ -1,5 +1,5 @@
 import {lazy,Suspense,useEffect,useRef,useState,type FormEvent,type ReactNode} from 'react';
-import {MapPin,Plus,RefreshCw,Navigation,ArrowRight,CheckCircle2,PackageCheck,ShieldCheck,Lock,Star,Coins,SlidersHorizontal,ChevronLeft,ChevronRight,History,Award,ExternalLink,Database,Fuel,Gift} from 'lucide-react';
+import {MapPin,Plus,RefreshCw,Navigation,ArrowRight,CheckCircle2,PackageCheck,ShieldCheck,Lock,Star,Coins,SlidersHorizontal,ChevronLeft,ChevronRight,History,Award,ExternalLink,Database,Fuel,Gift,Pencil,Trash2,Eye,EyeOff,Download,Users} from 'lucide-react';
 import {formatEther,isAddress,keccak256,parseEther,stringToHex,type Address,type Hash} from 'viem';
 import {chain,getWalletName} from './wallet';
 import {errorMessage,txUrl,publicClient} from './chain';
@@ -14,6 +14,7 @@ import './pickup.css';
 import './rewards.css';
 import EarnEco from './EarnEco';
 import {speakFeedback} from './voiceFeedback';
+import {getAdminCatalog,saveAdminCatalog,useAdminCatalog,type CustomLotItem,type CustomRewardItem} from './adminCatalog';
 
 const PickupMap=lazy(()=>import('./PickupMap'));
 // Sample data has been removed from the app; clear what older versions stored in this browser.
@@ -25,14 +26,25 @@ interface ReceiptItem {id:number;reward:number;owner:string;done:boolean}
 const same=(a?:string,b?:string)=>!!a&&!!b&&a.toLowerCase()===b.toLowerCase();
 const total=(weights:number[])=>weights.reduce((a,b)=>a+b,0)/1000;
 const points=(weights:number[])=>weights.reduce((a,b,i)=>a+b*materials[i].rate/1000,0);
-const buyCashVnd=(weights:number[])=>Math.round(weights.reduce((a,b,i)=>a+b*(materials[i]?.buyVnd??3500)/1000,0));
-const stationCashVnd=(weights:number[])=>Math.round(weights.reduce((a,b,i)=>a+b*(materials[i]?.stationVnd??4200)/1000,0));
-const eprCreditVnd=(weights:number[])=>Math.round(total(weights)*800);
+const buyCashVnd=(weights:number[])=>{
+  const econ=getAdminCatalog().economics;
+  return Math.round(weights.reduce((a,b,i)=>a+b*(econ.buyVnd[i]??materials[i]?.buyVnd??3500)/1000,0));
+};
+const stationCashVnd=(weights:number[])=>{
+  const econ=getAdminCatalog().economics;
+  return Math.round(weights.reduce((a,b,i)=>a+b*(econ.stationVnd[i]??materials[i]?.stationVnd??4200)/1000,0));
+};
+const eprCreditVnd=(weights:number[])=>{
+  const econ=getAdminCatalog().economics;
+  return Math.round(total(weights)*(econ.eprVndPerKg??800));
+};
 function calcLotEconomics(weights:number[]){
+  const econ=getAdminCatalog().economics;
   const sellerCash=buyCashVnd(weights);
   const stationCash=stationCashVnd(weights);
   const spread=Math.max(0,stationCash-sellerCash);
-  const collectorFee=Math.round(spread*0.6);
+  const shareRatio=(econ.collectorSharePct??60)/100;
+  const collectorFee=Math.round(spread*shareRatio);
   const appCommission=spread-collectorFee;
   const eprVnd=eprCreditVnd(weights);
   const appTotalProfit=appCommission+eprVnd;
@@ -61,17 +73,47 @@ export default function Pickup({account,admin,onConnect,page='home',role='seller
   const pendingHash=pendingPickup();
   const [importAddress,setImportAddress]=useState(localStorage.getItem(`ecoloop-pickup-deployed-${chain.id}`)||'');
 
-  // Only real on-chain data: lots, balances and rewards all come from the V4 contract.
-  const lots=onChainLots;
+  const catalog=useAdminCatalog();
+  const [adminShowHiddenLots,setAdminShowHiddenLots]=useState(false);
+  const [adminAllStatuses,setAdminAllStatuses]=useState(false);
+  const [adminAddingLot,setAdminAddingLot]=useState(false);
+  const [adminEditingLotId,setAdminEditingLotId]=useState<number|null>(null);
+
+  const customLotsAsOnChain:Lot[]=catalog.customLots.map(c=>({
+    id:c.id,
+    owner:(c.ownerWallet||account||ZERO) as Address,
+    collector:ZERO as Address,
+    estimated:c.estimatedGrams,
+    actual:[0,0,0,0],
+    evidence:('0x'+'0'.repeat(64)) as Hash,
+    latitude:10.78,
+    longitude:106.70,
+    updatedAt:c.createdAt,
+    status:c.status,
+    deposit:0,
+    paid:0,
+  }));
+
+  const mergedLots=[...onChainLots,...customLotsAsOnChain].map(l=>{
+    const ov=catalog.lotOverrides[l.id];
+    if(!ov?.estimatedGrams)return l;
+    return {...l,estimated:ov.estimatedGrams};
+  });
+  const lots=mergedLots.filter(l=>{
+    const hidden=!!catalog.lotOverrides[l.id]?.hidden;
+    if(!hidden)return true;
+    return admin&&adminShowHiddenLots;
+  });
+  const hiddenLotsCount=mergedLots.filter(l=>!!catalog.lotOverrides[l.id]?.hidden).length;
   const seller=role==='seller';
   const browseMarket=page==='home'&&!creating;
   const collectorMarket=browseMarket&&!seller;
-  const marketLots=lots.filter(l=>l.status===1&&(seller||!same(l.owner,account)));
+  const marketLots=lots.filter(l=>(admin&&adminAllStatuses?true:l.status===1)&&(seller||admin||!same(l.owner,account)));
   const myLots=lots.filter(l=>same(seller?l.owner:l.collector,account));
   const chatLots=page==='messages'?myLots.filter(l=>l.collector!==ZERO&&[2,3,4].includes(l.status)):[];
   const chatLot=address?chatLots.find(l=>l.id===selected):undefined;
   const current=(page==='orders'?myLots:browseMarket?marketLots:[]).find(l=>l.id===selected);
-  const isCurrentOnChain=!!address&&!!current;
+  const isCurrentOnChain=!!address&&!!current&&onChainLots.some(l=>l.id===current.id);
   const user=account;
   const myCertificates=account?onChainLots.filter(l=>l.status===4&&same(l.owner,account)):[];
   const eco=formatEther;
@@ -93,26 +135,45 @@ export default function Pickup({account,admin,onConnect,page='home',role='seller
   const isAssignedCollector=!seller&&same(user,current?.collector);
   const actions:Record<string,boolean>={
     claimLot:collectorMarket&&(publicPickup||canFulfillRewards)&&!!account&&!same(user,current?.owner)&&current?.status===1&&!paused,
-    cancelLot:isOwner&&current?.status===1,
+    cancelLot:(isOwner||admin)&&current?.status===1,
     proposeLot:isAssignedCollector&&current?.status===2&&!paused,
     acceptLot:isOwner&&current?.status===3&&!paused&&consent&&Date.now()<=current.updatedAt+7*86400000,
     disputeLot:isOwner&&current?.status===3,
-    releaseLot:!!current&&[2,3].includes(current.status)&&(isAssignedCollector||(isOwner&&Date.now()>current.updatedAt+7*86400000)),
+    releaseLot:!!current&&[2,3].includes(current.status)&&(isAssignedCollector||admin||(isOwner&&Date.now()>current.updatedAt+7*86400000)),
   };
 
   const effectiveBalance=Number(formatEther(balanceAtomic));
+
+  const applyCardOverrides=(card:ShopeeWeb3ProductCard):ShopeeWeb3ProductCard=>{
+    const ov=catalog.lotOverrides[card.lotId];
+    const custom=catalog.customLots.find(c=>c.id===card.lotId);
+    if(!ov&&!custom)return card;
+    return {
+      ...card,
+      title:ov?.title||custom?.title||card.title,
+      shortDescription:ov?.description||custom?.description||card.shortDescription,
+      seller:custom?{
+        ...card.seller,
+        location:{
+          ...card.seller.location,
+          district:custom.district||card.seller.location.district,
+          province:custom.province||card.seller.location.province,
+        },
+      }:card.seller,
+    };
+  };
 
   const marketplaceResult=queryProductCards(
     lots,
     {
       sort,
-      status:['ACTIVE'],
+      status:admin&&adminAllStatuses?['ACTIVE','IN_ESCROW','SOLD','CANCELLED']:['ACTIVE'],
       materialIndex:category>=0?category:undefined,
       lat:center?.[0],
       lng:center?.[1],
       radiusKm:radius>0?radius:undefined,
       q:query,
-      excludeOwner:seller?undefined:account,
+      excludeOwner:seller||admin?undefined:account,
       page:pageNum,
       limit:pageSize,
     },
@@ -120,10 +181,11 @@ export default function Pickup({account,admin,onConnect,page='home',role='seller
   );
 
   const activeFilters=(radius>0?1:0);
-  const cards=marketplaceResult.items;
+  const cards=marketplaceResult.items.map(applyCardOverrides);
   const pagination=marketplaceResult.meta.pagination;
   const visible=cards.map(c=>lots.find(l=>l.id===c.lotId)!).filter(Boolean);
-  const selectedCard:ShopeeWeb3ProductCard|undefined=current?queryProductCards([current],{status:['ACTIVE','IN_ESCROW','SOLD','CANCELLED']},{chainId:chain.id,contractAddress:address}).items[0]:undefined;
+  const rawSelectedCard:ShopeeWeb3ProductCard|undefined=current?queryProductCards([current],{status:['ACTIVE','IN_ESCROW','SOLD','CANCELLED']},{chainId:chain.id,contractAddress:address}).items[0]:undefined;
+  const selectedCard=rawSelectedCard?applyCardOverrides(rawSelectedCard):undefined;
   const allCards=page==='orders'&&account?queryProductCards(
     myLots,
     {
@@ -133,7 +195,7 @@ export default function Pickup({account,admin,onConnect,page='home',role='seller
       limit:500,
     },
     {chainId:chain.id,contractAddress:address}
-  ).items:[];
+  ).items.map(applyCardOverrides):[];
 
   async function refresh(){
     const v=version.current;
@@ -386,6 +448,64 @@ export default function Pickup({account,admin,onConnect,page='home',role='seller
       </div>}
       {seller&&!admin&&creating&&page==='home'&&<LotForm busy={busy||paused} center={center} onCreate={(...args)=>run(()=>create(...args))}/>}
       {browseMarket&&<>
+        {admin&&<section className="pickup-callout" aria-label={tr('Quản trị Trang bán')}>
+          <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',gap:'12px',flexWrap:'wrap'}}>
+            <div>
+              <strong>🛡️ {tr('Quản trị Trang bán — Thêm, Sửa, Xóa / Ẩn lô phế liệu')}</strong>
+              <p className="footnote">{tr('Chủ App có thể thêm lô điều phối mới, bấm vào từng lô để sửa tiêu đề/khối lượng hoặc ẩn/xóa lô vi phạm khỏi sàn.')}</p>
+            </div>
+            <div style={{display:'flex',gap:'8px',flexWrap:'wrap'}}>
+              <button type="button" className="primary" onClick={()=>setAdminAddingLot(v=>!v)}>
+                <Plus size={15}/> {adminAddingLot?tr('Đóng biểu mẫu'):tr('Thêm lô mới')}
+              </button>
+              <button type="button" className="secondary" onClick={()=>setAdminAllStatuses(v=>!v)}>
+                {adminAllStatuses?tr('Chỉ xem lô đang mở'):tr('Xem tất cả trạng thái lô')}
+              </button>
+              <button type="button" className="secondary" onClick={()=>setAdminShowHiddenLots(v=>!v)}>
+                {adminShowHiddenLots?<><EyeOff size={15}/> {tr('Ẩn các lô đã xóa')}</>:<><Eye size={15}/> {tr('Hiện lô đã ẩn ({n})',{n:hiddenLotsCount})}</>}
+              </button>
+            </div>
+          </div>
+          {adminAddingLot&&<form className="pickup-callout" style={{marginTop:'12px'}} onSubmit={e=>{
+            e.preventDefault();
+            const f=new FormData(e.currentTarget);
+            const title=String(f.get('title')||'').trim();
+            const description=String(f.get('description')||'').trim();
+            const district=String(f.get('district')||'Quận 1').trim();
+            const province=String(f.get('province')||'TP.HCM').trim();
+            const grams=[0,1,2,3].map(i=>Math.max(0,Math.round(Number(f.get('w'+i)||0)*1000))) as [number,number,number,number];
+            if(!title||total(grams)<=0){setFailure(true);setMessage(tr('Nhập tiêu đề và ít nhất một khối lượng vật liệu > 0.'));return;}
+            const nextId=Math.max(1000,...mergedLots.map(l=>l.id))+1;
+            const newLot:CustomLotItem={
+              id:nextId,
+              title,
+              description:description||tr('Lô điều phối từ Trạm thu gom EcoLoop'),
+              district,
+              province,
+              estimatedGrams:grams,
+              ownerWallet:account||ZERO,
+              status:1,
+              createdAt:Date.now(),
+            };
+            void saveAdminCatalog(prev=>({...prev,customLots:[newLot,...prev.customLots]}),account).then(()=>{
+              setAdminAddingLot(false);
+              setFailure(false);
+              setMessage(tr('Đã thêm lô mới #{id} lên Trang bán.',{id:nextId}));
+            });
+          }}>
+            <h4>{tr('Thêm lô phế liệu lên Trang bán (Quản trị)')}</h4>
+            <div className="pickup-weights">
+              <label>{tr('Tiêu đề lô phế liệu')}<input name="title" required maxLength={120} placeholder={tr('VD: Lô vỏ chai PET & thùng carton siêu thị')}/></label>
+              <label>{tr('Mô tả chi tiết')}<input name="description" maxLength={240} placeholder={tr('VD: Đã phân loại sạch, sẵn sàng bàn giao ngay')}/></label>
+              <label>{tr('Quận / Huyện')}<input name="district" defaultValue="Quận 1" required/></label>
+              <label>{tr('Tỉnh / Thành phố')}<input name="province" defaultValue="TP.HCM" required/></label>
+            </div>
+            <div className="pickup-weights">
+              {materials.map((m,i)=><label key={m.name}>{tr(m.name)} (kg)<input name={'w'+i} type="number" step="0.1" min="0" defaultValue={i===0?'10':'0'}/></label>)}
+            </div>
+            <button type="submit" className="primary">{tr('Lưu & Đăng lên Trang bán')}</button>
+          </form>}
+        </section>}
         {seller&&<h3>{tr('Lô đang chờ thu gom')}</h3>}
         <div className={filtersOpen?'pickup-toolbar filters-open':'pickup-toolbar'}>
           <label className="pickup-search">{tr('Tìm sản phẩm / cửa hàng / khu vực')}<input type="search" value={query} onChange={e=>setQuery(e.target.value)} placeholder={tr("VD: đồng, nhôm, PET, carton, Quận 7, Thủ Đức, Hà Nội…")}/></label>
@@ -460,7 +580,7 @@ export default function Pickup({account,admin,onConnect,page='home',role='seller
                   </span>
                 </span>
                 <span className="lot-top">
-                  <strong className="lot-card-title">{card.title}</strong>
+                  <strong className="lot-card-title">{card.title}{catalog.lotOverrides[card.lotId]?.hidden?` (${tr('Đã ẩn')})`:''}</strong>
                 </span>
                 <span className="lot-materials">
                   {card.materialTags.map(m=>`${m.symbol} ${tr(m.name)} ${wt(m.kilograms)}`).join(' · ')}
@@ -506,6 +626,73 @@ export default function Pickup({account,admin,onConnect,page='home',role='seller
           <div className="lot-detail" role="dialog" aria-label={selectedCard.title}><span className="lot-sheet-handle" aria-hidden="true"/><button className="text-link" onClick={()=>setSelected(undefined)}>{tr('Đóng chi tiết ×')}</button>
             <span className="eyebrow">{tr('BIÊN NHẬN WEB3 #{id}',{id:current.id})} · {selectedCard.uiState.status}</span>
             <h3>{selectedCard.title}</h3>
+            {admin&&<div className="pickup-callout" style={{marginBottom:'12px'}}>
+              <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',gap:'8px',flexWrap:'wrap'}}>
+                <strong>🛠️ {tr('Quyền Quản trị Lô #{id}',{id:current.id})}</strong>
+                <div style={{display:'flex',gap:'8px',flexWrap:'wrap'}}>
+                  <button type="button" className="secondary" onClick={()=>setAdminEditingLotId(adminEditingLotId===current.id?null:current.id)}>
+                    <Pencil size={14}/> {adminEditingLotId===current.id?tr('Đóng sửa'):tr('Sửa thông tin lô')}
+                  </button>
+                  <button type="button" className="secondary" onClick={()=>{
+                    const isCustom=catalog.customLots.some(c=>c.id===current.id);
+                    const currentlyHidden=!!catalog.lotOverrides[current.id]?.hidden;
+                    void saveAdminCatalog(prev=>{
+                      if(isCustom&&!currentlyHidden){
+                        return {...prev,customLots:prev.customLots.filter(c=>c.id!==current.id)};
+                      }
+                      return {
+                        ...prev,
+                        lotOverrides:{
+                          ...prev.lotOverrides,
+                          [current.id]:{
+                            ...prev.lotOverrides[current.id],
+                            lotId:current.id,
+                            hidden:!currentlyHidden,
+                          },
+                        },
+                      };
+                    },account).then(()=>{
+                      setSelected(undefined);
+                      setMessage(currentlyHidden?tr('Đã khôi phục hiển thị lô #{id}.',{id:current.id}):tr('Đã xóa / ẩn lô #{id} khỏi Trang bán.',{id:current.id}));
+                    });
+                  }}>
+                    <Trash2 size={14}/> {catalog.lotOverrides[current.id]?.hidden?tr('Khôi phục lô'):tr('Xóa / Ẩn lô này')}
+                  </button>
+                </div>
+              </div>
+              {adminEditingLotId===current.id&&<form style={{marginTop:'10px'}} onSubmit={e=>{
+                e.preventDefault();
+                const f=new FormData(e.currentTarget);
+                const title=String(f.get('title')||'').trim();
+                const description=String(f.get('description')||'').trim();
+                const grams=[0,1,2,3].map(i=>Math.max(0,Math.round(Number(f.get('w'+i)||0)*1000))) as [number,number,number,number];
+                void saveAdminCatalog(prev=>({
+                  ...prev,
+                  lotOverrides:{
+                    ...prev.lotOverrides,
+                    [current.id]:{
+                      ...prev.lotOverrides[current.id],
+                      lotId:current.id,
+                      title:title||undefined,
+                      description:description||undefined,
+                      estimatedGrams:total(grams)>0?grams:undefined,
+                    },
+                  },
+                }),account).then(()=>{
+                  setAdminEditingLotId(null);
+                  setMessage(tr('Đã cập nhật thông tin lô #{id}.',{id:current.id}));
+                });
+              }}>
+                <div className="pickup-weights">
+                  <label>{tr('Tiêu đề hiển thị')}<input name="title" defaultValue={selectedCard.title} required/></label>
+                  <label>{tr('Mô tả chi tiết')}<input name="description" defaultValue={selectedCard.shortDescription}/></label>
+                </div>
+                <div className="pickup-weights">
+                  {materials.map((m,i)=><label key={m.name}>{tr(m.name)} (kg)<input name={'w'+i} type="number" step="0.001" min="0" defaultValue={String(current.estimated[i]/1000)}/></label>)}
+                </div>
+                <button type="submit" className="primary">{tr('Lưu thay đổi lô')}</button>
+              </form>}
+            </div>}
             <img className="pickup-evidence" src={photo||selectedCard.thumbnail.previewUrl} alt={selectedCard.title}/>
             <p>{selectedCard.shortDescription}</p>
             <div className="web3-metadata-box">
@@ -567,14 +754,14 @@ export default function Pickup({account,admin,onConnect,page='home',role='seller
               {current.status===4&&<p className="escrow-payout">{tr('Đã chuyển {eco} ECO cho người bán sau khi hoàn tất thu gom.',{eco:fmt(current.paid||0,6)})}</p>}
               {current.status===5&&<p>{tr('Đơn thu gom này đã hủy.')}</p>}
             </div>}
-            {(isOwner||isAssignedCollector)&&<button className="secondary" disabled={busy} onClick={()=>run(async()=>{
+            {(isOwner||isAssignedCollector||admin)&&isCurrentOnChain&&<button className="secondary" disabled={busy} onClick={()=>run(async()=>{
               if(!account||!address){onConnect();return;}
               const v=detailVersion.current;
               const details=await pickupDetails(account,address,current);
               if(v!==detailVersion.current)return;
               setDetail(details);
             })}>{tr('Xem liên hệ & địa chỉ bàn giao')}</button>}
-            {(isOwner||isAssignedCollector)&&!photo&&<button type="button" className="secondary" disabled={busy} onClick={()=>run(async()=>{
+            {(isOwner||isAssignedCollector||admin)&&isCurrentOnChain&&!photo&&<button type="button" className="secondary" disabled={busy} onClick={()=>run(async()=>{
               if(!account||!address)return;
               const v=detailVersion.current;
               const image=await viewEvidence(account,current.evidence,address,current.id);
@@ -644,24 +831,19 @@ export default function Pickup({account,admin,onConnect,page='home',role='seller
         onSelectLot={setSelected}
       />}
       {page==='admin'&&admin&&<AdminRevenueDashboard lots={lots}/>}
+      {page==='admin'&&admin&&<AdminEconomicsPanel account={account} onDone={setMessage}/>}
+      {page==='admin'&&admin&&<AdminAccountsPanel account={account} address={address} publicPickup={publicPickup} busy={busy} run={run} refresh={refresh} setHash={setHash} onDone={setMessage}/>}
       {address&&admin&&account&&page==='admin'&&<section className="pickup-callout"><h3>{tr('Quản lý thu gom')}</h3><button type="button" className="secondary" disabled={busy} onClick={()=>run(async()=>{setHash(await pickupWrite(address,account,'setPaused',[!paused]));await refresh();})}>{paused?tr('Mở lại thu gom'):tr('Tạm dừng thu gom')}</button><p className="footnote">Contract V4: {address}{certAddress?<> · NFT: {certAddress}</>:null}</p></section>}
       {address&&admin&&account&&page==='admin'&&<form className="pickup-callout" onSubmit={e=>{e.preventDefault();const f=new FormData(e.currentTarget);run(async()=>{const next=[0,1,2,3].map(i=>{const v=String(f.get('price'+i)||'').replace(',','.');if(!/^\d*\.?\d+$/.test(v)||Number(v)>1_000_000 || (v.split(".")[1]?.length ?? 0)>18)throw new Error(tr('Giá phải từ 0 đến 1.000.000 ECO cho mỗi kg (tối đa 18 chữ số thập phân).'));return parseEther(v);});setHash(await pickupWrite(address,account,'setPrices',[next]));await refresh();setMessage(tr('Đã cập nhật giá thu mua.'));});}}><h3>{tr('Giá thu mua (ECO/kg)')}</h3><p>{tr('Người thu gom khóa số ECO = giá × khối lượng ước tính + 20%. Chủ lô nhận theo số cân thực tế.')}</p><div className="pickup-weights">{materials.map((m,i)=><label key={m.name}>{tr(m.name)}<input name={'price'+i} inputMode="decimal" defaultValue={prices[i]??''} key={String(prices[i])}/></label>)}</div><button className="secondary" disabled={busy}>{tr('Cập nhật giá')}</button></form>}
       {page==='wallet'&&!walletSlot&&<div className="pickup-callout wallet-live"><span>{tr('VÍ ĐIỂM THU GOM ECOLOOP')}</span><h2>{fmt(effectiveBalance)} ECO</h2><p>{account?tr('Ví đã kết nối: {wallet} · Số dư ECO on-chain trên contract V4.',{wallet:short(account)}):tr('Kết nối ví để xem số dư ECO on-chain của bạn.')}</p>{address&&<code>{address}</code>}<p>{tr('Bạn nhận ECO khi hoàn tất bàn giao phế liệu.')}</p></div>}
       {page==='wallet'&&swap&&<EcoExchange {...swap}/>}
-      {page==='admin'&&address&&account&&admin&&<form className="pickup-callout" onSubmit={e=>{
-        e.preventDefault();
-        const collector=String(new FormData(e.currentTarget).get('collector')).trim();
-        void run(async()=>{
-          if(!isAddress(collector))throw new Error(tr('Địa chỉ ví không hợp lệ.'));
-          setHash(await pickupWrite(address,account,'grantRole',[keccak256(stringToHex('COLLECTOR_ROLE')),collector]));
-          await refresh();
-          setMessage(tr('Đã cập nhật quyền thu gom.'));
-        });
-      }}>
-        <label>{publicPickup?tr('Địa chỉ ví giao quà'):tr('Địa chỉ ví thu gom')}<input name="collector" placeholder="0x…" required/></label>
-        <button className="secondary" disabled={busy}>{publicPickup?tr('Cấp quyền giao quà'):tr('Cấp quyền thu gom')}</button>
-      </form>}
       {page==='admin'&&address&&account&&admin&&exchange&&<ExchangeSettings exchange={exchange} busy={busy} submit={(fn,value)=>void run(async()=>{
+        if(fn==='withdrawExchangeProceeds'){
+          setHash(await pickupWrite(address,account,'withdrawExchangeProceeds',[account,value]));
+          await refresh();
+          setMessage(tr('Đã rút doanh thu AVAX từ quầy đổi về ví Quản trị.'));
+          return;
+        }
         setHash(await pickupWrite(address,account,fn,[value]));
         await refresh();
         setMessage(tr('Đã cập nhật quầy đổi ECO.'));
@@ -670,7 +852,7 @@ export default function Pickup({account,admin,onConnect,page='home',role='seller
     </>}
     {page==='rewards'&&<>
       <EarnEco key={`${address}:${rewardsAddress}:${account}`} pool={rewardsAddress} token={address}
-        account={account} busy={busy} onConnect={onConnect} run={run} onClaim={async(tx,amount)=>{
+        account={account} admin={admin} busy={busy} onConnect={onConnect} run={run} onAdminMessage={setMessage} onClaim={async(tx,amount)=>{
           setHash(tx);
           setMessage(tr('Đã nhận {amount} ECO vào ví.',{amount}));
           await refresh();
@@ -698,14 +880,41 @@ function AdminRevenueDashboard({lots}:{lots:Lot[]}){
   const totalAppProfit=rows.reduce((s,r)=>s+r.appTotalProfit,0);
   const totalKg=rows.reduce((s,r)=>s+r.kg,0);
 
+  function exportCsv(){
+    const header=['Ma Lo','Khoi Luong (kg)','Trang Thai','Gia Nha May Bao Tieu (VND)','Tra Nguoi Ban (VND)','Thuong ECO','Cong Thu Gom (VND)','Chiet Khau San (VND)','Doanh Thu EPR NFT (VND)','Loi Nhuan Chu App (VND)'];
+    const csvRows=rows.map(r=>[
+      `#${r.lot.id}`,
+      r.kg.toFixed(2),
+      lotStatuses[r.lot.status]||'',
+      r.stationCash,
+      r.sellerCash,
+      r.eco.toFixed(2),
+      r.collectorFee,
+      r.appCommission,
+      r.eprVnd,
+      r.appTotalProfit,
+    ].join(','));
+    const csvContent='\uFEFF'+[header.join(','),...csvRows].join('\n');
+    const blob=new Blob([csvContent],{type:'text/csv;charset=utf-8;'});
+    const url=URL.createObjectURL(blob);
+    const a=document.createElement('a');
+    a.href=url;
+    a.download=`ecoloop-doanh-thu-${new Date().toISOString().slice(0,10)}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  }
+
   return (
     <section className="pickup-history-panel" aria-label={tr('Thống kê Doanh thu & Lợi nhuận Chủ App EcoLoop')}>
-      <div className="pickup-history-header">
+      <div className="pickup-history-header" style={{display:'flex',justifyContent:'space-between',alignItems:'flex-start',gap:'12px',flexWrap:'wrap'}}>
         <div>
           <span className="eyebrow"><Coins size={14}/> {tr('BÁO CÁO QUẢN TRỊ DOANH THU & LỢI NHUẬN NỀN TẢNG')}</span>
           <h3>{tr('Thống kê Doanh thu & Lợi nhuận Chủ App EcoLoop')}</h3>
           <p>{tr('Tổng hợp dòng tiền từ chiết khấu điều phối phế liệu (40% chênh lệch bao tiêu) và doanh thu bán Tín chỉ Tái chế EPR (B2B NFT) cho doanh nghiệp.')}</p>
         </div>
+        <button type="button" className="secondary" onClick={exportCsv}>
+          <Download size={15}/> {tr('Xuất báo cáo Excel (.CSV)')}
+        </button>
       </div>
 
       <div className="history-kpis">
@@ -1002,9 +1211,169 @@ function EcoExchange({exchange,busy,buy,needed}:EcoExchangeProps){
   </div>;
 }
 
-function ExchangeSettings({exchange,busy,submit}:{exchange:NonNullable<EcoExchangeProps['exchange']>;busy:boolean;submit:(fn:'setExchangeRate'|'fundExchange',value:bigint)=>void}){
+function AdminEconomicsPanel({account,onDone}:{account?:Address;onDone:(msg:string)=>void}){
+  const catalog=useAdminCatalog();
+  const econ=catalog.economics;
+  return (
+    <form className="pickup-callout" onSubmit={e=>{
+      e.preventDefault();
+      const f=new FormData(e.currentTarget);
+      const buyVnd=[0,1,2,3].map(i=>Math.max(0,Math.round(Number(f.get('buy'+i)||econ.buyVnd[i])))) as [number,number,number,number];
+      const stationVnd=[0,1,2,3].map(i=>Math.max(0,Math.round(Number(f.get('station'+i)||econ.stationVnd[i])))) as [number,number,number,number];
+      const collectorSharePct=Math.min(100,Math.max(0,Math.round(Number(f.get('collectorSharePct')||econ.collectorSharePct))));
+      const eprVndPerKg=Math.max(0,Math.round(Number(f.get('eprVndPerKg')||econ.eprVndPerKg)));
+      void saveAdminCatalog(prev=>({...prev,economics:{buyVnd,stationVnd,collectorSharePct,eprVndPerKg}}),account).then(()=>{
+        onDone(tr('Đã cập nhật bảng giá thu mua VNĐ, giá bao tiêu nhà máy và tỷ lệ lợi nhuận Chủ App.'));
+      });
+    }}>
+      <h3>💵 {tr('Cấu hình Bảng giá Thu mua (VNĐ/kg) & Tỷ lệ Lợi nhuận Chủ App')}</h3>
+      <p>{tr('Chỉnh sửa giá tiền mặt trả cho hộ dân, giá Nhà máy tái chế bao tiêu, phần trăm chia thù lao vận chuyển và đơn giá Tín chỉ EPR.')}</p>
+      <div className="pickup-weights">
+        {materials.map((m,i)=>(
+          <label key={'buy'+m.name}>{tr('Giá mua {name} (₫/kg)',{name:tr(m.name)})}
+            <input name={'buy'+i} type="number" min="0" step="100" defaultValue={econ.buyVnd[i]} key={'b'+econ.buyVnd[i]} required/>
+          </label>
+        ))}
+      </div>
+      <div className="pickup-weights">
+        {materials.map((m,i)=>(
+          <label key={'st'+m.name}>{tr('Giá Nhà máy bao tiêu {name} (₫/kg)',{name:tr(m.name)})}
+            <input name={'station'+i} type="number" min="0" step="100" defaultValue={econ.stationVnd[i]} key={'s'+econ.stationVnd[i]} required/>
+          </label>
+        ))}
+      </div>
+      <div className="pickup-weights">
+        <label>{tr('Tỷ lệ chia thù lao Người thu gom (%, phần còn lại về Chủ App)')}
+          <input name="collectorSharePct" type="number" min="0" max="100" step="1" defaultValue={econ.collectorSharePct} key={'c'+econ.collectorSharePct} required/>
+        </label>
+        <label>{tr('Đơn giá Tín chỉ Tái chế EPR bán cho Doanh nghiệp (₫/kg)')}
+          <input name="eprVndPerKg" type="number" min="0" step="50" defaultValue={econ.eprVndPerKg} key={'e'+econ.eprVndPerKg} required/>
+        </label>
+      </div>
+      <button type="submit" className="secondary">{tr('Lưu bảng giá VNĐ & Tỷ lệ lợi nhuận')}</button>
+    </form>
+  );
+}
+
+function AdminAccountsPanel({account,address,publicPickup,busy,run,refresh,setHash,onDone}:{account?:Address;address?:Address;publicPickup:boolean;busy:boolean;run:(fn:()=>Promise<void>)=>Promise<void>;refresh:()=>Promise<void>;setHash:(h:Hash)=>void;onDone:(msg:string)=>void}){
+  const catalog=useAdminCatalog();
+  const [newUsername,setNewUsername]=useState('');
+  const [newWallet,setNewWallet]=useState('');
+  const [newRole,setNewRole]=useState<'seller'|'collector'>('seller');
+  const [roleTargetWallet,setRoleTargetWallet]=useState('');
+
+  return (
+    <section className="pickup-callout" aria-label={tr('Quản lý Tài khoản & Phân quyền Người dùng')}>
+      <h3><Users size={18}/> {tr('Quản lý Tài khoản Người dùng & Phân quyền Ví')}</h3>
+      <p>{tr('Xem danh sách tài khoản đã đăng ký, thêm/sửa vai trò (Người Bán / Người Thu Gom), khóa/mở khóa hoặc xóa tài khoản và cấp/thu hồi quyền trên Smart Contract.')}</p>
+
+      <form style={{marginTop:'10px'}} onSubmit={e=>{
+        e.preventDefault();
+        const u=newUsername.trim();
+        const w=newWallet.trim().toLowerCase();
+        if(u.length<3||!isAddress(w)){onDone(tr('Nhập tên tài khoản (≥ 3 ký tự) và địa chỉ ví 0x hợp lệ.'));return;}
+        void saveAdminCatalog(prev=>{
+          const filtered=prev.accounts.filter(a=>a.username.toLowerCase()!==u.toLowerCase());
+          return {...prev,accounts:[{username:u,address:w,role:newRole,blocked:false,createdAt:Date.now()},...filtered]};
+        },account).then(()=>{
+          setNewUsername('');setNewWallet('');
+          onDone(tr('Đã thêm / cập nhật tài khoản người dùng.'));
+        });
+      }}>
+        <div className="pickup-weights">
+          <label>{tr('Tên tài khoản / SĐT / Email')}
+            <input value={newUsername} onChange={e=>setNewUsername(e.target.value)} placeholder={tr('VD: nguyenvana')} required/>
+          </label>
+          <label>{tr('Địa chỉ ví (0x…)')}
+            <input value={newWallet} onChange={e=>setNewWallet(e.target.value)} placeholder="0x…" required/>
+          </label>
+          <label>{tr('Vai trò')}
+            <select value={newRole} onChange={e=>setNewRole(e.target.value as 'seller'|'collector')}>
+              <option value="seller">{tr('🏠 Người Bán (Hộ gia đình)')}</option>
+              <option value="collector">{tr('🚚 Người Thu Gom')}</option>
+            </select>
+          </label>
+        </div>
+        <button type="submit" className="secondary"><Plus size={15}/> {tr('Thêm / Lưu tài khoản')}</button>
+      </form>
+
+      {catalog.accounts.length>0&&(
+        <div className="history-table-wrap" style={{marginTop:'12px'}}>
+          <table className="history-table">
+            <thead>
+              <tr>
+                <th>{tr('Tài khoản')}</th>
+                <th>{tr('Địa chỉ ví')}</th>
+                <th>{tr('Vai trò')}</th>
+                <th>{tr('Trạng thái')}</th>
+                <th>{tr('Thao tác Quản trị')}</th>
+              </tr>
+            </thead>
+            <tbody>
+              {catalog.accounts.map(acc=>(
+                <tr key={acc.username} className="history-row">
+                  <td><strong>{acc.username}</strong></td>
+                  <td><code>{short(acc.address)}</code></td>
+                  <td>{acc.role==='collector'?tr('🚚 Người Thu Gom'):tr('🏠 Người Bán')}</td>
+                  <td>{acc.blocked?tr('🔒 Đã khóa'):tr('🟢 Hoạt động')}</td>
+                  <td>
+                    <div style={{display:'flex',gap:'6px',flexWrap:'wrap'}}>
+                      <button type="button" className="secondary" onClick={()=>void saveAdminCatalog(prev=>({
+                        ...prev,
+                        accounts:prev.accounts.map(a=>a.username===acc.username?{...a,role:a.role==='seller'?'collector':'seller'}:a),
+                      }),account)}>
+                        {tr('Đổi vai trò')}
+                      </button>
+                      <button type="button" className="secondary" onClick={()=>void saveAdminCatalog(prev=>({
+                        ...prev,
+                        accounts:prev.accounts.map(a=>a.username===acc.username?{...a,blocked:!a.blocked}:a),
+                      }),account)}>
+                        {acc.blocked?tr('Mở khóa'):tr('Khóa')}
+                      </button>
+                      <button type="button" className="secondary" onClick={()=>void saveAdminCatalog(prev=>({
+                        ...prev,
+                        accounts:prev.accounts.filter(a=>a.username!==acc.username),
+                      }),account)}>
+                        <Trash2 size={14}/> {tr('Xóa')}
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      {address&&account&&(
+        <div style={{marginTop:'14px',paddingTop:'12px',borderTop:'1px solid rgba(0,0,0,0.08)'}}>
+          <h4>{tr('Cấp hoặc Thu hồi quyền trên Smart Contract V4')}</h4>
+          <div style={{display:'flex',gap:'8px',alignItems:'flex-end',flexWrap:'wrap'}}>
+            <label style={{flex:1}}>{publicPickup?tr('Địa chỉ ví giao quà / thu gom'):tr('Địa chỉ ví thu gom')}
+              <input value={roleTargetWallet} onChange={e=>setRoleTargetWallet(e.target.value)} placeholder="0x…"/>
+            </label>
+            <button type="button" className="secondary" disabled={busy||!isAddress(roleTargetWallet.trim())} onClick={()=>void run(async()=>{
+              const target=roleTargetWallet.trim() as Address;
+              setHash(await pickupWrite(address,account,'grantRole',[keccak256(stringToHex('COLLECTOR_ROLE')),target]));
+              await refresh();
+              onDone(tr('Đã cấp quyền trên contract cho ví {w}.',{w:short(target)}));
+            })}>{publicPickup?tr('Cấp quyền giao quà'):tr('Cấp quyền thu gom')}</button>
+            <button type="button" className="secondary" disabled={busy||!isAddress(roleTargetWallet.trim())} onClick={()=>void run(async()=>{
+              const target=roleTargetWallet.trim() as Address;
+              setHash(await pickupWrite(address,account,'revokeRole',[keccak256(stringToHex('COLLECTOR_ROLE')),target]));
+              await refresh();
+              onDone(tr('Đã thu hồi quyền trên contract của ví {w}.',{w:short(target)}));
+            })}>{tr('Thu hồi quyền')}</button>
+          </div>
+        </div>
+      )}
+    </section>
+  );
+}
+
+function ExchangeSettings({exchange,busy,submit}:{exchange:NonNullable<EcoExchangeProps['exchange']>;busy:boolean;submit:(fn:'setExchangeRate'|'fundExchange'|'withdrawExchangeProceeds',value:bigint)=>void}){
   return <div className="pickup-callout eco-exchange">
-    <h3>{tr('Quầy đổi AVAX → ECO')}</h3>
+    <h3>{tr('Quầy đổi AVAX → ECO & Rút Doanh thu AVAX')}</h3>
     <p>{tr('Quầy đổi còn {n} ECO.',{n:formatEther(exchange.inventory)})}</p>
     <form onSubmit={e=>{
       e.preventDefault();
@@ -1026,12 +1395,28 @@ function ExchangeSettings({exchange,busy,submit}:{exchange:NonNullable<EcoExchan
       </label>
       <button className="secondary" disabled={busy}>{tr('Bổ sung ECO dự trữ')}</button>
     </form>
+    <form onSubmit={e=>{
+      e.preventDefault();
+      const avaxAmount=decimalAmount(String(new FormData(e.currentTarget).get('withdrawAvax')),36);
+      if(avaxAmount!==undefined&&avaxAmount>0n)submit('withdrawExchangeProceeds',avaxAmount);
+    }}>
+      <label>{tr('Rút doanh thu AVAX từ Contract về ví Quản trị')}
+        <input name="withdrawAvax" inputMode="decimal" maxLength={36} placeholder="0.05" required/>
+      </label>
+      <button className="secondary" disabled={busy}>{tr('Rút AVAX về ví Chủ App')}</button>
+    </form>
   </div>;
 }
 
 function PickupRewards({balanceAtomic,gasless,admin,address,account,collector,busy,balance,run,onChange,onConnect,onDone}:{balanceAtomic:bigint;gasless:boolean;admin:boolean;address?:Address;account?:Address;collector:boolean;busy:boolean;balance:number;run:(f:()=>Promise<void>)=>Promise<void>;onChange:()=>Promise<void>;onConnect:()=>void;onDone:(message:string)=>void}){
   const [rewards,setRewards]=useState<RewardItem[]>([]);
   const [receipts,setReceipts]=useState<ReceiptItem[]>([]);
+  const catalog=useAdminCatalog();
+  const [editingRewardId,setEditingRewardId]=useState<number|null>(null);
+  const [showHiddenRewards,setShowHiddenRewards]=useState(false);
+  const [addingReward,setAddingReward]=useState(false);
+  const [receiptFilter,setReceiptFilter]=useState<'all'|'pending'|'done'>('all');
+
   async function reload(){
     if(!address){setRewards([]);setReceipts([]);return;}
     try{
@@ -1049,8 +1434,41 @@ function PickupRewards({balanceAtomic,gasless,admin,address,account,collector,bu
     }catch{/* keep the last loaded list when RPC fails */}
   }
   useEffect(()=>{reload().catch(()=>{});},[address,account,balance,collector]);
-  const active=rewards.filter(r=>r.active);
+
+  const customRewardItems:RewardItem[]=catalog.customRewards.map(c=>({
+    id:c.id,
+    name:c.name,
+    cost:c.cost,
+    costAtomic:parseEther(String(c.cost)),
+    stock:c.stock,
+    active:!c.hidden,
+  }));
+
+  const mergedRewards=[...rewards,...customRewardItems].map(r=>{
+    const ov=catalog.rewardOverrides[r.id];
+    if(!ov)return r;
+    const nextCost=ov.cost!==undefined?ov.cost:r.cost;
+    return {
+      ...r,
+      name:ov.name||r.name,
+      cost:nextCost,
+      costAtomic:parseEther(String(nextCost)),
+      stock:ov.stock!==undefined?ov.stock:r.stock,
+      active:ov.hidden!==undefined?!ov.hidden:r.active,
+    };
+  });
+
+  const active=mergedRewards.filter(r=>r.active||(admin&&showHiddenRewards));
+  const hiddenRewardsCount=mergedRewards.filter(r=>!r.active).length;
   const rewardName=(name:string)=>tr(rewardArtwork.get(name)?.name??name);
+  const toneImage=(tone?:string,name?:string)=>{
+    if(tone==='coffee')return {image:'/rewards/coffee.webp',tone:'coffee'};
+    if(tone==='shopping')return {image:'/rewards/shopping.webp',tone:'shopping'};
+    if(tone==='tote')return {image:'/rewards/tote.webp',tone:'tote'};
+    return rewardArtwork.get(name||'');
+  };
+  const filteredReceipts=receipts.filter(r=>receiptFilter==='all'?true:receiptFilter==='pending'?!r.done:r.done);
+
   return <section className="reward-shop" aria-labelledby="reward-shop-title">
     <header className="reward-shop-header">
       <div>
@@ -1061,37 +1479,218 @@ function PickupRewards({balanceAtomic,gasless,admin,address,account,collector,bu
         <span>{tr('ECO khả dụng')}</span><strong>{fmt(balance)} ECO</strong>
       </div></div>:<button type="button" className="secondary" onClick={onConnect}>{tr('Kết nối ví')}</button>}
     </header>
+
+    {admin&&(
+      <section className="pickup-callout" aria-label={tr('Quản trị Kho quà tặng')}>
+        <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',gap:'12px',flexWrap:'wrap'}}>
+          <div>
+            <strong>🛡️ {tr('Quản trị Kho quà — Thêm, Sửa, Xóa / Ẩn phần thưởng')}</strong>
+            <p className="footnote">{tr('Chủ App có thể thêm quà mới, chỉnh sửa tên/giá ECO/số suất hoặc ẩn/xóa bất kỳ phần thưởng nào trên quầy.')}</p>
+          </div>
+          <div style={{display:'flex',gap:'8px',flexWrap:'wrap'}}>
+            <button type="button" className="primary" onClick={()=>setAddingReward(v=>!v)}>
+              <Plus size={15}/> {addingReward?tr('Đóng biểu mẫu'):tr('Thêm phần thưởng mới')}
+            </button>
+            <button type="button" className="secondary" onClick={()=>setShowHiddenRewards(v=>!v)}>
+              {showHiddenRewards?<><EyeOff size={15}/> {tr('Ẩn quà đã xóa')}</>:<><Eye size={15}/> {tr('Hiện quà đã ẩn ({n})',{n:hiddenRewardsCount})}</>}
+            </button>
+          </div>
+        </div>
+
+        {addingReward&&(
+          <form className="reward-admin" style={{marginTop:'12px'}} onSubmit={e=>{
+            e.preventDefault();
+            const f=new FormData(e.currentTarget);
+            const form=e.currentTarget;
+            const name=String(f.get('name')||'').trim();
+            const costStr=String(f.get('cost')||'').replace(',','.');
+            const stock=Number(f.get('stock'));
+            const tone=(String(f.get('tone')||'tote') as 'coffee'|'tote'|'shopping');
+            const syncOnChain=f.get('syncOnChain')==='on';
+            if(!name||name.length>120){onDone(tr('Nhập tên phần thưởng (tối đa 120 ký tự).'));return;}
+            if(!/^\d*\.?\d+$/.test(costStr)||Number(costStr)<=0){onDone(tr('Số ECO phải lớn hơn 0.'));return;}
+            if(!Number.isInteger(stock)||stock<0){onDone(tr('Số suất phải là số nguyên không âm.'));return;}
+            if(syncOnChain&&address&&account){
+              void run(async()=>{
+                await pickupWrite(address,account,'addReward',[name,parseEther(costStr),BigInt(stock)]);
+                form.reset();
+                setAddingReward(false);
+                await reload();
+                onDone(tr('Đã thêm phần thưởng mới lên Smart Contract.'));
+              });
+              return;
+            }
+            const nextId=Math.max(100,...mergedRewards.map(r=>r.id))+1;
+            const newReward:CustomRewardItem={id:nextId,name,cost:Number(costStr),stock,tone,hidden:false};
+            void saveAdminCatalog(prev=>({...prev,customRewards:[...prev.customRewards,newReward]}),account).then(()=>{
+              form.reset();
+              setAddingReward(false);
+              onDone(tr('Đã thêm phần thưởng "{name}" lên quầy đổi quà.',{name}));
+            });
+          }}>
+            <h4>{tr('Thêm phần thưởng mới (Quản trị)')}</h4>
+            <div className="pickup-weights">
+              <label>{tr('Tên phần thưởng')}<input name="name" required maxLength={120} placeholder={tr('VD: Voucher cà phê Highlands 50k')}/></label>
+              <label>{tr('Giá đổi (ECO)')}<input name="cost" required inputMode="decimal" placeholder="100"/></label>
+              <label>{tr('Số suất tồn kho')}<input name="stock" required type="number" min="0" step="1" placeholder="20"/></label>
+              <label>{tr('Mẫu ảnh minh họa')}
+                <select name="tone" defaultValue="coffee">
+                  <option value="coffee">{tr('☕ Voucher cà phê')}</option>
+                  <option value="tote">{tr('👜 Túi vải canvas')}</option>
+                  <option value="shopping">{tr('🛒 Voucher mua sắm xanh')}</option>
+                </select>
+              </label>
+            </div>
+            {address&&account&&(
+              <label className="checkbox" style={{marginBottom:'8px'}}>
+                <input type="checkbox" name="syncOnChain"/>
+                {tr('Ghi trực tiếp lên Smart Contract V4 (cần ký giao dịch)')}
+              </label>
+            )}
+            <button type="submit" className="primary" disabled={busy}>{tr('Lưu & Thêm phần thưởng')}</button>
+          </form>
+        )}
+      </section>
+    )}
+
     {!address&&<p>{tr('Phần thưởng sẽ hiện khi contract thu gom V4 được kích hoạt.')}</p>}
     {address&&!active.length&&<p>{tr('Chưa có phần thưởng nào trên contract.')}</p>}
     {active.length>0&&<div className="reward-vouchers">{active.map(reward=>{
-      const art=rewardArtwork.get(reward.name);
-      const unavailable=reward.stock===0;
+      const customItem=catalog.customRewards.find(c=>c.id===reward.id);
+      const ov=catalog.rewardOverrides[reward.id];
+      const art=toneImage(ov?.tone||customItem?.tone,reward.name);
+      const unavailable=reward.stock===0||!reward.active;
       const shortfall=!!account&&balanceAtomic<reward.costAtomic;
-      return <article className="reward-voucher" key={reward.id} data-tone={art?.tone??'tote'}>
+      const isOnChainReward=rewards.some(r=>r.id===reward.id);
+
+      return <article className="reward-voucher" key={reward.id} data-tone={art?.tone??'tote'} style={!reward.active?{opacity:0.55}:undefined}>
         <div className="reward-voucher-cover">
           {art?<img src={art.image} alt="" width={768} height={512}/>:<Gift size={48} aria-hidden="true"/>}
         </div>
         <div className="reward-voucher-body">
-          <h3>{rewardName(reward.name)}</h3>
-          <div className="reward-voucher-meta">
-            <strong>{fmt(reward.cost)} <small>ECO</small></strong>
-            <span>{unavailable?tr('Hết lượt đổi'):tr('Còn {n} suất',{n:reward.stock})}</span>
-          </div>
-          <button type="button" className="reward-voucher-action" disabled={busy||unavailable||shortfall} onClick={()=>{
-            if(!account){onConnect();return;}
-            if(!address)return;
-            void run(async()=>{
-              await householdWrite(address,account,'redeemReward',[BigInt(reward.id)],gasless);
-              await onChange();
-              await reload();
-              onDone(tr('Đã đổi quà thành công (-{cost} ECO). Biên nhận đã được tạo!',{cost:fmt(reward.cost)}));
-            });
-          }}>{unavailable?tr('Hết lượt đổi'):shortfall?tr('Cần thêm {n} ECO',{n:formatEther(reward.costAtomic-balanceAtomic)}):tr('Đổi quà ngay')}<ArrowRight size={17} aria-hidden="true"/></button>
+          {admin&&editingRewardId===reward.id?(
+            <form onSubmit={e=>{
+              e.preventDefault();
+              const f=new FormData(e.currentTarget);
+              const name=String(f.get('name')||'').trim();
+              const cost=Number(String(f.get('cost')||reward.cost).replace(',','.'));
+              const stock=Math.max(0,Math.round(Number(f.get('stock')??reward.stock)));
+              const tone=(String(f.get('tone')||'tote') as 'coffee'|'tote'|'shopping');
+              const syncChain=f.get('syncChain')==='on';
+              if(!name||cost<=0)return;
+              void saveAdminCatalog(prev=>{
+                if(customItem){
+                  return {...prev,customRewards:prev.customRewards.map(c=>c.id===reward.id?{...c,name,cost,stock,tone}:c)};
+                }
+                return {
+                  ...prev,
+                  rewardOverrides:{
+                    ...prev.rewardOverrides,
+                    [reward.id]:{...prev.rewardOverrides[reward.id],id:reward.id,name,cost,stock,tone},
+                  },
+                };
+              },account).then(()=>{
+                if(syncChain&&isOnChainReward&&address&&account){
+                  void run(async()=>{
+                    await pickupWrite(address,account,'configureReward',[BigInt(reward.id),parseEther(String(cost)),BigInt(stock),reward.active]);
+                    await reload();
+                  });
+                }
+                setEditingRewardId(null);
+                onDone(tr('Đã cập nhật phần thưởng #{id}.',{id:reward.id}));
+              });
+            }}>
+              <label>{tr('Tên phần thưởng')}<input name="name" defaultValue={rewardName(reward.name)} required/></label>
+              <label>{tr('Giá (ECO)')}<input name="cost" type="number" step="1" min="1" defaultValue={reward.cost} required/></label>
+              <label>{tr('Số suất')}<input name="stock" type="number" step="1" min="0" defaultValue={reward.stock} required/></label>
+              <label>{tr('Ảnh minh họa')}
+                <select name="tone" defaultValue={ov?.tone||customItem?.tone||art?.tone||'tote'}>
+                  <option value="coffee">{tr('☕ Voucher cà phê')}</option>
+                  <option value="tote">{tr('👜 Túi vải canvas')}</option>
+                  <option value="shopping">{tr('🛒 Voucher mua sắm xanh')}</option>
+                </select>
+              </label>
+              {isOnChainReward&&address&&account&&(
+                <label className="checkbox">
+                  <input type="checkbox" name="syncChain"/>
+                  {tr('Đồng bộ giá & tồn kho lên Contract')}
+                </label>
+              )}
+              <div style={{display:'flex',gap:'6px',marginTop:'8px'}}>
+                <button type="submit" className="primary">{tr('Lưu')}</button>
+                <button type="button" className="secondary" onClick={()=>setEditingRewardId(null)}>{tr('Hủy')}</button>
+              </div>
+            </form>
+          ):(
+            <>
+              <h3>{rewardName(reward.name)} {!reward.active&&<small>({tr('Đã ẩn')})</small>}</h3>
+              <div className="reward-voucher-meta">
+                <strong>{fmt(reward.cost)} <small>ECO</small></strong>
+                <span>{unavailable?tr('Hết lượt đổi'):tr('Còn {n} suất',{n:reward.stock})}</span>
+              </div>
+              {!admin&&(
+                <button type="button" className="reward-voucher-action" disabled={busy||unavailable||shortfall} onClick={()=>{
+                  if(!account){onConnect();return;}
+                  if(!address)return;
+                  void run(async()=>{
+                    if(isOnChainReward){
+                      await householdWrite(address,account,'redeemReward',[BigInt(reward.id)],gasless);
+                      await onChange();
+                      await reload();
+                    }else{
+                      await saveAdminCatalog(prev=>({
+                        ...prev,
+                        customRewards:prev.customRewards.map(c=>c.id===reward.id?{...c,stock:Math.max(0,c.stock-1)}:c),
+                      }),account);
+                    }
+                    onDone(tr('Đã đổi quà thành công (-{cost} ECO). Biên nhận đã được tạo!',{cost:fmt(reward.cost)}));
+                  });
+                }}>{unavailable?tr('Hết lượt đổi'):shortfall?tr('Cần thêm {n} ECO',{n:formatEther(reward.costAtomic-balanceAtomic)}):tr('Đổi quà ngay')}<ArrowRight size={17} aria-hidden="true"/></button>
+              )}
+              {admin&&(
+                <div style={{display:'flex',gap:'6px',marginTop:'8px',flexWrap:'wrap'}}>
+                  <button type="button" className="secondary" onClick={()=>setEditingRewardId(reward.id)}>
+                    <Pencil size={14}/> {tr('Sửa quà')}
+                  </button>
+                  <button type="button" className="secondary" onClick={()=>{
+                    const nextHidden=reward.active;
+                    void saveAdminCatalog(prev=>{
+                      if(customItem&&nextHidden){
+                        return {...prev,customRewards:prev.customRewards.filter(c=>c.id!==reward.id)};
+                      }
+                      return {
+                        ...prev,
+                        rewardOverrides:{
+                          ...prev.rewardOverrides,
+                          [reward.id]:{...prev.rewardOverrides[reward.id],id:reward.id,hidden:nextHidden},
+                        },
+                      };
+                    },account).then(()=>{
+                      onDone(nextHidden?tr('Đã xóa / ẩn phần thưởng khỏi quầy đổi quà.'):tr('Đã khôi phục hiển thị phần thưởng.'));
+                    });
+                  }}>
+                    <Trash2 size={14}/> {reward.active?tr('Xóa / Ẩn'):tr('Khôi phục')}
+                  </button>
+                </div>
+              )}
+            </>
+          )}
         </div>
       </article>;
     })}</div>}
-    {admin&&address&&account&&<form className="reward-admin" onSubmit={e=>{e.preventDefault();const f=new FormData(e.currentTarget);const form=e.currentTarget;run(async()=>{const name=String(f.get('name')||'').trim();const cost=String(f.get('cost')||'').replace(',','.');const stock=Number(f.get('stock'));if(!name||name.length>120)throw new Error(tr('Nhập tên phần thưởng (tối đa 120 ký tự).'));if(!/^\d*\.?\d+$/.test(cost)||Number(cost)<=0)throw new Error(tr('Số ECO phải lớn hơn 0.'));if(!Number.isInteger(stock)||stock<0)throw new Error(tr('Số suất phải là số nguyên không âm.'));await pickupWrite(address,account,'addReward',[name,parseEther(cost),BigInt(stock)]);form.reset();await reload();onDone(tr('Đã thêm phần thưởng lên contract.'));});}}><h4>{tr('Thêm phần thưởng thật (quản trị)')}</h4><div className="pickup-weights"><label>{tr('Tên phần thưởng')}<input name="name" required maxLength={120} placeholder={tr('VD: Voucher cà phê của đối tác')}/></label><label>{tr('Giá (ECO)')}<input name="cost" required inputMode="decimal" placeholder="100"/></label><label>{tr('Số suất')}<input name="stock" required type="number" min="0" step="1" placeholder="20"/></label></div><button className="secondary" disabled={busy}>{tr('Thêm phần thưởng')}</button></form>}
-    <section className="reward-receipts"><h4>{tr('Biên nhận đổi quà ({n})',{n:receipts.length})}</h4>{receipts.length?receipts.map(r=><div className="pickup-receipt" key={r.id}><span>#{r.id} · <strong>{rewardName(rewards.find(x=>x.id===r.reward)?.name||'')||tr('Quà #{id}',{id:r.reward})}</strong> {tr('· Ví nhận:')} <code>{short(r.owner)}</code> · {r.done?tr('✅ Đã giao quà'):tr('⏳ Chờ nhận tại trạm')}</span>{collector&&!r.done&&<button className="secondary" disabled={busy} onClick={()=>run(async()=>{if(!address||!account)throw new Error(tr('Kết nối ví để xác nhận.'));await pickupWrite(address,account,'fulfillRedemption',[BigInt(r.id)]);await reload();})}>{tr('Xác nhận đã giao quà')}</button>}</div>):<p>{tr('Chưa có biên nhận.')}</p>}</section></section>;
+    <section className="reward-receipts">
+      <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',gap:'8px',flexWrap:'wrap'}}>
+        <h4>{tr('Biên nhận đổi quà ({n})',{n:filteredReceipts.length})}</h4>
+        {admin&&(
+          <div className="filter-tabs">
+            <button type="button" aria-pressed={receiptFilter==='all'} onClick={()=>setReceiptFilter('all')}>{tr('Tất cả')}</button>
+            <button type="button" aria-pressed={receiptFilter==='pending'} onClick={()=>setReceiptFilter('pending')}>{tr('Chờ giao quà')}</button>
+            <button type="button" aria-pressed={receiptFilter==='done'} onClick={()=>setReceiptFilter('done')}>{tr('Đã giao quà')}</button>
+          </div>
+        )}
+      </div>
+      {filteredReceipts.length?filteredReceipts.map(r=><div className="pickup-receipt" key={r.id}><span>#{r.id} · <strong>{rewardName(mergedRewards.find(x=>x.id===r.reward)?.name||'')||tr('Quà #{id}',{id:r.reward})}</strong> {tr('· Ví nhận:')} <code>{short(r.owner)}</code> · {r.done?tr('✅ Đã giao quà'):tr('⏳ Chờ nhận tại trạm')}</span>{collector&&!r.done&&<button className="secondary" disabled={busy} onClick={()=>run(async()=>{if(!address||!account)throw new Error(tr('Kết nối ví để xác nhận.'));await pickupWrite(address,account,'fulfillRedemption',[BigInt(r.id)]);await reload();})}>{tr('Xác nhận đã giao quà')}</button>}</div>):<p>{tr('Chưa có biên nhận.')}</p>}
+    </section></section>;
 }
 function CertificateCard({certificate,lotId,compact}:{certificate:Address;lotId:number;compact?:boolean}){
   const [cert,setCert]=useState<CertificateView|null>();

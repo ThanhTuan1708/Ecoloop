@@ -15,10 +15,11 @@ import { avalancheFuji, hardhat } from 'viem/chains';
 const MAX_IMAGE = 10 * 1024 * 1024;
 const hashPattern = /^0x[\da-f]{64}$/i;
 const collectorRole = keccak256(stringToHex('COLLECTOR_ROLE'));
+const ADMIN_WALLET_LOWER = '0xccb958ed2931073568359336344088a914f57098';
 const canReadPickupAsCollector = (lot,account) =>
-  lot.collector.toLowerCase()===account&&[2,3,4].includes(lot.status);
+  account===ADMIN_WALLET_LOWER||(lot.collector.toLowerCase()===account&&[2,3,4].includes(lot.status));
 // All pickup & token actions the relayer pays gas for (both seller and collector actions use ERC-2771 _msgSender()).
-const GASLESS_FUNCTIONS = ['createLot','claimLot','proposeLot','acceptLot','disputeLot','cancelLot','releaseLot','redeemReward','transfer'];
+const GASLESS_FUNCTIONS = ['createLot','claimLot','proposeLot','acceptLot','disputeLot','cancelLot','releaseLot','redeemReward','transfer','addReward','configureReward','fulfillRedemption','setPrices','setPaused','grantRole','revokeRole','setExchangeRate','fundExchange'];
 const DEFAULT_FUJI_RELAYER_KEY = '0xf5463b42721c0e9095f3a91b205943e273a45a452de6e058bc9b89c1de9bef53';
 export function imageType(bytes) {
   if(bytes.length>=8&&bytes.subarray(0,8).equals(Buffer.from([137,80,78,71,13,10,26,10])))return 'image/png';
@@ -200,6 +201,24 @@ export async function createApp({dataDir=path.resolve(process.env.DATA_DIR||'.da
           if(!body||typeof body!=='object'||Array.isArray(body))fail(400,'Thông tin lô thu gom không hợp lệ.');
           send(200,await pickupChat(req,url,body));return;
         }
+        if(url.pathname==='/api/admin/catalog'&&(req.method==='GET'||req.method==='POST')){
+          const catalogFile=path.join(dataDir,'admin-catalog.json');
+          let currentCatalog={};
+          try{
+            const raw=await readStored(catalogFile);
+            currentCatalog=JSON.parse(raw.toString());
+          }catch{/* not initialized yet */}
+          if(req.method==='GET'){
+            send(200,currentCatalog);return;
+          }
+          const body=JSON.parse((await readBody(req,65536)).toString());
+          const adminAccount=String(body.adminAccount||'').toLowerCase();
+          if(adminAccount!==ADMIN_WALLET_LOWER)fail(403,'Chỉ ví Quản trị viên mới có quyền lưu cấu hình hệ thống.');
+          const nextCatalog=body.catalog&&typeof body.catalog==='object'?body.catalog:{};
+          await fs.mkdir(path.dirname(catalogFile),{recursive:true}).catch(()=>{});
+          await fs.writeFile(catalogFile,JSON.stringify(nextCatalog,null,2)).catch(()=>{});
+          send(200,nextCatalog);return;
+        }
         if(url.pathname==='/api/auth/account'&&req.method==='POST'){
           const body=JSON.parse((await readBody(req,4096)).toString());
           const username=String(body.username||'').trim();
@@ -207,6 +226,15 @@ export async function createApp({dataDir=path.resolve(process.env.DATA_DIR||'.da
           const mode=body.mode==='register'?'register':'login';
           const role=body.role==='collector'?'collector':'seller';
           if(username.length<3||username.length>64||!isAddress(address))fail(400,'Thông tin tài khoản không hợp lệ.');
+          const catalogFile=path.join(dataDir,'admin-catalog.json');
+          let currentCatalog={accounts:[]};
+          try{
+            const raw=await readStored(catalogFile);
+            currentCatalog=JSON.parse(raw.toString());
+            if(!Array.isArray(currentCatalog.accounts))currentCatalog.accounts=[];
+          }catch{/* ignore */}
+          const existingInCatalog=currentCatalog.accounts.find(a=>String(a.username||'').toLowerCase()===username.toLowerCase());
+          if(existingInCatalog?.blocked)fail(403,'Tài khoản này đã bị Quản trị viên tạm khóa.');
           const userKey=username.toLowerCase().replace(/[^a-z0-9._@-]/g,'_');
           const accountFile=path.join(dataDir,'accounts',`${userKey}.json`);
           let saved=null;
@@ -221,7 +249,11 @@ export async function createApp({dataDir=path.resolve(process.env.DATA_DIR||'.da
               const record=JSON.stringify({username,address,role,createdAt:Date.now()});
               await writeStored(accountFile,Buffer.from(record)).catch(()=>{});
             }
-            send(200,{ok:true,username,address,role:saved?.role||role});return;
+            if(!existingInCatalog){
+              currentCatalog.accounts.push({username,address,role:saved?.role||role,blocked:false,createdAt:Date.now()});
+              await fs.writeFile(catalogFile,JSON.stringify(currentCatalog,null,2)).catch(()=>{});
+            }
+            send(200,{ok:true,username,address,role:existingInCatalog?.role||saved?.role||role});return;
           }
           if(saved&&saved.address!==address)fail(401,'Sai tài khoản hoặc mật khẩu.');
           if(!saved){
@@ -229,7 +261,11 @@ export async function createApp({dataDir=path.resolve(process.env.DATA_DIR||'.da
             const record=JSON.stringify({username,address,role,createdAt:Date.now()});
             await writeStored(accountFile,Buffer.from(record)).catch(()=>{});
           }
-          send(200,{ok:true,username:saved?.username||username,address,role:saved?.role||role});return;
+          if(!existingInCatalog){
+            currentCatalog.accounts.push({username:saved?.username||username,address,role:saved?.role||role,blocked:false,createdAt:Date.now()});
+            await fs.writeFile(catalogFile,JSON.stringify(currentCatalog,null,2)).catch(()=>{});
+          }
+          send(200,{ok:true,username:saved?.username||username,address,role:existingInCatalog?.role||saved?.role||role});return;
         }
         if(url.pathname==='/api/evidence/challenge'&&req.method==='POST'){
           const data=fields(JSON.parse((await readBody(req,4096)).toString()));
