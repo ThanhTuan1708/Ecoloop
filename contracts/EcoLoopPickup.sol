@@ -50,6 +50,10 @@ contract EcoLoopPickup is EcoLoop, ERC2771Context, ReentrancyGuard {
     uint16 public collectorBonusBps;
     uint256 public totalEscrowed;
     uint256 public totalPaid;
+    /// @notice Grams settled by a collector holding COLLECTOR_ROLE (a verified station). Only these count for
+    /// missions, check-in eligibility and ESG attestations, so two colluding wallets cannot farm impact.
+    mapping(address => uint256) public verifiedRecycledGrams;
+    uint256 public totalVerifiedGrams;
 
     mapping(uint256 => Lot) private lots;
     uint256 public lotCount;
@@ -177,11 +181,12 @@ contract EcoLoopPickup is EcoLoop, ERC2771Context, ReentrancyGuard {
         if (lot.status != PickupStatus.Proposed || lot.owner != _msgSender()) revert InvalidStatus();
         if (block.timestamp > lot.updatedAt + TIMEOUT) revert InvalidStatus();
         uint256 total = checkWeights(lot.actual);
+        bool verified = hasRole(COLLECTOR_ROLE, lot.collector);
 
         uint256 deposit = lot.deposit;
         uint256 payment = quotedPayout(id);
         uint256 refund = deposit - payment;
-        uint256 bonus = (collectorBonusBps > 0 && hasRole(COLLECTOR_ROLE, lot.collector))
+        uint256 bonus = (collectorBonusBps > 0 && verified)
             ? (payment * collectorBonusBps) / 10_000
             : 0;
 
@@ -194,6 +199,10 @@ contract EcoLoopPickup is EcoLoop, ERC2771Context, ReentrancyGuard {
 
         recycledGrams[lot.owner] += total;
         totalRecycledGrams += total;
+        if (verified) {
+            verifiedRecycledGrams[lot.owner] += total;
+            totalVerifiedGrams += total;
+        }
         uint256 settledTotal = payment + bonus;
         earned[lot.owner] += settledTotal;
         if (bonus > 0) _mint(lot.owner, bonus);
@@ -202,7 +211,7 @@ contract EcoLoopPickup is EcoLoop, ERC2771Context, ReentrancyGuard {
 
         _transfer(address(this), lot.owner, payment);
         if (refund > 0) _transfer(address(this), lot.collector, refund);
-        certificate.mint(lot.owner, id, lot.actual, lot.collector, payment);
+        certificate.mint(lot.owner, id, lot.actual, lot.collector, payment, verified);
     }
 
     /// @notice Disagreeing owners can request another weighing; the escrow stays locked.

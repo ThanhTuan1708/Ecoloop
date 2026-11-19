@@ -50,7 +50,7 @@ export function DummyLotPaymentCard({
     m === 'vietqr'
       ? tr('🏦 Chuyển khoản VietQR ({bank})', {bank: bankName})
       : m === 'ecopay'
-        ? tr('👛 Ví điện tử EcoPay / MoMo')
+        ? tr('👛 Ví điện tử EcoPay (mô phỏng)')
         : tr('💵 Tiền mặt trao tay tại nhà');
 
   async function handleSimulatePay() {
@@ -116,7 +116,7 @@ export function DummyLotPaymentCard({
               <QrCode size={14}/> {tr('VietQR Ngân hàng')}
             </button>
             <button type="button" aria-pressed={method === 'ecopay'} onClick={() => setMethod('ecopay')}>
-              <Wallet size={14}/> {tr('Ví EcoPay / MoMo')}
+              <Wallet size={14}/> {tr('Ví EcoPay (mô phỏng)')}
             </button>
             <button type="button" aria-pressed={method === 'cash'} onClick={() => setMethod('cash')}>
               <Banknote size={14}/> {tr('Tiền mặt')}
@@ -144,7 +144,7 @@ export function DummyLotPaymentCard({
 
           {method === 'ecopay' && (
             <div style={{background: 'rgba(16,185,129,0.06)', padding: '10px', borderRadius: '12px'}}>
-              <strong>👛 {tr('Thanh toán 1 chạm qua Ví EcoPay / MoMo (Dummy)')}</strong>
+              <strong>👛 {tr('Thanh toán 1 chạm qua Ví EcoPay (mô phỏng)')}</strong>
               <p className="footnote" style={{margin: '4px 0 0'}}>
                 {tr('Hệ thống tự động trừ {vnd} ₫ từ vốn lưu động giả lập của Người thu gom, cộng ngay {vnd} ₫ vào ví Người bán và +{fee} ₫ thù lao chuyến đi.', {vnd: fmt(sellerCash), fee: fmt(collectorFee)})}
               </p>

@@ -5,7 +5,7 @@ import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 
 interface IRecyclingEco is IERC20 {
-    function recycledGrams(address user) external view returns (uint256);
+    function verifiedRecycledGrams(address user) external view returns (uint256);
     function paused() external view returns (bool);
 }
 
@@ -43,6 +43,7 @@ contract EcoLoopRewards {
     error UnknownEcoMission();
     error EcoRewardsUnderfunded();
     error EnforcedPause();
+    error CheckInRequiresVerifiedRecycling();
 
     constructor(IRecyclingEco token) {
         require(address(token).code.length > 0);
@@ -57,7 +58,7 @@ contract EcoLoopRewards {
         status.day = currentDay();
         status.checkInAmount = CHECK_IN_REWARD;
         status.checkInClaimed = checkedIn[user][status.day];
-        status.recycledGrams = eco.recycledGrams(user);
+        status.recycledGrams = eco.verifiedRecycledGrams(user);
         status.available = eco.balanceOf(address(this));
         status.paused = eco.paused();
         for (uint8 id = 0; id < status.missions.length; id++) {
@@ -69,6 +70,8 @@ contract EcoLoopRewards {
     function claimCheckIn(uint256 day) external {
         if (day != currentDay()) revert CheckInDayChanged();
         if (checkedIn[msg.sender][day]) revert EcoRewardAlreadyClaimed();
+        // Anti-Sybil: only wallets with at least one lot settled by a verified station can check in.
+        if (eco.verifiedRecycledGrams(msg.sender) == 0) revert CheckInRequiresVerifiedRecycling();
         checkedIn[msg.sender][day] = true;
         pay(CHECK_IN_REWARD);
         emit CheckedIn(msg.sender, day, CHECK_IN_REWARD);
@@ -77,7 +80,7 @@ contract EcoLoopRewards {
     function claimMission(uint8 id) external {
         (uint256 target, uint256 amount) = missionTerms(id);
         if (missionClaimed[msg.sender][id]) revert EcoRewardAlreadyClaimed();
-        if (eco.recycledGrams(msg.sender) < target) revert EcoMissionIncomplete();
+        if (eco.verifiedRecycledGrams(msg.sender) < target) revert EcoMissionIncomplete();
         missionClaimed[msg.sender][id] = true;
         pay(amount);
         emit MissionRewardClaimed(msg.sender, id, amount);

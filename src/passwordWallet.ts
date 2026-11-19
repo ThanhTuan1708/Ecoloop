@@ -82,7 +82,17 @@ function saveUser(user: StoredUser) {
   }
 }
 
-async function derivePrivateKey(username: string, password: string): Promise<Hex> {
+// Demo testnet accounts: the wallet key is derived from username + password (a "brain wallet").
+// Anyone who knows the username can try passwords offline, so this is for testnet demos only.
+// v2 (new accounts) uses 600,000 PBKDF2-SHA256 iterations (OWASP 2023) and a 12+ character password;
+// v1 (120,000 iterations) is kept only so existing accounts can still sign in.
+const KDF = {
+  v2: { salt: 'ecoloop-v5-auth-salt:', iterations: 600_000 },
+  v1: { salt: 'ecoloop-v4-auth-salt:', iterations: 120_000 },
+} as const;
+export const PASSWORD_MIN_LENGTH = 12;
+
+async function derivePrivateKey(username: string, password: string, version: keyof typeof KDF = 'v2'): Promise<Hex> {
   const enc = new TextEncoder();
   const normalizedUser = username.trim().toLowerCase();
   const keyMaterial = await crypto.subtle.importKey(
@@ -92,12 +102,12 @@ async function derivePrivateKey(username: string, password: string): Promise<Hex
     false,
     ['deriveBits']
   );
-  const salt = enc.encode(`ecoloop-v4-auth-salt:${normalizedUser}`);
+  const salt = enc.encode(`${KDF[version].salt}${normalizedUser}`);
   const bits = await crypto.subtle.deriveBits(
     {
       name: 'PBKDF2',
       salt,
-      iterations: 120_000,
+      iterations: KDF[version].iterations,
       hash: 'SHA-256',
     },
     keyMaterial,
@@ -168,30 +178,13 @@ function createAccountProvider(privateKey: Hex): { address: Address; provider: P
   };
 }
 
-export async function connectPasswordAccount(options: {
-  mode: 'login' | 'register';
-  username: string;
-  password: string;
-  role: AccountRole;
-}): Promise<{ address: Address; username: string; role: AccountRole }> {
-  const cleanUser = options.username.trim();
-  if (cleanUser.length < 3 || cleanUser.length > 64) {
-    throw new Error('Tên tài khoản phải từ 3 đến 64 ký tự.');
-  }
-  if (options.mode === 'register') {
-    if (options.password.length < 8 || !/[a-zA-Z]/.test(options.password) || !/\d/.test(options.password)) {
-      throw new Error('Mật khẩu phải có ít nhất 8 ký tự, bao gồm cả chữ và số.');
-    }
-  } else if (options.password.length < 6) {
-    throw new Error('Mật khẩu phải có ít nhất 6 ký tự.');
-  }
-
-  const privateKey = await derivePrivateKey(cleanUser, options.password);
-  const { address, provider, signMessage } = createAccountProvider(privateKey);
-  const users = loadUsers();
-  const existing = users[cleanUser.toLowerCase()];
-
-  // Check server-side account registry if available, with local fallback
+/** Checks the username/address pair with the server registry (local fallback when offline). Returns the server role. */
+async function verifyAccount(
+  options: { mode: 'login' | 'register'; role: AccountRole },
+  cleanUser: string,
+  address: Address,
+  existing: StoredUser | undefined,
+): Promise<AccountRole | undefined> {
   let serverRole: AccountRole | undefined;
   try {
     const res = await fetch('/api/auth/account', {
@@ -224,6 +217,52 @@ export async function connectPasswordAccount(options: {
       throw new Error('Sai tài khoản hoặc mật khẩu.');
     }
   }
+
+  return serverRole;
+}
+
+export async function connectPasswordAccount(options: {
+  mode: 'login' | 'register';
+  username: string;
+  password: string;
+  role: AccountRole;
+}): Promise<{ address: Address; username: string; role: AccountRole }> {
+  const cleanUser = options.username.trim();
+  if (cleanUser.length < 3 || cleanUser.length > 64) {
+    throw new Error('Tên tài khoản phải từ 3 đến 64 ký tự.');
+  }
+  if (options.mode === 'register') {
+    if (options.password.length < PASSWORD_MIN_LENGTH || !/[a-zA-Z]/.test(options.password) || !/\d/.test(options.password)) {
+      throw new Error('Mật khẩu phải có ít nhất 12 ký tự, bao gồm cả chữ và số.');
+    }
+    if (options.password.toLowerCase().includes(cleanUser.toLowerCase())) {
+      throw new Error('Mật khẩu không được chứa tên tài khoản.');
+    }
+  } else if (options.password.length < 6) {
+    throw new Error('Mật khẩu phải có ít nhất 6 ký tự.');
+  }
+
+  const users = loadUsers();
+  const existing = users[cleanUser.toLowerCase()];
+  // Register always uses v2. Login tries v2 first, then the legacy v1 derivation for older accounts.
+  const versions: (keyof typeof KDF)[] = options.mode === 'register' ? ['v2'] : ['v2', 'v1'];
+  let privateKey: Hex | undefined;
+  let serverRole: AccountRole | undefined;
+  let lastError: unknown;
+  for (const version of versions) {
+    const candidate = await derivePrivateKey(cleanUser, options.password, version);
+    try {
+      serverRole = await verifyAccount(options, cleanUser, privateKeyToAccount(candidate).address, existing);
+      privateKey = candidate;
+      break;
+    } catch (err) {
+      lastError = err;
+      const message = err instanceof Error ? err.message : '';
+      if (!message.includes('Sai tài khoản')) throw err; // only a wrong-password answer may fall back to v1
+    }
+  }
+  if (!privateKey) throw lastError ?? new Error('Sai tài khoản hoặc mật khẩu.');
+  const { address, provider, signMessage } = createAccountProvider(privateKey);
 
   const finalRole: AccountRole = serverRole || (options.mode === 'login' && existing ? existing.role : options.role);
   saveUser({

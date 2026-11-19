@@ -60,6 +60,8 @@ test('Vercel Nullmaps serves the Blob-backed style and searches the SQLite datas
   const data=await readFile(databasePath);
   let downloads=0;
   const handler=createMapsHandler({hosted:true,archiveUrl,geocoderUrl,fetchImpl:async url=>{
+   // The style is served only after a PMTiles header range request proves the archive is reachable.
+   if(url===archiveUrl)return new Response(new Uint8Array(127),{status:206,headers:{'content-range':'bytes 0-126/1000'}});
    assert.equal(url,geocoderUrl);
    downloads++;
    return new Response(data);

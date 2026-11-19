@@ -187,8 +187,9 @@ export default function EarnEco({pool, token, account, admin, busy, onConnect, r
             <h4>{tr('Điểm danh hằng ngày')} {catalog.hideCheckIn && <small>({tr('Đang ẩn')})</small>}</h4>
             <p>{tr('Lượt mới mỗi ngày lúc 00:00 (giờ Việt Nam).')}</p>
             <p><strong>+{num(catalog.checkInBonusOverride ?? Number(formatEther(status.checkInAmount)))} ECO</strong></p>
+            {status.recycledGrams === 0n && <p><small>{tr('Mở sau lô đầu tiên do trạm thu gom xác minh hoàn tất.')}</small></p>}
             <button type="button" className="secondary"
-              disabled={disabled || status.checkInClaimed || status.available < status.checkInAmount}
+              disabled={disabled || status.checkInClaimed || status.recycledGrams === 0n || status.available < status.checkInAmount}
               onClick={() => claim(status.checkInAmount, 'claimCheckIn', [status.day])}>
               {claimLabel(status.checkInClaimed, true, status.checkInAmount, tr('Điểm danh'))}
             </button>
@@ -202,7 +203,7 @@ export default function EarnEco({pool, token, account, admin, busy, onConnect, r
           return <div key={id}>
             <Target size={20} aria-hidden="true"/>
             <h4>{title}</h4>
-            <p>{num(progress, 3)} / {num(target)} kg</p>
+            <p>{num(progress, 3)} / {num(target)} kg {tr('(đã xác minh)')}</p>
             <progress aria-label={title} value={progress} max={target}/>
             <p><strong>+{num(Number(formatEther(amount)))} ECO</strong></p>
             <button type="button" className="secondary" disabled={disabled || claimed || !eligible || status.available < amount}

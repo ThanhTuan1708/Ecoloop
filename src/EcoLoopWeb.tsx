@@ -108,12 +108,13 @@ export default function EcoLoopWeb(){
         <input value={username} onChange={e=>setUsername(e.target.value)} minLength={3} maxLength={64} required placeholder={tr('VD: nguyenvana hoặc 0903881245')}/>
       </label>
       <label>{tr('Mật khẩu')}
-        <input type="password" value={password} onChange={e=>setPassword(e.target.value)} minLength={8} maxLength={128} required placeholder={tr('Tối thiểu 8 ký tự (gồm chữ & số)')}/>
+        <input type="password" value={password} onChange={e=>setPassword(e.target.value)} minLength={authMode==='register'?12:6} maxLength={128} required placeholder={authMode==='register'?tr('Tối thiểu 12 ký tự (gồm chữ & số)'):tr('Mật khẩu của bạn')}/>
       </label>
       <button type="submit" className="web-primary" disabled={session.busy}>
         {session.busy?tr('Đang xử lý…'):authMode==='register'?tr('Tạo tài khoản & Tạo ví tự động'):tr('Đăng nhập ngay')}
       </button>
       <small className="web-note">{tr('Hệ thống tạo ví thử nghiệm (Avalanche Fuji Testnet) gắn với tài khoản & mật khẩu (miễn phí gas 100%). Không dùng mật khẩu yếu hoặc mật khẩu ngân hàng thật.')}</small>
+      <small className="web-warning">{tr('Chỉ dùng cho demo testnet: khóa ví được tạo từ tên tài khoản và mật khẩu, nên ai biết tên tài khoản có thể thử dò mật khẩu. Dùng Google hoặc Core cho ví giữ tài sản thật.')}</small>
     </form>
 
     <h3>{tr('2. Hoặc đăng nhập bằng Google / Ví Web3')}</h3>

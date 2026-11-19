@@ -60,6 +60,7 @@ contract EcoLoopTeleporterBridge is AccessControl, ITeleporterReceiver {
     error UntrustedRemoteBridge(bytes32 sourceBlockchainID, address sender);
     error NotCertificateHolder(uint256 lotId, address caller);
     error AttestationAlreadyBridged(bytes32 blockchainID, uint256 lotId);
+    error UnverifiedCertificate(uint256 lotId);
 
     /// @param certificate_ ECOREC contract on the source chain. Pass address(0) on a destination
     /// Avalanche L1 that only receives attestations (receive-only registry, bridgeCertificate disabled).
@@ -97,6 +98,8 @@ contract EcoLoopTeleporterBridge is AccessControl, ITeleporterReceiver {
         }
 
         EcoLoopCertificate.Certificate memory cert = certificate.certificate(lotId);
+        // Only lots settled by a verified station (COLLECTOR_ROLE) become ESG attestations.
+        if (!cert.verified) revert UnverifiedCertificate(lotId);
         ImpactAttestation memory payload = ImpactAttestation({
             lotId: lotId,
             household: holder,

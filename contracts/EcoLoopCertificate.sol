@@ -15,12 +15,14 @@ contract EcoLoopCertificate is ERC721 {
         uint64 completedAt;
         address collector;
         uint256 paidEco; // ECO released from escrow to the household
+        bool verified; // settled by a collector holding COLLECTOR_ROLE (verified station)
     }
 
     address public immutable minter;
     mapping(uint256 => Certificate) private certificates;
     uint256 public totalSupply;
     uint256 public totalCertifiedGrams;
+    uint256 public totalVerifiedGrams;
 
     error OnlyMinter();
 
@@ -29,11 +31,13 @@ contract EcoLoopCertificate is ERC721 {
     }
 
     /// @dev tokenId equals the pickup lot id, so a lot can be certified only once.
-    function mint(address to, uint256 lotId, uint64[4] calldata grams, address collector, uint256 paidEco) external {
+    function mint(address to, uint256 lotId, uint64[4] calldata grams, address collector, uint256 paidEco, bool verified) external {
         if (msg.sender != minter) revert OnlyMinter();
-        certificates[lotId] = Certificate(grams, uint64(block.timestamp), collector, paidEco);
+        certificates[lotId] = Certificate(grams, uint64(block.timestamp), collector, paidEco, verified);
         totalSupply++;
-        totalCertifiedGrams += uint256(grams[0]) + grams[1] + grams[2] + grams[3];
+        uint256 total = uint256(grams[0]) + grams[1] + grams[2] + grams[3];
+        totalCertifiedGrams += total;
+        if (verified) totalVerifiedGrams += total;
         _safeMint(to, lotId);
     }
 
@@ -69,6 +73,7 @@ contract EcoLoopCertificate is ERC721 {
             '{"trait_type":"Metal kg","value":"', _kg(c.grams[2]), '"},',
             '{"trait_type":"Glass kg","value":"', _kg(c.grams[3]), '"},',
             '{"trait_type":"Collector","value":"', Strings.toHexString(c.collector), '"},',
+            '{"trait_type":"Verified station","value":"', c.verified ? 'Yes' : 'No', '"},',
             '{"display_type":"date","trait_type":"Completed","value":', uint256(c.completedAt).toString(), '}'
         );
     }

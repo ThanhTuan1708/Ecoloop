@@ -1,45 +1,45 @@
 {
   "chainId": 43113,
   "deployer": "0x4AA84B5f9E1E71fbae7f1298096B32b735bd90bf",
-  "previousPickup": "0x0b9f8c5c1a841b4903772230f6d862de3a1fee7e",
-  "createdAt": "2026-11-19T11:45:27.886Z",
+  "previousPickup": "0xdBbd713C1d37Eb96653D5b7EBfb03E608A7beD0f",
+  "createdAt": "2026-11-19T13:03:48.829Z",
   "contracts": {
     "forwarder": {
-      "address": "0xC8D4404D0aB0a5F14FAa7628C6aEee489cE4a141",
-      "txHash": "0xf4e605e86dc878c407caf409878900531e536849a2c25a822253ae62fd6b480b",
-      "block": 61329090,
+      "address": "0x1328F4a86457C9d2d7f130206De9C7958F62408a",
+      "txHash": "0x246dc0bfaa0edd98c54d01a953449bb674c36ea348db9e649f29ec6b0e024cdc",
+      "block": 61331361,
       "args": []
     },
     "pickup": {
-      "address": "0xdBbd713C1d37Eb96653D5b7EBfb03E608A7beD0f",
-      "txHash": "0x2755cd71843fa859ba91a6384afa2dbb59ba6e988c13a88188638ff6c1248b60",
-      "block": 61329094,
+      "address": "0x27F8410AF55E1fadFe93E8fA025A263d6583b0E1",
+      "txHash": "0x6497c282c9cec7c56962e31ad0edb4e220088e34642e17fce9410a12060bd9b1",
+      "block": 61331364,
       "args": [
         "0x4AA84B5f9E1E71fbae7f1298096B32b735bd90bf",
-        "0xC8D4404D0aB0a5F14FAa7628C6aEee489cE4a141",
+        "0x1328F4a86457C9d2d7f130206De9C7958F62408a",
         "10000000000000000000000",
         "1000000000000000000000000"
       ]
     },
     "certificate": {
-      "address": "0x06830388ee6CD0942A84D6e5422A8b0c1eF45a9E",
-      "createdBy": "0xdBbd713C1d37Eb96653D5b7EBfb03E608A7beD0f",
-      "block": 61329094,
+      "address": "0xa5b3A41e24b9f97138c3704AA781Ca24bd1CC4fa",
+      "createdBy": "0x27F8410AF55E1fadFe93E8fA025A263d6583b0E1",
+      "block": 61331364,
       "args": []
     },
     "rewards": {
-      "address": "0xeD388d3F48eE66db2271e036187569aEE19020F3",
-      "txHash": "0x47431001a2d31249b76799248675fda532a69184d9003b1fc0349827feef6b49",
-      "block": 61329097,
+      "address": "0x333Ab4827c15343913C26C8F31839e884d6afDb2",
+      "txHash": "0x04b09a4cc37a0d22d66c2ad45d0a799d27124b0925711c8e1facb7eea20db713",
+      "block": 61331368,
       "args": [
-        "0xdBbd713C1d37Eb96653D5b7EBfb03E608A7beD0f"
+        "0x27F8410AF55E1fadFe93E8fA025A263d6583b0E1"
       ]
     }
   },
   "rewardsFunding": {
     "avax": "0.02",
     "eco": "200",
-    "buyTx": "0x5b7451ad76556b8b7fc9aa61c389049c9c6ff6493bd06d4877e160b72554a1e7",
-    "transferTx": "0x2ccd06ecf68a55a85061d6768707d25190a906696c57302caa4d21bbaf54efe9"
+    "buyTx": "0x34236ca5f2c388385fe0a1931d809ce0d7f2d963a11e9cc0dac2c9a1aec67ef8",
+    "transferTx": "0xaedca5baac8e42ae81c7550b918841fcfb703063ba2d372e45222ccda68310b4"
   }
 }

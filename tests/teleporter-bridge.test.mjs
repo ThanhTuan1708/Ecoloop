@@ -80,6 +80,9 @@ test('Avalanche ICM Teleporter bridge attests ECOREC certificates cross-chain an
       assert.equal((await client.waitForTransactionReceipt({hash:h})).status,'success');
     };
 
+    // accounts[2] is a verified station: only its settlements become bridgeable ESG attestations
+    await exec(0,pickup,pickupArtifact.abi,'grantRole',[keccak256(stringToHex('COLLECTOR_ROLE')),accounts[2]]);
+
     // Complete a real recycling lot so household (accounts[1]) receives ECOREC NFT #1
     await exec(1,pickup,pickupArtifact.abi,'createLot',[[2000n,3000n,1000n,500n],keccak256(stringToHex('icm-lot-1')),1078,10669]);
     await exec(2,pickup,pickupArtifact.abi,'buyEco',[parseEther('500')],parseEther('0.5'));
@@ -120,6 +123,18 @@ test('Avalanche ICM Teleporter bridge attests ECOREC certificates cross-chain an
     await assert.rejects(
       exec(0,destBridge,bridgeArtifact.abi,'bridgeCertificate',[FUJI_CHAIN_ID_BYTES,1n,0n]),
       /InvalidConfiguration/
+    );
+
+    // A certificate from an unverified peer-to-peer settlement cannot be bridged
+    await exec(1,pickup,pickupArtifact.abi,'createLot',[[1000n,0n,0n,0n],keccak256(stringToHex('icm-lot-p2p')),1078,10669]);
+    await exec(3,pickup,pickupArtifact.abi,'buyEco',[parseEther('100')],parseEther('0.1'));
+    const p2pDeposit=await client.readContract({address:pickup,abi:pickupArtifact.abi,functionName:'requiredDeposit',args:[2n]});
+    await exec(3,pickup,pickupArtifact.abi,'claimLot',[2n,p2pDeposit]);
+    await exec(3,pickup,pickupArtifact.abi,'proposeLot',[2n,[1000n,0n,0n,0n]]);
+    await exec(1,pickup,pickupArtifact.abi,'acceptLot',[2n]);
+    await assert.rejects(
+      exec(1,sourceBridge,bridgeArtifact.abi,'bridgeCertificate',[ESG_L1_CHAIN_ID_BYTES,2n,0n]),
+      /UnverifiedCertificate/
     );
 
     // Duplicate cross-chain attestation of the same lot to the same destination L1 is blocked

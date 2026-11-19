@@ -113,7 +113,8 @@ async function analyzeScrapPhoto(file: File): Promise<PhotoAnalysisResult> {
   const primary = ranked[0];
   const secondary = ranked[1];
   const totalScore = scores.reduce((a, b) => a + b, 0) || 1;
-  const confidence = Math.min(96, Math.max(64, Math.round((primary.score / totalScore) * 140 + 35)));
+  // Share of sampled pixels whose colour matches the top material. A colour heuristic, not a trained model.
+  const confidence = Math.round((primary.score / totalScore) * 100);
 
   const defaultKgByMat = [3.5, 5.0, 2.5, 4.0];
   const suggestedKg: [number, number, number, number] = [0, 0, 0, 0];
@@ -261,10 +262,13 @@ export function ScrapPhotoSmartBox({
             </strong>
             {result && !analyzing && (
               <span className="web3-status-pill pill-green">
-                {tr('Độ tin cậy {n}%', {n: result.confidence})}
+                {tr('Độ khớp màu {n}%', {n: result.confidence})}
               </span>
             )}
           </div>
+          {result && !analyzing && (
+            <small className="web-note">{tr('Gợi ý theo màu sắc ảnh, không phải mô hình AI. Khối lượng thật do người thu gom cân tại chỗ.')}</small>
+          )}
 
           {result && !analyzing && (
             <>

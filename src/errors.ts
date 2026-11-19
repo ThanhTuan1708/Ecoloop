@@ -1,7 +1,9 @@
 const messages: Record<string, string> = {
   CheckInDayChanged: 'Đã sang ngày mới. Tải lại trạng thái điểm danh rồi thử lại.',
   EcoRewardAlreadyClaimed: 'Ví này đã nhận phần thưởng ECO này.',
-  EcoMissionIncomplete: 'Ví này chưa đạt mốc tái chế của nhiệm vụ.',
+  EcoMissionIncomplete: 'Ví này chưa đạt mốc tái chế đã xác minh của nhiệm vụ (chỉ tính lô do trạm thu gom xác minh nhận).',
+  CheckInRequiresVerifiedRecycling: 'Điểm danh mở sau khi ví có ít nhất một lô được trạm thu gom xác minh hoàn tất.',
+  UnverifiedCertificate: 'Chỉ chứng nhận của lô do trạm thu gom xác minh mới được gửi sang chuỗi khác.',
   EcoRewardsUnderfunded: 'Quỹ thưởng chưa đủ ECO.',
   DuplicateEvidence: 'Ảnh này đã được sử dụng cho một yêu cầu. Hãy chụp ảnh mới của vật liệu cần gửi.',
   SelfApproval: 'Bạn không thể tự duyệt yêu cầu của mình. Hãy dùng một ví thu gom khác đã được cấp quyền.',

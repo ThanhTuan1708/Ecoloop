@@ -17,3 +17,7 @@ chay-deploy-p0.bat
 day-len-github.bat
 p0-push-log.txt
 push-github.bat
+push-p1.bat
+p1-push-log.txt
+push-p1.tmp
+push-github.bat

@@ -114,6 +114,13 @@ if(collectorEco<requiredEco){
   await send(collector,'buyEco',[shortfall],avax);
 }
 
+// The seed collector acts as a verified station, so its completed lot yields a verified certificate (bridgeable via ICM).
+const collectorRole=await read('COLLECTOR_ROLE');
+if(!await read('hasRole',[collectorRole,collector.address])){
+  await send(admin,'grantRole',[collectorRole,collector.address]);
+  console.log(`\nGranted COLLECTOR_ROLE (verified station) to ${collector.address}.`);
+}
+
 const log = { chainId: chain.id, contract: address, test: true, createdAt: new Date().toISOString(), lots: [] };
 const tx = h => explorer ? `${explorer}/tx/${h}` : h;
 for (const [i, p] of plan.entries()) {

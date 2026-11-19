@@ -1,5 +1,7 @@
 # EcoLoop · Doorstep recycling marketplace on Avalanche
 
+[![CI](https://github.com/ThanhTuan1708/Ecoloop/actions/workflows/ci.yml/badge.svg)](https://github.com/ThanhTuan1708/Ecoloop/actions/workflows/ci.yml)
+
 > **EN:** EcoLoop connects households, informal waste collectors and EPR-obligated brands. A collector locks **120% ECO escrow** to claim a pickup, weighs the scrap at the door, the household accepts on-chain, and the contract pays from escrow and mints an **on-chain SVG recycling certificate (ECOREC NFT)**. Household actions are **gasless (ERC-2771)**, and certificates can be attested to another Avalanche L1 through **Avalanche ICM (Teleporter)**. Built for Team1 Vietnam UniHack 2026.
 
 **Demo:** https://ecoloop-pi-six.vercel.app · **Pitch deck:** `EcoLoop-Avalanche-T1-PitchDeck.pdf` · **Tài liệu ICM:** [docs/AVALANCHE-ICM.md](docs/AVALANCHE-ICM.md)
@@ -13,15 +15,15 @@
 ### Hợp đồng trên Fuji
 
 <!-- contracts:start -->
-Mạng: **Avalanche Fuji C-Chain (43113)** · block triển khai #61329094 · cập nhật 2026-11-19
+Mạng: **Avalanche Fuji C-Chain (43113)** · block triển khai #61331364 · cập nhật 2026-11-19
 
 | Contract | Địa chỉ (Snowtrace) | Deploy |
 |---|---|---|
-| EcoLoopPickup V4 (ECO + escrow + ERC-2771) | [`0xdBbd713C1d37Eb96653D5b7EBfb03E608A7beD0f`](https://testnet.snowtrace.io/address/0xdBbd713C1d37Eb96653D5b7EBfb03E608A7beD0f#code) | [tx](https://testnet.snowtrace.io/tx/0x2755cd71843fa859ba91a6384afa2dbb59ba6e988c13a88188638ff6c1248b60) |
-| EcoLoopCertificate (ECOREC NFT, SVG on-chain) | [`0x06830388ee6CD0942A84D6e5422A8b0c1eF45a9E`](https://testnet.snowtrace.io/address/0x06830388ee6CD0942A84D6e5422A8b0c1eF45a9E#code) |  |
-| EcoLoopForwarder (gasless, ERC-2771) | [`0xC8D4404D0aB0a5F14FAa7628C6aEee489cE4a141`](https://testnet.snowtrace.io/address/0xC8D4404D0aB0a5F14FAa7628C6aEee489cE4a141#code) | [tx](https://testnet.snowtrace.io/tx/0xf4e605e86dc878c407caf409878900531e536849a2c25a822253ae62fd6b480b) |
-| EcoLoopRewards (check-in, missions) | [`0xeD388d3F48eE66db2271e036187569aEE19020F3`](https://testnet.snowtrace.io/address/0xeD388d3F48eE66db2271e036187569aEE19020F3#code) | [tx](https://testnet.snowtrace.io/tx/0x47431001a2d31249b76799248675fda532a69184d9003b1fc0349827feef6b49) |
-| EcoLoopTeleporterBridge (Avalanche ICM, source) | [`0x63facfA100D194B057EB429A91e2f2dEfb2c1FF5`](https://testnet.snowtrace.io/address/0x63facfA100D194B057EB429A91e2f2dEfb2c1FF5#code) | [tx](https://testnet.snowtrace.io/tx/0x84fb7835ab4492c47fd6b685e99d9d2dc61540dc312b0816574fce11ec1167bf) |
+| EcoLoopPickup V4 (ECO + escrow + ERC-2771) | [`0x27F8410AF55E1fadFe93E8fA025A263d6583b0E1`](https://testnet.snowtrace.io/address/0x27F8410AF55E1fadFe93E8fA025A263d6583b0E1#code) | [tx](https://testnet.snowtrace.io/tx/0x6497c282c9cec7c56962e31ad0edb4e220088e34642e17fce9410a12060bd9b1) |
+| EcoLoopCertificate (ECOREC NFT, SVG on-chain) | [`0xa5b3A41e24b9f97138c3704AA781Ca24bd1CC4fa`](https://testnet.snowtrace.io/address/0xa5b3A41e24b9f97138c3704AA781Ca24bd1CC4fa#code) |  |
+| EcoLoopForwarder (gasless, ERC-2771) | [`0x1328F4a86457C9d2d7f130206De9C7958F62408a`](https://testnet.snowtrace.io/address/0x1328F4a86457C9d2d7f130206De9C7958F62408a#code) | [tx](https://testnet.snowtrace.io/tx/0x246dc0bfaa0edd98c54d01a953449bb674c36ea348db9e649f29ec6b0e024cdc) |
+| EcoLoopRewards (check-in, missions) | [`0x333Ab4827c15343913C26C8F31839e884d6afDb2`](https://testnet.snowtrace.io/address/0x333Ab4827c15343913C26C8F31839e884d6afDb2#code) | [tx](https://testnet.snowtrace.io/tx/0x04b09a4cc37a0d22d66c2ad45d0a799d27124b0925711c8e1facb7eea20db713) |
+| EcoLoopTeleporterBridge (Avalanche ICM, source) | [`0xA2546a3e089327e147B38Ec486F5E944C9BAA504`](https://testnet.snowtrace.io/address/0xA2546a3e089327e147B38Ec486F5E944C9BAA504#code) | [tx](https://testnet.snowtrace.io/tx/0x2da89db0c18576a7b247b5c205974a987b1e272678cca2376f65c125f4d790c9) |
 
 **ICM (Teleporter):** bridge nguồn đã triển khai trên Fuji, chưa kết nối L1 đích. Luồng gửi/nhận, chống giả mạo và chống phát lại được kiểm thử tự động trong `tests/teleporter-bridge.test.mjs`.
 <!-- contracts:end -->
@@ -40,10 +42,18 @@ flowchart LR
   S[(Server: ảnh, liên hệ mã hóa AES-GCM)] -. "chữ ký nonce 1 lần" .- H
 ```
 
+### Chống gian lận (anti-Sybil)
+
+- Ký quỹ ECO 120% nên người thu gom bỏ việc sẽ không được gì; hai ví thông đồng giao dịch P2P cũng không in thêm được ECO (chỉ trả từ khoản ký quỹ).
+- Chỉ lô do **trạm thu gom xác minh** (ví có `COLLECTOR_ROLE`) hoàn tất mới được cộng vào `verifiedRecycledGrams`. Chỉ con số này mở khóa điểm danh và nhiệm vụ trong `EcoLoopRewards`.
+- Mỗi chứng nhận ECOREC có thuộc tính `verified`. `EcoLoopTeleporterBridge` từ chối gửi chứng nhận chưa xác minh (`UnverifiedCertificate`), nên dữ liệu ESG gửi sang L1 khác chỉ gồm lô đã qua trạm.
+- Kiểm thử: `tests/pickup-contract.test.mjs` (anti-Sybil, chống lạm phát) và `tests/teleporter-bridge.test.mjs`.
+
 ### Đã làm / chưa làm (minh bạch)
 
 - **Chạy thật trên Fuji:** đăng lô, ký quỹ ECO, cân, xác nhận, trả tiền từ escrow, NFT, đổi quà (burn ECO), relayer miễn gas.
 - **Mô phỏng, chưa phải tiền thật:** khung thanh toán VNĐ (VietQR/ví/tiền mặt) chỉ để minh họa luồng tiền mặt ngoài đời; ước lượng kg từ ảnh dùng phân tích màu, không phải mô hình AI đã huấn luyện.
+- **Tài khoản mật khẩu là ví demo:** khóa ví được tạo từ tên + mật khẩu (PBKDF2-SHA256, 600.000 vòng, mật khẩu ≥ 12 ký tự), nên chỉ dùng cho testnet. Ví thật dùng Google (thirdweb) hoặc Core.
 - **Tin cậy ngoài chain:** cân và giao nhận vẫn do người thu gom thực hiện; contract chưa audit, chỉ dùng trên testnet.
 
 ---

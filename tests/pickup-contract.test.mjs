@@ -84,6 +84,9 @@ test('multi-material pickup requires collector proposal and owner acceptance, co
     assert.equal(await f.read('totalSupply'),supplyBefore,'C2C settlement must not inflate totalSupply');
     assert.equal(await f.read('balanceOf',[f.accounts[1]]),parseEther('130'));
     assert.equal(await f.read('recycledGrams',[f.accounts[1]]),7500n);
+    // Anti-Sybil: a peer-to-peer settlement by an unverified collector never counts as verified impact
+    assert.equal(await f.read('verifiedRecycledGrams',[f.accounts[1]]),0n);
+    assert.equal(await f.read('totalVerifiedGrams'),0n);
     assert.equal((await f.read('getLot',[1n])).status,4);
 
     await assert.rejects(f.write(1,'acceptLot',[1n]),/InvalidStatus/);
@@ -105,6 +108,7 @@ test('verified station bonus mints subsidy only when collector holds COLLECTOR_R
     await f.write(1,'acceptLot',[1n]);
     assert.equal(await f.read('balanceOf',[f.accounts[1]]),parseEther('143'));
     assert.equal(await f.read('totalSupply'),supplyBefore+parseEther('13'));
+    assert.equal(await f.read('verifiedRecycledGrams',[f.accounts[1]]),7500n);
   }finally{await f.connection.close();}
 });
 
@@ -205,6 +209,9 @@ test('V4 ECO escrow pays household for real weight, refunds collector surplus, a
     const uri=await f.client.readContract({address:certificate,abi:certificateArtifact.abi,functionName:'tokenURI',args:[1n]});
     const meta=JSON.parse(Buffer.from(uri.split(',')[1],'base64').toString());
     assert.match(meta.name,/Certificate #1/);
+    assert.equal(meta.attributes.find(a=>a.trait_type==='Verified station').value,'No');
+    const cert=await f.client.readContract({address:certificate,abi:certificateArtifact.abi,functionName:'certificate',args:[1n]});
+    assert.equal(cert.verified,false);
   }finally{await f.connection.close();}
 });
 
@@ -286,5 +293,48 @@ test('V4 gas-free ERC-2771 forwarder preserves _msgSender() for household & coll
     const freceipt=await f.client.waitForTransactionReceipt({hash:fh});
     const fulfilledLog=freceipt.logs.map(l=>{try{return decodeEventLog({abi:artifact.abi,data:l.data,topics:l.topics});}catch{return null;}}).find(e=>e?.eventName==='RewardFulfilled');
     assert.equal(fulfilledLog.args.collector.toLowerCase(),f.accounts[0].toLowerCase(),'RewardFulfilled must record actual collector, not forwarder');
+  }finally{await f.connection.close();}
+});
+
+test('anti-Sybil: only lots settled by a verified station unlock check-in, missions and verified certificates',async()=>{
+  const f=await fixture();
+  try{
+    const rewardsArtifact=JSON.parse(fs.readFileSync('artifacts/EcoLoopRewards.json','utf8'));
+    const deployHash=await f.wallets[0].deployContract({abi:rewardsArtifact.abi,bytecode:rewardsArtifact.bytecode,args:[f.address]});
+    const rewards=(await f.client.waitForTransactionReceipt({hash:deployHash})).contractAddress;
+    await f.fundCollectorEco(0,parseEther('1'));
+    await f.write(0,'transfer',[rewards,parseEther('200')]);
+    const rw=async(w,functionName,args)=>{
+      const {request}=await f.client.simulateContract({address:rewards,abi:rewardsArtifact.abi,functionName,args,account:f.wallets[w].account});
+      const h=await f.wallets[w].writeContract(request);
+      assert.equal((await f.client.waitForTransactionReceipt({hash:h})).status,'success');
+    };
+    const day=await f.client.readContract({address:rewards,abi:rewardsArtifact.abi,functionName:'currentDay'});
+
+    // Two colluding wallets (household 1 + unverified collector 2) settle a lot peer-to-peer
+    await f.create(1,'p2p-lot');
+    await f.claim(2,1n);
+    await f.write(2,'proposeLot',[1n,[2000n,0n,0n,0n]]);
+    await f.write(1,'acceptLot',[1n]);
+    assert.equal(await f.read('verifiedRecycledGrams',[f.accounts[1]]),0n);
+    await assert.rejects(rw(1,'claimCheckIn',[day]),/CheckInRequiresVerifiedRecycling/);
+    await assert.rejects(rw(1,'claimMission',[0]),/EcoMissionIncomplete/);
+
+    // The same household recycles through a verified station (admin holds COLLECTOR_ROLE)
+    await f.create(1,'station-lot');
+    await f.claim(0,2n);
+    await f.write(0,'proposeLot',[2n,[2000n,0n,0n,0n]]);
+    await f.write(1,'acceptLot',[2n]);
+    assert.equal(await f.read('verifiedRecycledGrams',[f.accounts[1]]),2000n);
+    assert.equal(await f.read('totalVerifiedGrams'),2000n);
+    const before=await f.read('balanceOf',[f.accounts[1]]);
+    await rw(1,'claimCheckIn',[day]);
+    await rw(1,'claimMission',[0]);
+    assert.equal(await f.read('balanceOf',[f.accounts[1]]),before+parseEther('25'));
+
+    const certificate=await f.read('certificate');
+    const cert=await f.client.readContract({address:certificate,abi:certificateArtifact.abi,functionName:'certificate',args:[2n]});
+    assert.equal(cert.verified,true);
+    assert.equal(await f.client.readContract({address:certificate,abi:certificateArtifact.abi,functionName:'totalVerifiedGrams'}),2000n);
   }finally{await f.connection.close();}
 });
