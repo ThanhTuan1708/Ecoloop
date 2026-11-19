@@ -1126,6 +1126,7 @@ export const en:Record<string,string>={
  "Tối thiểu 8 ký tự (gồm chữ & số)":"At least 8 characters (letters & numbers)",
  "Tối thiểu 12 ký tự (gồm chữ & số)":"At least 12 characters (letters & numbers)",
  "Mật khẩu của bạn":"Your password",
+ "Ứng dụng vừa được cập nhật. Hãy tải lại trang (Ctrl+Shift+R).":"The app was just updated. Please reload the page (Ctrl+Shift+R).",
  "Chỉ dùng cho demo testnet: khóa ví được tạo từ tên tài khoản và mật khẩu, nên ai biết tên tài khoản có thể thử dò mật khẩu. Dùng Google hoặc Core cho ví giữ tài sản thật.":"Testnet demo only: the wallet key is derived from your username and password, so anyone who knows the username can try to guess the password. Use Google or Core for a wallet that holds real assets.",
  "Mật khẩu phải có ít nhất 12 ký tự, bao gồm cả chữ và số.":"Password must be at least 12 characters and include letters and numbers.",
  "Mật khẩu không được chứa tên tài khoản.":"Password must not contain the username.",

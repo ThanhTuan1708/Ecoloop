@@ -2,6 +2,7 @@ import {useEffect,useRef,useState,useSyncExternalStore} from 'react';
 import {isAddress,type Address} from 'viem';
 import {chain,connectWallet,disconnectWallet,discoverWallets,getProvider,getWalletName,subscribeWallets,walletSnapshot,switchNetwork} from './wallet';
 import type {AccountRole} from './passwordWallet';
+import {lazyImport} from './chunkReload';
 
 export const ADMIN_WALLET = '0xcCb958ed2931073568359336344088A914f57098';
 export function isDesignatedAdminWallet(address?: string): boolean {
@@ -32,9 +33,9 @@ export function useWalletSession(){
   try{
    let nextEmail:string|undefined;
    let nextRole:AccountRole|undefined=chosenRole;
-   if(kind==='google'){const api=await import('./googleWallet');await api.connectGoogle(restore);nextEmail=api.googleEmail();}
+   if(kind==='google'){const api=await lazyImport(()=>import('./googleWallet'));await api.connectGoogle(restore);nextEmail=api.googleEmail();}
    else if(kind==='password-restore'){
-    const api=await import('./passwordWallet');
+    const api=await lazyImport(()=>import('./passwordWallet'));
     const restored=await api.restorePasswordAccount();
     if(!restored)throw new Error('Phiên đăng nhập đã hết hạn.');
     nextEmail=restored.username;
@@ -51,7 +52,7 @@ export function useWalletSession(){
  async function connectWithPassword(options:{mode:'login'|'register';username:string;password:string;role:AccountRole}){
   if(locked.current)return;locked.current=true;setBusy(true);setError('');const token=++operation.current;
   try{
-   const api=await import('./passwordWallet');
+   const api=await lazyImport(()=>import('./passwordWallet'));
    const auth=await api.connectPasswordAccount(options);
    const result=await load();if(!result)throw new Error('Không đọc được tài khoản ví.');
    if(token!==operation.current)return;
