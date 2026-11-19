@@ -1,0 +1,54 @@
+{
+  "chainId": 43113,
+  "contract": "0xd8D1629D9712a3856489f2D3487e281fb05F8E8a",
+  "test": true,
+  "createdAt": "2026-11-19T13:51:39.731Z",
+  "lots": [
+    {
+      "stage": "completed",
+      "household": "0x9fc1158eC4285fDEBaEC8e7B2f698f378AC31681",
+      "evidence": "0xaa560e43f2d41642736607245ca8c0a61fd4be6eba5e263923e4f1ee5b517dad",
+      "txs": {
+        "create": "0xf648b0ade9f6eaf89931804978630ab59580fcecfad775fd6340790e1c7bb0e6",
+        "claim": "0x278e33ec29b9861429c564ff6435d0ae2d9fc350e97f654e4811f738b4c7e092",
+        "propose": "0x174fb8e802a72f8938d2bbde8a620588aff1b4c8b9c03001e24d32d7d750c08a",
+        "accept": "0x2667e074c3c348b929223b78db36d96c94723493fd26764f17023da7f30bb7c6"
+      },
+      "id": 1,
+      "depositEco": "180",
+      "paidEco": "145"
+    },
+    {
+      "stage": "proposed",
+      "household": "0xD5ccf7578354F11dc5fCa27A8C2ba0A6e9e396d5",
+      "evidence": "0xb9571a0df627caf3a98d46d9a8f84547c4901363b5c764acacb947240949b238",
+      "txs": {
+        "create": "0x1f96377a981c046cbdbcd2afaf5a797c5a23226a1e67160716df910d687f6987",
+        "claim": "0x10ad5e91fb9499aad7d671a9f46cd7fa96b68e65783f84150bac9e685b8f1a92",
+        "propose": "0xd2e09e0bc76c7967f71dc03e2133b83cf839aa20b097be6bcb68267720398c10"
+      },
+      "id": 2,
+      "depositEco": "120"
+    },
+    {
+      "stage": "claimed",
+      "household": "0x9fc1158eC4285fDEBaEC8e7B2f698f378AC31681",
+      "evidence": "0x71f2fc1d6b3de9087cb6b56bc144c7e849224fe31031a041d9e408cd3294b5c3",
+      "txs": {
+        "create": "0x24373500059f7a5e5c782b0289740da7b705692adbc41b53e209d736a88fc3d1",
+        "claim": "0xcb0931b15c364dcfbc793c1fc57b2e5b75fb094e933c622e8ab1726f03014da8"
+      },
+      "id": 3,
+      "depositEco": "144"
+    },
+    {
+      "stage": "open",
+      "household": "0xD5ccf7578354F11dc5fCa27A8C2ba0A6e9e396d5",
+      "evidence": "0xb9488320e7a19b13d2c438757a55a79bbeb6557aa2183cf5643a27237d60859c",
+      "txs": {
+        "create": "0xbe73e0c1f30287337780b75bbddadf323131665088da6cdfcfc6ba95888b8f5a"
+      },
+      "id": 4
+    }
+  ]
+}

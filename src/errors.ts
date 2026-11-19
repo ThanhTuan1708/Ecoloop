@@ -5,6 +5,7 @@ const messages: Record<string, string> = {
   CheckInRequiresVerifiedRecycling: 'Điểm danh mở sau khi ví có ít nhất một lô được trạm thu gom xác minh hoàn tất.',
   UnverifiedCertificate: 'Chỉ chứng nhận của lô do trạm thu gom xác minh mới được gửi sang chuỗi khác.',
   EcoRewardsUnderfunded: 'Quỹ thưởng chưa đủ ECO.',
+  SponsorUnavailable: 'Quỹ ứng trước chỉ dành cho trạm thu gom đã xác minh (tối đa 3 đơn cùng lúc) và đang còn đủ ECO. Liên hệ quản trị viên.',
   DuplicateEvidence: 'Ảnh này đã được sử dụng cho một yêu cầu. Hãy chụp ảnh mới của vật liệu cần gửi.',
   SelfApproval: 'Bạn không thể tự duyệt yêu cầu của mình. Hãy dùng một ví thu gom khác đã được cấp quyền.',
   InvalidInput: 'Vật liệu hoặc khối lượng không hợp lệ. Khối lượng phải từ 0,001 đến 1.000 kg.',

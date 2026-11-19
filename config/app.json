@@ -3,10 +3,10 @@
   "contract": "0xb31c43511f79383990f690cbc7a3d07635f70ae1",
   "collectionName": "Điểm thu gom EcoLoop",
   "collectionInstructions": "Liên hệ đơn vị tổ chức để thống nhất địa điểm và giờ bàn giao vật liệu, nhận quà.",
-  "pickupContract": "0x27F8410AF55E1fadFe93E8fA025A263d6583b0E1",
-  "pickupDeployBlock": 61331364,
-  "rewardsContract": "0x333Ab4827c15343913C26C8F31839e884d6afDb2",
-  "forwarderContract": "0x1328F4a86457C9d2d7f130206De9C7958F62408a",
-  "certificateContract": "0xa5b3A41e24b9f97138c3704AA781Ca24bd1CC4fa",
-  "teleporterBridge": "0xA2546a3e089327e147B38Ec486F5E944C9BAA504"
+  "pickupContract": "0xd8D1629D9712a3856489f2D3487e281fb05F8E8a",
+  "pickupDeployBlock": 61333023,
+  "rewardsContract": "0xd6A6dc2A6da0169C7B46832c9519c427fBBb8F30",
+  "forwarderContract": "0xdaD7d7136845b9D4cdA8aDaf833302B5c98649bd",
+  "certificateContract": "0x61bc32d781002ecE6f441AD1ce857548d1Be5102",
+  "teleporterBridge": "0xe65c88e48C213BFCc2fbaE0B59061a2A1d802774"
 }

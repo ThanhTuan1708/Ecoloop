@@ -21,7 +21,7 @@ const ADMIN_WALLET_LOWER = '0xccb958ed2931073568359336344088a914f57098';
 const canReadPickupAsCollector = (lot,account) =>
   lot.collector.toLowerCase()===account&&[2,3,4].includes(lot.status);
 // Strict ERC-2771 allowlist: only non-privileged user actions using _msgSender() are gas-sponsored.
-const GASLESS_FUNCTIONS = ['createLot','claimLot','proposeLot','acceptLot','disputeLot','cancelLot','releaseLot','redeemReward','fulfillRewardRedemption','transfer'];
+const GASLESS_FUNCTIONS = ['createLot','claimLot','claimLotSponsored','proposeLot','acceptLot','disputeLot','cancelLot','releaseLot','redeemReward','fulfillRewardRedemption','transfer'];
 export function imageType(bytes) {
   if(bytes.length>=8&&bytes.subarray(0,8).equals(Buffer.from([137,80,78,71,13,10,26,10])))return 'image/png';
   if(bytes.length>=3&&bytes[0]===255&&bytes[1]===216&&bytes[2]===255)return 'image/jpeg';

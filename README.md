@@ -15,15 +15,15 @@
 ### Hợp đồng trên Fuji
 
 <!-- contracts:start -->
-Mạng: **Avalanche Fuji C-Chain (43113)** · block triển khai #61331364 · cập nhật 2026-11-19
+Mạng: **Avalanche Fuji C-Chain (43113)** · block triển khai #61333023 · cập nhật 2026-11-19
 
 | Contract | Địa chỉ (Snowtrace) | Deploy |
 |---|---|---|
-| EcoLoopPickup V4 (ECO + escrow + ERC-2771) | [`0x27F8410AF55E1fadFe93E8fA025A263d6583b0E1`](https://testnet.snowtrace.io/address/0x27F8410AF55E1fadFe93E8fA025A263d6583b0E1#code) | [tx](https://testnet.snowtrace.io/tx/0x6497c282c9cec7c56962e31ad0edb4e220088e34642e17fce9410a12060bd9b1) |
-| EcoLoopCertificate (ECOREC NFT, SVG on-chain) | [`0xa5b3A41e24b9f97138c3704AA781Ca24bd1CC4fa`](https://testnet.snowtrace.io/address/0xa5b3A41e24b9f97138c3704AA781Ca24bd1CC4fa#code) |  |
-| EcoLoopForwarder (gasless, ERC-2771) | [`0x1328F4a86457C9d2d7f130206De9C7958F62408a`](https://testnet.snowtrace.io/address/0x1328F4a86457C9d2d7f130206De9C7958F62408a#code) | [tx](https://testnet.snowtrace.io/tx/0x246dc0bfaa0edd98c54d01a953449bb674c36ea348db9e649f29ec6b0e024cdc) |
-| EcoLoopRewards (check-in, missions) | [`0x333Ab4827c15343913C26C8F31839e884d6afDb2`](https://testnet.snowtrace.io/address/0x333Ab4827c15343913C26C8F31839e884d6afDb2#code) | [tx](https://testnet.snowtrace.io/tx/0x04b09a4cc37a0d22d66c2ad45d0a799d27124b0925711c8e1facb7eea20db713) |
-| EcoLoopTeleporterBridge (Avalanche ICM, source) | [`0xA2546a3e089327e147B38Ec486F5E944C9BAA504`](https://testnet.snowtrace.io/address/0xA2546a3e089327e147B38Ec486F5E944C9BAA504#code) | [tx](https://testnet.snowtrace.io/tx/0x2da89db0c18576a7b247b5c205974a987b1e272678cca2376f65c125f4d790c9) |
+| EcoLoopPickup V4 (ECO + escrow + ERC-2771) | [`0xd8D1629D9712a3856489f2D3487e281fb05F8E8a`](https://testnet.snowtrace.io/address/0xd8D1629D9712a3856489f2D3487e281fb05F8E8a#code) | [tx](https://testnet.snowtrace.io/tx/0x30350a1804c203834373ed8bfe69cba468e0011d2b222bc1c39dd442525afd83) |
+| EcoLoopCertificate (ECOREC NFT, SVG on-chain) | [`0x61bc32d781002ecE6f441AD1ce857548d1Be5102`](https://testnet.snowtrace.io/address/0x61bc32d781002ecE6f441AD1ce857548d1Be5102#code) |  |
+| EcoLoopForwarder (gasless, ERC-2771) | [`0xdaD7d7136845b9D4cdA8aDaf833302B5c98649bd`](https://testnet.snowtrace.io/address/0xdaD7d7136845b9D4cdA8aDaf833302B5c98649bd#code) | [tx](https://testnet.snowtrace.io/tx/0x4a7f5d603afad6c81fc9029deb3e4bff4466d31f3d0ae2850e304c39be00eefc) |
+| EcoLoopRewards (check-in, missions) | [`0xd6A6dc2A6da0169C7B46832c9519c427fBBb8F30`](https://testnet.snowtrace.io/address/0xd6A6dc2A6da0169C7B46832c9519c427fBBb8F30#code) | [tx](https://testnet.snowtrace.io/tx/0x720bbe53c17bf1d64ea3d91f5f4b98d4c9689b7ae6b8920147f5a5a8a75df98d) |
+| EcoLoopTeleporterBridge (Avalanche ICM, source) | [`0xe65c88e48C213BFCc2fbaE0B59061a2A1d802774`](https://testnet.snowtrace.io/address/0xe65c88e48C213BFCc2fbaE0B59061a2A1d802774#code) | [tx](https://testnet.snowtrace.io/tx/0x39fab4c46c8de5ce217d3d704dd52a51eee9000b54b9cee9a3d52d90e7bb7270) |
 
 **ICM (Teleporter):** bridge nguồn đã triển khai trên Fuji, chưa kết nối L1 đích. Luồng gửi/nhận, chống giả mạo và chống phát lại được kiểm thử tự động trong `tests/teleporter-bridge.test.mjs`.
 <!-- contracts:end -->
@@ -47,6 +47,7 @@ flowchart LR
 - Ký quỹ ECO 120% nên người thu gom bỏ việc sẽ không được gì; hai ví thông đồng giao dịch P2P cũng không in thêm được ECO (chỉ trả từ khoản ký quỹ).
 - Chỉ lô do **trạm thu gom xác minh** (ví có `COLLECTOR_ROLE`) hoàn tất mới được cộng vào `verifiedRecycledGrams`. Chỉ con số này mở khóa điểm danh và nhiệm vụ trong `EcoLoopRewards`.
 - Mỗi chứng nhận ECOREC có thuộc tính `verified`. `EcoLoopTeleporterBridge` từ chối gửi chứng nhận chưa xác minh (`UnverifiedCertificate`), nên dữ liệu ESG gửi sang L1 khác chỉ gồm lô đã qua trạm.
+- **Quỹ ứng trước ký quỹ:** trạm thu gom đã xác minh không cần có ECO hay AVAX. `claimLotSponsored` dùng `sponsorPool` (do nhãn hàng EPR hoặc quản trị viên nạp) để khóa khoản đảm bảo, tối đa 3 đơn cùng lúc; người bán vẫn được trả ECO theo số cân, phần dư quay về quỹ. Ví chưa xác minh không dùng được quỹ, nên hai ví thông đồng không rút được quỹ.
 - Kiểm thử: `tests/pickup-contract.test.mjs` (anti-Sybil, chống lạm phát) và `tests/teleporter-bridge.test.mjs`.
 
 ### Đã làm / chưa làm (minh bạch)

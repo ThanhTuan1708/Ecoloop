@@ -338,3 +338,44 @@ test('anti-Sybil: only lots settled by a verified station unlock check-in, missi
     assert.equal(await f.client.readContract({address:certificate,abi:certificateArtifact.abi,functionName:'totalVerifiedGrams'}),2000n);
   }finally{await f.connection.close();}
 });
+
+test('sponsor pool lets a verified collector with 0 ECO claim; refunds return to the pool; unverified wallets cannot drain it',async()=>{
+  const f=await fixture();
+  try{
+    const role=hash('COLLECTOR_ROLE');
+    await f.write(0,'grantRole',[role,f.accounts[3]]); // accounts[3]: verified station, holds no ECO
+    await f.write(0,'fundSponsorPool',[parseEther('500')]);
+    assert.equal(await f.read('sponsorPool'),parseEther('500'));
+    const inventory=await f.read('exchangeInventory');
+
+    await f.create(1,'sponsored-lot');
+    // Unverified wallet (accounts[2]) cannot use the sponsor pool
+    await assert.rejects(f.write(2,'claimLotSponsored',[1n,parseEther('1000')]),/SponsorUnavailable/);
+    assert.equal(await f.read('balanceOf',[f.accounts[3]]),0n);
+    await f.write(3,'claimLotSponsored',[1n,parseEther('1000')]);
+    assert.equal(await f.read('lotSponsored',[1n]),true);
+    assert.equal(await f.read('sponsorPool'),parseEther('320')); // 500 - 180 deposit
+    assert.equal(await f.read('exchangeInventory'),inventory,'sponsoring must not touch the exchange inventory');
+
+    await f.write(3,'proposeLot',[1n,[2500n,4000n,1000n,0n]]); // 130 ECO
+    await f.write(1,'acceptLot',[1n]);
+    assert.equal(await f.read('balanceOf',[f.accounts[1]]),parseEther('130'));
+    assert.equal(await f.read('balanceOf',[f.accounts[3]]),0n,'the refund goes back to the pool, not the collector');
+    assert.equal(await f.read('sponsorPool'),parseEther('370')); // 320 + 50 refund
+    assert.equal(await f.read('activeSponsored',[f.accounts[3]]),0n);
+    assert.equal(await f.read('verifiedRecycledGrams',[f.accounts[1]]),7500n);
+
+    // A released sponsored job returns the whole deposit to the pool
+    await f.create(1,'sponsored-release');
+    await f.write(3,'claimLotSponsored',[2n,parseEther('1000')]);
+    await f.write(3,'releaseLot',[2n]);
+    assert.equal(await f.read('sponsorPool'),parseEther('370'));
+    assert.equal(await f.read('totalEscrowed'),0n);
+
+    // At most MAX_SPONSORED_ACTIVE sponsored jobs at once
+    await f.write(0,'fundSponsorPool',[parseEther('1000')]);
+    for(let i=0;i<4;i++)await f.create(1,`cap-${i}`);
+    for(const id of [3n,4n,5n])await f.write(3,'claimLotSponsored',[id,parseEther('1000')]);
+    await assert.rejects(f.write(3,'claimLotSponsored',[6n,parseEther('1000')]),/SponsorUnavailable/);
+  }finally{await f.connection.close();}
+});

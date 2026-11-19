@@ -123,6 +123,7 @@ export default function Pickup({account,admin,onConnect,page='home',role='seller
   };
 
   const effectiveBalance=Number(formatEther(balanceAtomic));
+  const canSponsor=canFulfillRewards&&gasless&&depositWei!==undefined&&(exchange?.sponsorPool??0n)>=depositWei;
 
   const applyCardOverrides=(card:ShopeeWeb3ProductCard):ShopeeWeb3ProductCard=>{
     const ov=catalog.lotOverrides[card.lotId];
@@ -317,7 +318,9 @@ export default function Pickup({account,admin,onConnect,page='home',role='seller
     const id=current.id;
     if(fn==='claimLot'){
       if(depositWei===undefined)throw new Error(tr('Đang tính số ECO cần khóa…'));
-      setHash(await householdWrite(address,account,fn,[BigInt(id),depositWei],gasless));
+      // A verified station without enough ECO claims through the sponsor pool (no ECO, no AVAX needed).
+      const sponsoredClaim=balanceAtomic<depositWei&&canSponsor;
+      setHash(await householdWrite(address,account,sponsoredClaim?'claimLotSponsored':fn,[BigInt(id),depositWei],gasless));
       await refresh();onOpenOrders?.();
       setMessage(tr('🎉 Đã nhận đơn! Bạn có thể xem địa chỉ và số điện thoại bên dưới để liên hệ đến lấy.'));
       speakFeedback('Bạn đã nhận thu gom.');
@@ -800,10 +803,13 @@ export default function Pickup({account,admin,onConnect,page='home',role='seller
               :<button type="button" className="secondary" onClick={()=>onBrowseAsCollector(current.id)}>{tr('Chuyển sang Người Thu Gom')}</button>)}
             {failure&&message&&<p className="form-error" role="alert">{tr(message)}</p>}
             {collectorMarket&&account&&!publicPickup&&!canFulfillRewards&&<p>{tr('Ví này chưa có quyền thu gom. Liên hệ quản trị viên.')}</p>}
-            {actions.claimLot&&depositWei!==undefined&&balanceAtomic<depositWei&&(gasless
-              ?<div className="pickup-callout"><strong>{tr('⚡ Nhận đơn miễn phí — Hệ thống hỗ trợ ứng trước điểm đảm bảo')}</strong><p>{tr('Bạn chưa cần có sẵn điểm trong ví. EcoLoop tự động ứng trước {eco} ECO đảm bảo để bạn nhận đơn đi thu gom ngay hoàn toàn miễn phí.',{eco:eco(depositWei-balanceAtomic)})}</p></div>
-              :swap&&<EcoExchange {...swap} needed={depositWei-balanceAtomic}/>)}
-            {collectorMarket&&(!account||actions.claimLot)&&<button className="primary full-width" disabled={busy||paused||!!account&&(depositWei===undefined||(!gasless&&balanceAtomic<depositWei))} onClick={()=>account?run(()=>change('claimLot',[BigInt(current.id)])):onConnect()}>{!account?tr('Kết nối ví'):tr('Nhận đơn đi thu gom ngay')} <ArrowRight size={16}/></button>}
+            {actions.claimLot&&depositWei!==undefined&&balanceAtomic<depositWei&&(canSponsor
+              ?<div className="pickup-callout"><strong>{tr('⚡ Nhận đơn miễn phí — Quỹ ứng trước của EcoLoop khóa {eco} ECO đảm bảo thay bạn',{eco:eco(depositWei)})}</strong><p>{tr('Bạn là trạm thu gom đã xác minh nên không cần có ECO hay AVAX. Khoản đảm bảo do quỹ ứng trước khóa; khi hoàn tất, người bán nhận ECO theo số cân và phần dư quay về quỹ.')}</p></div>
+              :<>{canFulfillRewards
+                ?<p role="status">{tr('Quỹ ứng trước đang không đủ hoặc bạn đã nhận tối đa 3 đơn ứng trước. Hoàn tất bớt đơn hoặc liên hệ quản trị viên.')}</p>
+                :<p role="status">{tr('Ví chưa có đủ {eco} ECO để ký quỹ. Đơn miễn phí (ứng trước) chỉ dành cho trạm thu gom đã xác minh: liên hệ quản trị viên để được xác minh, hoặc đổi AVAX lấy ECO.',{eco:eco(depositWei-balanceAtomic)})}</p>}
+                {swap&&<EcoExchange {...swap} needed={depositWei-balanceAtomic}/>}</>)}
+            {collectorMarket&&(!account||actions.claimLot)&&<button className="primary full-width" disabled={busy||paused||!!account&&(depositWei===undefined||(balanceAtomic<depositWei&&!canSponsor))} onClick={()=>account?run(()=>change('claimLot',[BigInt(current.id)])):onConnect()}>{!account?tr('Kết nối ví'):tr('Nhận đơn đi thu gom ngay')} <ArrowRight size={16}/></button>}
             {current.status===1&&isOwner&&<button className="secondary" disabled={busy} onClick={()=>run(()=>change('cancelLot',[BigInt(current.id)]))}>{tr('Hủy bài đăng')}{freeGas}</button>}
             {isAssignedCollector&&current.status===2&&<form onSubmit={e=>{e.preventDefault();run(async()=>{const weights=actual.map(s=>Math.round(Number(s)*1000));if(weights.some(n=>!Number.isSafeInteger(n)||n<0)||total(weights)<=0||total(weights)>1000)throw new Error(tr('Tổng khối lượng thực tế từ 0,001 đến 1.000 kg.'));await change('proposeLot',[BigInt(current.id),weights.map(BigInt)]);});}}><h4>{tr('Kết quả cân thực tế tại điểm bàn giao')}</h4><WeightInputs values={actual} onChange={setActual}/><p>{tr('Nhập số cân thực tế sau khi cân tại nhà để gửi cho người bán kiểm tra và xác nhận.')}</p><button className="primary" disabled={busy||paused}>{tr('Gửi số cân')}</button></form>}
             {!seller&&!admin&&isAssignedCollector&&[2,3,4].includes(current.status)&&(()=>{
@@ -1078,7 +1084,7 @@ const rewardArtwork=new Map([
 ]);
 
 type EcoExchangeProps = {
-  exchange?:{rate:bigint;inventory:bigint};
+  exchange?:{rate:bigint;inventory:bigint;sponsorPool?:bigint};
   busy:boolean;
   buy:(avax:bigint,minimumEco:bigint)=>void;
   needed?:bigint;

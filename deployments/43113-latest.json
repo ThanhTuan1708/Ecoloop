@@ -1,45 +1,49 @@
 {
   "chainId": 43113,
   "deployer": "0x4AA84B5f9E1E71fbae7f1298096B32b735bd90bf",
-  "previousPickup": "0xdBbd713C1d37Eb96653D5b7EBfb03E608A7beD0f",
-  "createdAt": "2026-11-19T13:03:48.829Z",
+  "previousPickup": "0x27F8410AF55E1fadFe93E8fA025A263d6583b0E1",
+  "createdAt": "2026-11-19T13:50:50.375Z",
   "contracts": {
     "forwarder": {
-      "address": "0x1328F4a86457C9d2d7f130206De9C7958F62408a",
-      "txHash": "0x246dc0bfaa0edd98c54d01a953449bb674c36ea348db9e649f29ec6b0e024cdc",
-      "block": 61331361,
+      "address": "0xdaD7d7136845b9D4cdA8aDaf833302B5c98649bd",
+      "txHash": "0x4a7f5d603afad6c81fc9029deb3e4bff4466d31f3d0ae2850e304c39be00eefc",
+      "block": 61333021,
       "args": []
     },
     "pickup": {
-      "address": "0x27F8410AF55E1fadFe93E8fA025A263d6583b0E1",
-      "txHash": "0x6497c282c9cec7c56962e31ad0edb4e220088e34642e17fce9410a12060bd9b1",
-      "block": 61331364,
+      "address": "0xd8D1629D9712a3856489f2D3487e281fb05F8E8a",
+      "txHash": "0x30350a1804c203834373ed8bfe69cba468e0011d2b222bc1c39dd442525afd83",
+      "block": 61333023,
       "args": [
         "0x4AA84B5f9E1E71fbae7f1298096B32b735bd90bf",
-        "0x1328F4a86457C9d2d7f130206De9C7958F62408a",
+        "0xdaD7d7136845b9D4cdA8aDaf833302B5c98649bd",
         "10000000000000000000000",
         "1000000000000000000000000"
       ]
     },
     "certificate": {
-      "address": "0xa5b3A41e24b9f97138c3704AA781Ca24bd1CC4fa",
-      "createdBy": "0x27F8410AF55E1fadFe93E8fA025A263d6583b0E1",
-      "block": 61331364,
+      "address": "0x61bc32d781002ecE6f441AD1ce857548d1Be5102",
+      "createdBy": "0xd8D1629D9712a3856489f2D3487e281fb05F8E8a",
+      "block": 61333023,
       "args": []
     },
     "rewards": {
-      "address": "0x333Ab4827c15343913C26C8F31839e884d6afDb2",
-      "txHash": "0x04b09a4cc37a0d22d66c2ad45d0a799d27124b0925711c8e1facb7eea20db713",
-      "block": 61331368,
+      "address": "0xd6A6dc2A6da0169C7B46832c9519c427fBBb8F30",
+      "txHash": "0x720bbe53c17bf1d64ea3d91f5f4b98d4c9689b7ae6b8920147f5a5a8a75df98d",
+      "block": 61333032,
       "args": [
-        "0x27F8410AF55E1fadFe93E8fA025A263d6583b0E1"
+        "0xd8D1629D9712a3856489f2D3487e281fb05F8E8a"
       ]
     }
+  },
+  "sponsorPool": {
+    "eco": "5000",
+    "tx": "0x4c27de6458adf4e099ebb059e62d8005506291642afdcb1f30b1373a62ca0847"
   },
   "rewardsFunding": {
     "avax": "0.02",
     "eco": "200",
-    "buyTx": "0x34236ca5f2c388385fe0a1931d809ce0d7f2d963a11e9cc0dac2c9a1aec67ef8",
-    "transferTx": "0xaedca5baac8e42ae81c7550b918841fcfb703063ba2d372e45222ccda68310b4"
+    "buyTx": "0x65a0d015459dccacaa8eab1eb53a11a9408ecd7447a22cd245397f1fa6fb9188",
+    "transferTx": "0x382e3c99fd84b1ff8981a9d561a09d360fb49f565b788df4c4e7fbcc8f8b1ae6"
   }
 }

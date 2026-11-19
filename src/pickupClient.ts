@@ -10,8 +10,8 @@ export type Lot = {id:number; owner:Address; collector:Address; estimated:number
 export const lotStatuses=['Không tồn tại','Chờ thu gom','Đã nhận việc','Chờ chủ lô xác nhận','Hoàn tất','Đã hủy'];
 export const ZERO='0x0000000000000000000000000000000000000000' as Address;
 /** Actions for which the EcoLoop relayer pays gas. */
-export const GASLESS_FUNCTIONS=new Set(['createLot','claimLot','proposeLot','acceptLot','disputeLot','cancelLot','releaseLot','redeemReward','transfer']);
-const RELAY_GAS:Record<string,bigint>={createLot:450_000n,claimLot:350_000n,proposeLot:250_000n,acceptLot:800_000n,disputeLot:150_000n,cancelLot:120_000n,releaseLot:200_000n,redeemReward:250_000n,transfer:150_000n};
+export const GASLESS_FUNCTIONS=new Set(['createLot','claimLot','claimLotSponsored','proposeLot','acceptLot','disputeLot','cancelLot','releaseLot','redeemReward','transfer']);
+const RELAY_GAS:Record<string,bigint>={createLot:450_000n,claimLot:350_000n,claimLotSponsored:350_000n,proposeLot:250_000n,acceptLot:800_000n,disputeLot:150_000n,cancelLot:120_000n,releaseLot:200_000n,redeemReward:250_000n,transfer:150_000n};
 const pendingKey=`ecoloop-pickup-pending-${chain.id}`;
 const forwarderKey=`ecoloop-forwarder-${chain.id}`;
 const deploymentProxy='0x4e59b44847b379578588920cA78FbF26c0B4956C';
@@ -104,11 +104,12 @@ export async function payoutPreview(address:Address,lot:Lot):Promise<bigint>{
   return readFrom(address)('quotedPayout',[BigInt(lot.id)]);
 }
 export async function exchangeState(address:Address) {
-  const [rate,inventory]=await Promise.all([
+  const [rate,inventory,sponsorPool]=await Promise.all([
     publicClient.readContract({address,abi:pickupAbi,functionName:'ecoPerAvax'}),
     publicClient.readContract({address,abi:pickupAbi,functionName:'exchangeInventory'}),
+    publicClient.readContract({address,abi:pickupAbi,functionName:'sponsorPool'}).catch(()=>0n),
   ]);
-  return {rate,inventory};
+  return {rate,inventory,sponsorPool};
 }
 async function checkPickupFunds(address:Address,account:Address,functionName:string,args:unknown[],value=0n,abi:Abi=pickupAbi){
   const sponsored=import.meta.env.VITE_SPONSOR_GAS==='true'&&getWalletName()==='Ví Google';

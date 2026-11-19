@@ -1,16 +1,16 @@
 {
-  "createdAt": "2026-11-19T13:05:45.408Z",
+  "createdAt": "2026-11-19T13:52:50.800Z",
   "teleporter": "0x253b2784c75e510dD0fF1da844684a1aC0aa5fcf",
-  "certificate": "0xa5b3A41e24b9f97138c3704AA781Ca24bd1CC4fa",
+  "certificate": "0x61bc32d781002ecE6f441AD1ce857548d1Be5102",
   "source": {
     "chain": "Avalanche Fuji C-Chain",
     "blockchainId": "0x7fc93d85c6d62c5b2ac0b519c87010ea5294012d1e407030d6acd0021cac10d5",
-    "address": "0xA2546a3e089327e147B38Ec486F5E944C9BAA504",
-    "txHash": "0x2da89db0c18576a7b247b5c205974a987b1e272678cca2376f65c125f4d790c9",
+    "address": "0xe65c88e48C213BFCc2fbaE0B59061a2A1d802774",
+    "txHash": "0x39fab4c46c8de5ce217d3d704dd52a51eee9000b54b9cee9a3d52d90e7bb7270",
     "args": [
       "0x4AA84B5f9E1E71fbae7f1298096B32b735bd90bf",
       "0x253b2784c75e510dD0fF1da844684a1aC0aa5fcf",
-      "0xa5b3A41e24b9f97138c3704AA781Ca24bd1CC4fa"
+      "0x61bc32d781002ecE6f441AD1ce857548d1Be5102"
     ]
   }
 }

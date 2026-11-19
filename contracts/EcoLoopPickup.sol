@@ -35,6 +35,8 @@ contract EcoLoopPickup is EcoLoop, ERC2771Context, ReentrancyGuard {
     uint256 public constant TIMEOUT = 7 days;
     uint256 public constant VERSION = 4;
     uint256 public constant MAX_PRICE_PER_KG = 1_000_000 ether;
+    /// @notice A verified station collector may hold at most this many sponsored (pool-funded) jobs at once.
+    uint256 public constant MAX_SPONSORED_ACTIVE = 3;
 
     // Constructor-only values stored in storage so deployed bytecode can be verified exactly.
     EcoLoopCertificate public certificate;
@@ -54,6 +56,11 @@ contract EcoLoopPickup is EcoLoop, ERC2771Context, ReentrancyGuard {
     /// missions, check-in eligibility and ESG attestations, so two colluding wallets cannot farm impact.
     mapping(address => uint256) public verifiedRecycledGrams;
     uint256 public totalVerifiedGrams;
+    /// @notice ECO held by this contract that sponsors escrow for verified collectors without ECO or AVAX
+    /// (e.g. funded by EPR brands). Sponsored deposits and their refunds always return to this pool.
+    uint256 public sponsorPool;
+    mapping(uint256 => bool) public lotSponsored;
+    mapping(address => uint256) public activeSponsored;
 
     mapping(uint256 => Lot) private lots;
     uint256 public lotCount;
@@ -67,11 +74,14 @@ contract EcoLoopPickup is EcoLoop, ERC2771Context, ReentrancyGuard {
     event CollectorBonusUpdated(uint16 bonusBps);
     event ExchangeRateUpdated(uint256 ecoPerAvax);
     event EcoPurchased(address indexed buyer, uint256 avaxPaid, uint256 ecoReceived);
+    event SponsorPoolFunded(uint256 amount);
+    event EscrowSponsored(uint256 indexed id, address indexed collector, uint256 amount);
     event ExchangeProceedsWithdrawn(address indexed recipient, uint256 amount);
 
     error DepositAboveMaximum(uint256 required);
     error ExchangeUnavailable();
     error ExchangeQuoteChanged();
+    error SponsorUnavailable();
 
     constructor(address admin, address forwarder, uint256 initialRate, uint256 initialReserve) EcoLoop(admin) ERC2771Context(address(0)) {
         pickupForwarder = forwarder;
@@ -110,7 +120,7 @@ contract EcoLoopPickup is EcoLoop, ERC2771Context, ReentrancyGuard {
 
     /// @notice ECO transferred to this contract by holders funds swaps. Escrow is reserved.
     function exchangeInventory() public view returns (uint256) {
-        return balanceOf(address(this)) - totalEscrowed;
+        return balanceOf(address(this)) - totalEscrowed - sponsorPool;
     }
 
     function buyEco(uint256 minimumEco) external payable whenNotPaused nonReentrant {
@@ -155,6 +165,14 @@ contract EcoLoopPickup is EcoLoop, ERC2771Context, ReentrancyGuard {
         _mint(address(this), amount);
     }
 
+    /// @notice Issues testnet ECO into the escrow sponsor pool.
+    function fundSponsorPool(uint256 amount) external onlyRole(DEFAULT_ADMIN_ROLE) {
+        if (amount == 0) revert InvalidInput();
+        _mint(address(this), amount);
+        sponsorPool += amount;
+        emit SponsorPoolFunded(amount);
+    }
+
     function withdrawExchangeProceeds(address payable recipient, uint256 amount) external onlyRole(DEFAULT_ADMIN_ROLE) nonReentrant {
         if (recipient == address(0) || amount == 0 || amount > exchangeProceeds) revert InvalidInput();
         exchangeProceeds -= amount;
@@ -192,6 +210,7 @@ contract EcoLoopPickup is EcoLoop, ERC2771Context, ReentrancyGuard {
 
         lot.deposit = 0;
         delete lotPrices[id];
+        bool sponsored = endSponsorship(id, lot.collector);
         lot.paid = payment;
         totalEscrowed -= deposit;
         totalPaid += payment;
@@ -210,7 +229,8 @@ contract EcoLoopPickup is EcoLoop, ERC2771Context, ReentrancyGuard {
         emit EscrowReleased(id, lot.owner, payment, refund);
 
         _transfer(address(this), lot.owner, payment);
-        if (refund > 0) _transfer(address(this), lot.collector, refund);
+        if (sponsored) sponsorPool += refund;
+        else if (refund > 0) _transfer(address(this), lot.collector, refund);
         certificate.mint(lot.owner, id, lot.actual, lot.collector, payment, verified);
     }
 
@@ -266,6 +286,29 @@ contract EcoLoopPickup is EcoLoop, ERC2771Context, ReentrancyGuard {
         emit EscrowLocked(id, collector, required);
     }
 
+    /// @notice Gas-free claim for a verified station collector who has no ECO: the sponsor pool locks the
+    /// deposit instead. Unverified wallets cannot use it, so colluding wallets cannot drain the pool.
+    function claimLotSponsored(uint256 id, uint256 maximumDeposit) external whenNotPaused nonReentrant {
+        Lot storage lot = lots[id];
+        if (lot.status != PickupStatus.Open) revert InvalidStatus();
+        address collector = _msgSender();
+        if (lot.owner == collector) revert SelfApproval();
+        if (!hasRole(COLLECTOR_ROLE, collector) || activeSponsored[collector] >= MAX_SPONSORED_ACTIVE) revert SponsorUnavailable();
+        uint256 required = requiredDeposit(id);
+        if (required > maximumDeposit) revert DepositAboveMaximum(required);
+        if (required > sponsorPool) revert SponsorUnavailable();
+        sponsorPool -= required;
+        lotSponsored[id] = true;
+        activeSponsored[collector]++;
+        lotPrices[id] = pricePerKg;
+        lot.collector = collector;
+        lot.deposit = required;
+        totalEscrowed += required;
+        change(id, PickupStatus.Claimed);
+        emit EscrowSponsored(id, collector, required);
+        emit EscrowLocked(id, collector, required);
+    }
+
     function proposeLot(uint256 id, uint64[4] calldata actual) external whenNotPaused {
         Lot storage lot = lots[id];
         if (lot.status != PickupStatus.Claimed || lot.collector != _msgSender()) revert InvalidStatus();
@@ -286,13 +329,23 @@ contract EcoLoopPickup is EcoLoop, ERC2771Context, ReentrancyGuard {
         lot.deposit = 0;
         delete lotPrices[id];
         totalEscrowed -= deposit;
+        bool sponsored = endSponsorship(id, collector);
         delete lot.collector; delete lot.actual;
         change(id, PickupStatus.Open);
-        emit EscrowRefunded(id, collector, deposit);
-        _transfer(address(this), collector, deposit);
+        emit EscrowRefunded(id, sponsored ? address(this) : collector, deposit);
+        if (sponsored) sponsorPool += deposit;
+        else _transfer(address(this), collector, deposit);
     }
 
     // ---------- internals ----------
+    function endSponsorship(uint256 id, address collector) private returns (bool sponsored) {
+        sponsored = lotSponsored[id];
+        if (sponsored) {
+            delete lotSponsored[id];
+            activeSponsored[collector]--;
+        }
+    }
+
     function valueAtPrices(uint64[4] memory grams, uint256[4] storage prices) private view returns (uint256 value) {
         for (uint256 i; i < 4; i++) value += uint256(grams[i]) * prices[i] / 1000;
     }

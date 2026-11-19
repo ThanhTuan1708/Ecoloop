@@ -23,3 +23,6 @@ push-p1.tmp
 push-github.bat
 push-p2.bat
 p2-push-log.txt
+push-p3.bat
+p3-log.txt
+p3.tmp

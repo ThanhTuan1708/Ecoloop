@@ -12,6 +12,7 @@
 //   EXCHANGE_RESERVE_ECO=1000000 ECO minted into the exchange at deployment
 //   REWARDS_FUND_AVAX=0.2        AVAX the deployer swaps to ECO to fund EcoLoopRewards (0 skips funding)
 //   DEPLOY_REWARDS=false         keep the current rewardsContract instead of deploying a new one
+//   SPONSOR_POOL_ECO=5000        ECO issued into the escrow sponsor pool for verified collectors (0 skips)
 import fs from 'node:fs';
 import { createPublicClient, createWalletClient, http, getAddress, parseEther, formatEther } from 'viem';
 import { privateKeyToAccount } from 'viem/accounts';
@@ -37,6 +38,7 @@ const ecoPerAvax = parseEther(process.env.ECO_PER_AVAX ?? '1000');
 const exchangeReserve = parseEther(process.env.EXCHANGE_RESERVE_ECO ?? '1000000');
 const rewardsFundAvax = parseEther(process.env.REWARDS_FUND_AVAX ?? '0.2');
 const deployRewards = (process.env.DEPLOY_REWARDS ?? 'true') !== 'false';
+const sponsorPoolEco = parseEther(process.env.SPONSOR_POOL_ECO ?? '5000');
 
 compile();
 const pickup = JSON.parse(fs.readFileSync('artifacts/EcoLoopPickup.json', 'utf8'));
@@ -82,6 +84,11 @@ const address = await deploy('pickup', pickup, [admin, forwarder, ecoPerAvax, ex
 const pickupBlock = deployBlock;
 const certificate = getAddress(await publicClient.readContract({ address, abi: pickup.abi, functionName: 'certificate' }));
 record.contracts.certificate = { address: certificate, createdBy: address, block: pickupBlock, args: [] };
+
+if (sponsorPoolEco > 0n) {
+  record.sponsorPool = { eco: formatEther(sponsorPoolEco), tx: await write(address, pickup.abi, 'fundSponsorPool', [sponsorPoolEco]) };
+  console.log(`  Sponsor pool funded with ${formatEther(sponsorPoolEco)} ECO (escrow for verified collectors without ECO/AVAX)`);
+}
 
 let rewardsContract = config.chainId === chain.id ? config.rewardsContract : undefined;
 if (deployRewards) {

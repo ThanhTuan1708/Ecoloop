@@ -296,10 +296,21 @@ function decimalAmount(input:string,maxLength:number){
   return value.length<=maxLength&&/^\d+(?:\.\d{1,18})?$/.test(value)?parseEther(value):undefined;
 }
 
-export function ExchangeSettings({exchange,busy,submit}:{exchange:{rate:bigint;inventory:bigint};busy:boolean;submit:(fn:'setExchangeRate'|'fundExchange'|'withdrawExchangeProceeds',value:bigint)=>void}){
+export function ExchangeSettings({exchange,busy,submit}:{exchange:{rate:bigint;inventory:bigint;sponsorPool?:bigint};busy:boolean;submit:(fn:'setExchangeRate'|'fundExchange'|'fundSponsorPool'|'withdrawExchangeProceeds',value:bigint)=>void}){
   return <div className="pickup-callout eco-exchange">
     <h3>{tr('Quầy đổi AVAX → ECO & Rút Doanh thu AVAX')}</h3>
     <p>{tr('Quầy đổi còn {n} ECO.',{n:formatEther(exchange.inventory)})}</p>
+    <p>{tr('Quỹ ứng trước ký quỹ (cho trạm thu gom không có ECO/AVAX): {n} ECO.',{n:formatEther(exchange.sponsorPool??0n)})}</p>
+    <form onSubmit={e=>{
+      e.preventDefault();
+      const amount=decimalAmount(String(new FormData(e.currentTarget).get('sponsor')),36);
+      if(amount!==undefined&&amount>0n)submit('fundSponsorPool',amount);
+    }}>
+      <label>{tr('Số ECO nạp vào quỹ ứng trước ký quỹ')}
+        <input name="sponsor" inputMode="decimal" maxLength={36} pattern="[0-9]+([.,][0-9]{1,18})?" required/>
+      </label>
+      <button className="secondary" disabled={busy}>{tr('Nạp quỹ ứng trước')}</button>
+    </form>
     <form onSubmit={e=>{
       e.preventDefault();
       const rate=decimalAmount(String(new FormData(e.currentTarget).get('rate')),29);
