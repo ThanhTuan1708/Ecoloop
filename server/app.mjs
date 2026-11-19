@@ -6,7 +6,7 @@ import path from 'node:path';
 import { createHash, createHmac, randomUUID, timingSafeEqual } from 'node:crypto';
 import {createPickupStorage} from './pickup-storage.mjs';
 import {createPickupChat} from './pickup-chat.mjs';
-import { createPublicClient, createWalletClient, decodeEventLog, decodeFunctionData, fallback, http as rpcHttp, isAddress, isHex, keccak256, stringToHex, toFunctionSelector, verifyMessage } from 'viem';
+import { createPublicClient, createWalletClient, decodeEventLog, fallback, http as rpcHttp, isAddress, isHex, keccak256, stringToHex, toFunctionSelector, verifyMessage } from 'viem';
 import { privateKeyToAccount } from 'viem/accounts';
 import { codeHash, pickupAccess } from './codehash.mjs';
 import {artifact,pickupArtifact,forwarderArtifact} from './generated-contracts.mjs';
@@ -15,11 +15,13 @@ import { avalancheFuji, hardhat } from 'viem/chains';
 const MAX_IMAGE = 10 * 1024 * 1024;
 const hashPattern = /^0x[\da-f]{64}$/i;
 const collectorRole = keccak256(stringToHex('COLLECTOR_ROLE'));
+const defaultAdminRole = '0x' + '0'.repeat(64);
 const ADMIN_WALLET_LOWER = '0xccb958ed2931073568359336344088a914f57098';
+// Strict privacy boundary: only the assigned collector on active/completed lots can read private handover details.
 const canReadPickupAsCollector = (lot,account) =>
-  account===ADMIN_WALLET_LOWER||(lot.collector.toLowerCase()===account&&[2,3,4].includes(lot.status));
-// All pickup & token actions the relayer pays gas for (both seller and collector actions use ERC-2771 _msgSender()).
-const GASLESS_FUNCTIONS = ['createLot','claimLot','proposeLot','acceptLot','disputeLot','cancelLot','releaseLot','redeemReward','transfer','addReward','configureReward','fulfillRedemption','setPrices','setPaused','grantRole','revokeRole','setExchangeRate','fundExchange'];
+  lot.collector.toLowerCase()===account&&[2,3,4].includes(lot.status);
+// Strict ERC-2771 allowlist: only non-privileged user actions using _msgSender() are gas-sponsored.
+const GASLESS_FUNCTIONS = ['createLot','claimLot','proposeLot','acceptLot','disputeLot','cancelLot','releaseLot','redeemReward','fulfillRewardRedemption','transfer'];
 export function imageType(bytes) {
   if(bytes.length>=8&&bytes.subarray(0,8).equals(Buffer.from([137,80,78,71,13,10,26,10])))return 'image/png';
   if(bytes.length>=3&&bytes[0]===255&&bytes[1]===216&&bytes[2]===255)return 'image/jpeg';
@@ -106,7 +108,10 @@ export async function createApp({dataDir=path.resolve(process.env.DATA_DIR||'.da
     return value||fs.readFile(file);
   }
   async function writeStored(file,value){
-    if(!storage)return fs.writeFile(file,value,{flag:'wx'});
+    if(!storage){
+      await fs.mkdir(path.dirname(file),{recursive:true});
+      return fs.writeFile(file,value,{flag:'wx'});
+    }
     if(!await storage.write(prefix+path.relative(dataDir,file).split(path.sep).join('/'),value)){
       throw Object.assign(new Error('Record already exists'),{code:'EEXIST'});
     }
@@ -137,6 +142,15 @@ export async function createApp({dataDir=path.resolve(process.env.DATA_DIR||'.da
     const signed={address:account,message,signature};
     const valid=await verifyMessage(signed).catch(()=>false)||await client.verifyMessage?.(signed).catch(()=>false);
     if(!valid)fail(401,'Chữ ký ví không hợp lệ.');
+  }
+  async function isAuthorizedAdmin(account){
+    if(!isAddress(account||''))return false;
+    const normalized=account.toLowerCase();
+    if(normalized===ADMIN_WALLET_LOWER)return true;
+    const config=await readConfig().catch(()=>({}));
+    const target=config.chainId===chainId?(config.pickupContract||config.contract):null;
+    if(!target||!isAddress(target)||typeof client.readContract!=='function')return false;
+    return !!(await client.readContract({address:target,abi:artifact.abi,functionName:'hasRole',args:[defaultAdminRole,account]}).catch(()=>false));
   }
   const challengeMessage=(data,nonce,expiry)=>`EcoLoop ${data.action==='pickup-chat'?'pickup chat':'evidence'} authorization\nAction: ${data.action}\nChain: ${chainId}\nContract: ${data.contract}\nWallet: ${data.account}\nSHA-256: ${data.hash}\nNonce: ${nonce}\nExpires: ${new Date(expiry).toISOString()}`;
   const challengeMac=(message)=>createHmac('sha256',storageKey).update(message).digest('hex');
@@ -319,11 +333,21 @@ export async function createApp({dataDir=path.resolve(process.env.DATA_DIR||'.da
           const body=JSON.parse((await readBody(req,4096)).toString());
           const account=String(body.account||'').toLowerCase();
           const missionId=String(body.missionId||'').trim();
-          const rewardEco=Number(body.rewardEco||0);
           const timestamp=body.timestamp;
-          if(!missionId||rewardEco<=0)fail(400,'Thông tin nhiệm vụ không hợp lệ.');
+          if(!missionId)fail(400,'Thông tin nhiệm vụ không hợp lệ.');
           const expectedMsg=`EcoLoop Custom Mission Claim\nAccount: ${account}\nMission: ${missionId}\nTimestamp: ${timestamp}`;
           await verifySignedAction(account,expectedMsg,body.signature,timestamp);
+          const catalogFile=path.join(dataDir,'admin-catalog.json');
+          const catalog=await readJsonState('admin-catalog.json',catalogFile,{customMissions:[]});
+          const mission=(catalog.customMissions||[]).find(m=>m.id===missionId&&!m.hidden);
+          if(!mission||!(Number(mission.rewardEco)>0)||!(Number(mission.targetKg)>0))fail(404,'Nhiệm vụ không tồn tại hoặc đã tạm ẩn.');
+          const config=await readConfig().catch(()=>({}));
+          const pickup=config.chainId===chainId?config.pickupContract:null;
+          if(pickup&&isAddress(pickup)&&typeof client.readContract==='function'){
+            const grams=await client.readContract({address:pickup,abi:pickupArtifact.abi,functionName:'recycledGrams',args:[account]}).catch(()=>0n);
+            if(BigInt(grams)<BigInt(Math.round(Number(mission.targetKg)*1000)))fail(403,'Chưa đủ khối lượng tái chế xác nhận trên chain cho nhiệm vụ này.');
+          }
+          const rewardEco=Number(mission.rewardEco);
           const userStateFile=path.join(dataDir,'user-state.json');
           const state=await readJsonState('user-state.json',userStateFile,{dummyPayments:{},dummyVndBalances:{},customReceipts:[],missionClaims:{}});
           state.missionClaims||={};
@@ -337,17 +361,27 @@ export async function createApp({dataDir=path.resolve(process.env.DATA_DIR||'.da
           const catalogFile=path.join(dataDir,'admin-catalog.json');
           const currentCatalog=await readJsonState('admin-catalog.json',catalogFile,{});
           if(req.method==='GET'){
-            send(200,currentCatalog);return;
+            const adminHeader=String(req.headers['x-ecoloop-admin']||'').toLowerCase();
+            const tsHeader=req.headers['x-ecoloop-timestamp'];
+            const sigHeader=req.headers['x-ecoloop-signature'];
+            if(adminHeader&&tsHeader&&sigHeader&&await isAuthorizedAdmin(adminHeader)){
+              const msg=`EcoLoop Admin Catalog Read\nAdmin: ${adminHeader}\nTimestamp: ${tsHeader}`;
+              const ok=await verifySignedAction(adminHeader,msg,String(sigHeader),tsHeader).then(()=>true,()=>false);
+              if(ok){send(200,currentCatalog);return;}
+            }
+            const {accounts:_redacted,...publicCatalog}=currentCatalog||{};
+            send(200,publicCatalog);return;
           }
           const body=JSON.parse((await readBody(req,65536)).toString());
           const adminAccount=String(body.adminAccount||'').toLowerCase();
-          if(adminAccount!==ADMIN_WALLET_LOWER)fail(403,'Chỉ ví Quản trị viên mới có quyền lưu cấu hình hệ thống.');
+          if(!await isAuthorizedAdmin(adminAccount))fail(403,'Chỉ ví Quản trị viên mới có quyền lưu cấu hình hệ thống.');
           const nextCatalog=body.catalog&&typeof body.catalog==='object'?body.catalog:{};
           const catalogDigest=createHash('sha256').update(JSON.stringify(nextCatalog)).digest('hex');
           const expectedMsg=`EcoLoop Admin Catalog Update\nAdmin: ${adminAccount}\nHash: ${catalogDigest}\nTimestamp: ${body.timestamp}`;
           await verifySignedAction(adminAccount,expectedMsg,body.signature,body.timestamp);
-          await writeJsonState('admin-catalog.json',catalogFile,nextCatalog);
-          send(200,nextCatalog);return;
+          const mergedCatalog={...nextCatalog,accounts:Array.isArray(nextCatalog.accounts)?nextCatalog.accounts:currentCatalog?.accounts||[]};
+          await writeJsonState('admin-catalog.json',catalogFile,mergedCatalog);
+          send(200,mergedCatalog);return;
         }
         if(url.pathname==='/api/auth/account'&&req.method==='POST'){
           const body=JSON.parse((await readBody(req,4096)).toString());
@@ -478,40 +512,6 @@ export async function createApp({dataDir=path.resolve(process.env.DATA_DIR||'.da
           if(codeHash(await client.getCode({address:forwarder}),forwarderArtifact.immutables)!==forwarderArtifact.runtimeHash)fail(503,'Forwarder của contract không đúng phiên bản.');
           const data={from:r.from,to:pickup,value:0n,gas:BigInt(r.gas),deadline:r.deadline,data:r.data,signature:r.signature};
           if(!await client.readContract({address:forwarder,abi:forwarderArtifact.abi,functionName:'verify',args:[data]}))fail(400,'Chữ ký yêu cầu không hợp lệ hoặc đã dùng.');
-          try{
-            const decoded=decodeFunctionData({abi:pickupArtifact.abi,data:r.data});
-            if(decoded.functionName==='claimLot'&&relayer){
-              const lotId=decoded.args[0];
-              const [userEco,required]=await Promise.all([
-                client.readContract({address:pickup,abi:pickupArtifact.abi,functionName:'balanceOf',args:[r.from]}),
-                client.readContract({address:pickup,abi:pickupArtifact.abi,functionName:'requiredDeposit',args:[lotId]}),
-              ]);
-              if(userEco<required){
-                const neededEco=required-userEco;
-                if(neededEco>2000n*10n**18n)fail(400,'Số ECO ký quỹ vượt hạn mức tín nhiệm tự động (tối đa 2.000 ECO).');
-                const relayerEco=await client.readContract({address:pickup,abi:pickupArtifact.abi,functionName:'balanceOf',args:[relayer.address]});
-                if(relayerEco<neededEco){
-                  const [rate,inv]=await Promise.all([
-                    client.readContract({address:pickup,abi:pickupArtifact.abi,functionName:'ecoPerAvax'}),
-                    client.readContract({address:pickup,abi:pickupArtifact.abi,functionName:'exchangeInventory'}),
-                  ]);
-                  const buyTarget=neededEco>500n*10n**18n?neededEco:500n*10n**18n;
-                  const buyAmount=buyTarget<inv?buyTarget:neededEco;
-                  if(rate>0n&&inv>=neededEco){
-                    const avaxCost=(buyAmount*10n**18n+rate-1n)/rate;
-                    const buyTx=await relayWallet.writeContract({address:pickup,abi:pickupArtifact.abi,functionName:'buyEco',args:[buyAmount],value:avaxCost,account:relayer,chain});
-                    if(typeof client.waitForTransactionReceipt==='function'){
-                      await client.waitForTransactionReceipt({hash:buyTx,timeout:30000});
-                    }
-                  }
-                }
-                const transferTx=await relayWallet.writeContract({address:pickup,abi:pickupArtifact.abi,functionName:'transfer',args:[r.from,neededEco],account:relayer,chain});
-                if(typeof client.waitForTransactionReceipt==='function'){
-                  await client.waitForTransactionReceipt({hash:transferTx,timeout:30000});
-                }
-              }
-            }
-          }catch(err){if(err?.status)throw err;}
           let request;
           try{({request}=await client.simulateContract({address:forwarder,abi:forwarderArtifact.abi,functionName:'execute',args:[data],account:relayer||relayWallet.account}));}
           catch(error){const e=new Error(error?.shortMessage||'Contract từ chối thao tác.');e.status=400;e.cause=error;throw e;}
@@ -526,19 +526,27 @@ export async function createApp({dataDir=path.resolve(process.env.DATA_DIR||'.da
           const body=JSON.parse((await readBody(req,2048)).toString());
           const account=body.account;
           if(!isAddress(account||''))fail(400,'Địa chỉ ví không hợp lệ.');
-          const maxStipend=50_000_000_000_000_000n; // max 0.05 AVAX
-          const requested=body.needed&&/^\d{1,20}$/.test(String(body.needed))?BigInt(body.needed):4_000_000_000_000_000n;
-          const target=requested>maxStipend?maxStipend:requested<4_000_000_000_000_000n?4_000_000_000_000_000n:requested;
+          const maxStipend=5_000_000_000_000_000n; // max 0.005 AVAX strictly for gas fees
+          const neededRaw=body.needed&&/^\d{1,20}$/.test(String(body.needed))?String(body.needed):'4000000000000000';
+          const requested=BigInt(neededRaw);
           const from=account.toLowerCase();
+          const expectedMsg=`EcoLoop Gas Stipend\nAccount: ${from}\nNeeded: ${neededRaw}\nTimestamp: ${body.timestamp}`;
+          await verifySignedAction(account,expectedMsg,body.signature,body.timestamp);
+          const target=requested>maxStipend?maxStipend:requested<4_000_000_000_000_000n?4_000_000_000_000_000n:requested;
           const today=new Date().toISOString().slice(0,10);if(relayUsage.day!==today){relayUsage.day=today;relayUsage.total=0;relayUsage.wallets.clear();}
           const hour=Math.floor(Date.now()/3600000);const w=relayUsage.wallets.get(from);
           const used=w&&w.hour===hour?w.count:0;
           if(relayUsage.total>=relayDailyLimit||used>=relayHourlyPerWallet)fail(429,'Đã hết lượt tài trợ gas trong giờ này.');
+          const stipendFile=path.join(dataDir,'stipend-claims.json');
+          const stipendClaims=await readJsonState('stipend-claims.json',stipendFile,{});
+          if(Number(stipendClaims[from]||0)>Date.now()-86_400_000)fail(429,'Mỗi ví chỉ được nhận hỗ trợ phí gas tối đa 1 lần trong 24 giờ.');
           const userBal=await client.getBalance({address:account}).catch(()=>0n);
           if(userBal>=target){send(200,{funded:true,alreadyFunded:true});return;}
           const stipend=target-userBal+1_000_000_000_000_000n;
           const relayerBal=await client.getBalance({address:relayer.address}).catch(()=>0n);
           if(relayerBal<=stipend+1_000_000_000_000_000n)fail(503,'Ví tài trợ gas của server đã hết AVAX. Báo quản trị nạp thêm.');
+          stipendClaims[from]=Date.now();
+          await writeJsonState('stipend-claims.json',stipendFile,stipendClaims);
           relayUsage.total++;relayUsage.wallets.set(from,{hour,count:used+1});
           const hash=await relayWallet.sendTransaction({account:relayer,to:account,value:stipend,chain});
           if(typeof client.waitForTransactionReceipt==='function'){

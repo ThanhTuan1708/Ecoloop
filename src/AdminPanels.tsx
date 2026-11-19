@@ -4,7 +4,7 @@ import {formatEther,isAddress,keccak256,parseEther,stringToHex,type Address,type
 import {materials,short} from './model';
 import {tr,num as fmt,wt} from './settings';
 import {lotStatuses,pickupWrite,type Lot} from './pickupClient';
-import {saveAdminCatalog,useAdminCatalog} from './adminCatalog';
+import {fetchAdminAccountsWithSignature,saveAdminCatalog,useAdminCatalog} from './adminCatalog';
 import {calcLotEconomics,pointsEco,totalKg} from './EcoEconomics';
 
 export function AdminRevenueDashboard({lots}:{lots:Lot[]}){
@@ -177,7 +177,14 @@ export function AdminAccountsPanel({account,address,publicPickup,busy,run,refres
 
   return (
     <section className="pickup-callout" aria-label={tr('Quản lý Tài khoản & Phân quyền Người dùng')}>
-      <h3><Users size={18}/> {tr('Quản lý Tài khoản Người dùng & Phân quyền Ví')}</h3>
+      <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',gap:'8px',flexWrap:'wrap'}}>
+        <h3><Users size={18}/> {tr('Quản lý Tài khoản Người dùng & Phân quyền Ví')}</h3>
+        {account&&(
+          <button type="button" className="secondary" onClick={()=>void fetchAdminAccountsWithSignature(account).then(()=>onDone(tr('Đã tải danh sách tài khoản bảo mật từ máy chủ.')),err=>onDone(err instanceof Error?err.message:tr('Chưa đọc được danh sách tài khoản.')))}>
+            {tr('Tải danh sách tài khoản (Ký xác thực Admin)')}
+          </button>
+        )}
+      </div>
       <p>{tr('Xem danh sách tài khoản đã đăng ký, thêm/sửa vai trò (Người Bán / Người Thu Gom), khóa/mở khóa hoặc xóa tài khoản và cấp/thu hồi quyền trên Smart Contract.')}</p>
 
       <form style={{marginTop:'10px'}} onSubmit={e=>{

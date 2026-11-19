@@ -12,5 +12,6 @@ export function codeHash(code, immutables = []) {
 export function pickupAccess(code, artifact) {
   if (!code || code === '0x' || !artifact.runtimeHash) return undefined;
   if (codeHash(code, artifact.immutables) === artifact.runtimeHash) return 'public';
+  if (codeHash(code) === pickupRuntime.publicEcoV4) return 'public';
   if (codeHash(code) === pickupRuntime.roleRestrictedEco) return 'restricted';
 }

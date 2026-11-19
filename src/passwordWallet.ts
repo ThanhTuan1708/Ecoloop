@@ -6,7 +6,45 @@ import { chain, registerEmbedded, type Provider } from './wallet';
 export type AccountRole = 'seller' | 'collector';
 
 const USERS_STORAGE_KEY = 'ecoloop-password-accounts-v1';
-const SESSION_STORAGE_KEY = 'ecoloop-password-session-v1';
+const SESSION_STORAGE_KEY = 'ecoloop-password-session-v2';
+const LEGACY_SESSION_KEY = 'ecoloop-password-session-v1';
+const TAB_WRAP_PREFIX = 'ecoloop-tab-key:';
+
+async function encryptSessionSecret(plainHex: Hex): Promise<string> {
+  const enc = new TextEncoder();
+  let wrapHex = typeof window !== 'undefined' && window.name.startsWith(TAB_WRAP_PREFIX)
+    ? window.name.slice(TAB_WRAP_PREFIX.length)
+    : '';
+  if (!/^[\da-f]{64}$/i.test(wrapHex)) {
+    const rawKey = crypto.getRandomValues(new Uint8Array(32));
+    wrapHex = Array.from(rawKey, b => b.toString(16).padStart(2, '0')).join('');
+    if (typeof window !== 'undefined') window.name = TAB_WRAP_PREFIX + wrapHex;
+  }
+  const keyBytes = new Uint8Array(wrapHex.match(/.{2}/g)!.map(h => parseInt(h, 16)));
+  const cryptoKey = await crypto.subtle.importKey('raw', keyBytes, { name: 'AES-GCM' }, false, ['encrypt']);
+  const iv = crypto.getRandomValues(new Uint8Array(12));
+  const cipher = new Uint8Array(await crypto.subtle.encrypt({ name: 'AES-GCM', iv }, cryptoKey, enc.encode(plainHex)));
+  const combined = new Uint8Array(iv.length + cipher.length);
+  combined.set(iv, 0);
+  combined.set(cipher, iv.length);
+  return btoa(String.fromCharCode(...combined));
+}
+
+async function decryptSessionSecret(encoded: string): Promise<Hex | undefined> {
+  if (typeof window === 'undefined' || !window.name.startsWith(TAB_WRAP_PREFIX)) return undefined;
+  const wrapHex = window.name.slice(TAB_WRAP_PREFIX.length);
+  if (!/^[\da-f]{64}$/i.test(wrapHex)) return undefined;
+  const keyBytes = new Uint8Array(wrapHex.match(/.{2}/g)!.map(h => parseInt(h, 16)));
+  const cryptoKey = await crypto.subtle.importKey('raw', keyBytes, { name: 'AES-GCM' }, false, ['decrypt']);
+  const combined = Uint8Array.from(atob(encoded), c => c.charCodeAt(0));
+  if (combined.length <= 12) return undefined;
+  const plain = await crypto.subtle.decrypt(
+    { name: 'AES-GCM', iv: combined.subarray(0, 12) },
+    cryptoKey,
+    combined.subarray(12)
+  );
+  return new TextDecoder().decode(plain) as Hex;
+}
 
 interface StoredUser {
   username: string;
@@ -140,7 +178,11 @@ export async function connectPasswordAccount(options: {
   if (cleanUser.length < 3 || cleanUser.length > 64) {
     throw new Error('Tên tài khoản phải từ 3 đến 64 ký tự.');
   }
-  if (options.password.length < 6) {
+  if (options.mode === 'register') {
+    if (options.password.length < 8 || !/[a-zA-Z]/.test(options.password) || !/\d/.test(options.password)) {
+      throw new Error('Mật khẩu phải có ít nhất 8 ký tự, bao gồm cả chữ và số.');
+    }
+  } else if (options.password.length < 6) {
     throw new Error('Mật khẩu phải có ít nhất 6 ký tự.');
   }
 
@@ -194,7 +236,9 @@ export async function connectPasswordAccount(options: {
   activeUsername = cleanUser;
   activeRole = finalRole;
   try {
-    sessionStorage.setItem(SESSION_STORAGE_KEY, JSON.stringify({ username: cleanUser, privateKey, role: finalRole }));
+    sessionStorage.removeItem(LEGACY_SESSION_KEY);
+    const cipherKey = await encryptSessionSecret(privateKey);
+    sessionStorage.setItem(SESSION_STORAGE_KEY, JSON.stringify({ username: cleanUser, cipherKey, role: finalRole }));
   } catch {}
 
   registerEmbedded(
@@ -204,6 +248,7 @@ export async function connectPasswordAccount(options: {
       activeRole = undefined;
       try {
         sessionStorage.removeItem(SESSION_STORAGE_KEY);
+        sessionStorage.removeItem(LEGACY_SESSION_KEY);
       } catch {}
     },
     signMessage,
@@ -215,11 +260,14 @@ export async function connectPasswordAccount(options: {
 
 export async function restorePasswordAccount(): Promise<{ address: Address; username: string; role: AccountRole } | undefined> {
   try {
+    sessionStorage.removeItem(LEGACY_SESSION_KEY);
     const raw = sessionStorage.getItem(SESSION_STORAGE_KEY);
     if (!raw) return undefined;
-    const saved = JSON.parse(raw) as { username: string; privateKey: Hex; role: AccountRole };
-    if (!saved?.username || !saved?.privateKey) return undefined;
-    const { address, provider, signMessage } = createAccountProvider(saved.privateKey);
+    const saved = JSON.parse(raw) as { username: string; cipherKey?: string; role: AccountRole };
+    if (!saved?.username || !saved?.cipherKey) return undefined;
+    const privateKey = await decryptSessionSecret(saved.cipherKey);
+    if (!privateKey) return undefined;
+    const { address, provider, signMessage } = createAccountProvider(privateKey);
     activeUsername = saved.username;
     activeRole = saved.role || 'seller';
     registerEmbedded(
@@ -229,6 +277,7 @@ export async function restorePasswordAccount(): Promise<{ address: Address; user
         activeRole = undefined;
         try {
           sessionStorage.removeItem(SESSION_STORAGE_KEY);
+          sessionStorage.removeItem(LEGACY_SESSION_KEY);
         } catch {}
       },
       signMessage,

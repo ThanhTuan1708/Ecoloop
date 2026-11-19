@@ -1,0 +1,1281 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>EcoLoop — Pitch Deck | Avalanche Team1 Hackathon</title>
+  <style>
+    :root {
+      --bg-deep: #060d0b;
+      --bg-surface: #0c1915;
+      --bg-card: rgba(16, 33, 27, 0.78);
+      --bg-card-strong: #11241d;
+      --border: rgba(52, 211, 153, 0.18);
+      --border-strong: rgba(52, 211, 153, 0.42);
+      --emerald: #10b981;
+      --emerald-bright: #34d399;
+      --lime: #c8ec81;
+      --avax: #e84142;
+      --avax-soft: rgba(232, 65, 66, 0.16);
+      --amber: #f59e0b;
+      --sky: #38bdf8;
+      --text: #f0fdf4;
+      --text-muted: #9ab5a8;
+      --font: 'Segoe UI', -apple-system, BlinkMacSystemFont, Roboto, Helvetica, Arial, sans-serif;
+      --mono: 'Cascadia Code', 'Fira Code', Consolas, monospace;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    html, body {
+      width: 100%;
+      height: 100%;
+      background: var(--bg-deep);
+      color: var(--text);
+      font-family: var(--font);
+      overflow: hidden;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    /* Ambient background glow */
+    .ambient {
+      position: fixed;
+      inset: 0;
+      pointer-events: none;
+      z-index: 0;
+      background:
+        radial-gradient(circle at 12% 16%, rgba(16, 185, 129, 0.16), transparent 38%),
+        radial-gradient(circle at 86% 18%, rgba(232, 65, 66, 0.14), transparent 34%),
+        radial-gradient(circle at 75% 85%, rgba(200, 236, 129, 0.09), transparent 36%);
+    }
+
+    .grid-overlay {
+      position: fixed;
+      inset: 0;
+      pointer-events: none;
+      z-index: 0;
+      background-image:
+        linear-gradient(rgba(52, 211, 153, 0.035) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(52, 211, 153, 0.035) 1px, transparent 1px);
+      background-size: 48px 48px;
+    }
+
+    /* Top HUD Bar */
+    .topbar {
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      height: 54px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 28px;
+      z-index: 30;
+      background: rgba(6, 13, 11, 0.78);
+      backdrop-filter: blur(12px);
+      border-bottom: 1px solid rgba(52, 211, 153, 0.12);
+    }
+
+    .brand-pill {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-weight: 700;
+      font-size: 15px;
+      letter-spacing: 0.2px;
+    }
+
+    .brand-logo {
+      width: 28px;
+      height: 28px;
+      border-radius: 8px;
+      background: linear-gradient(135deg, #10b981, #059669);
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 900;
+      color: #042016;
+      font-size: 15px;
+    }
+
+    .avax-tag {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 4px 10px;
+      border-radius: 999px;
+      background: var(--avax-soft);
+      border: 1px solid rgba(232, 65, 66, 0.45);
+      color: #fca5a5;
+      font-size: 12px;
+      font-weight: 600;
+    }
+
+    .avax-tri {
+      width: 0;
+      height: 0;
+      border-left: 5px solid transparent;
+      border-right: 5px solid transparent;
+      border-bottom: 9px solid var(--avax);
+    }
+
+    .hud-controls {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .hud-btn {
+      background: rgba(255, 255, 255, 0.05);
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      color: var(--text);
+      padding: 6px 12px;
+      border-radius: 8px;
+      font-size: 12px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.18s ease;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .hud-btn:hover {
+      background: rgba(16, 185, 129, 0.18);
+      border-color: var(--emerald-bright);
+    }
+
+    .hud-btn.active {
+      background: rgba(232, 65, 66, 0.22);
+      border-color: var(--avax);
+      color: #fecaca;
+    }
+
+    .timer-pill {
+      font-family: var(--mono);
+      font-size: 13px;
+      padding: 5px 11px;
+      border-radius: 8px;
+      background: rgba(16, 185, 129, 0.12);
+      border: 1px solid rgba(16, 185, 129, 0.32);
+      color: var(--lime);
+      cursor: pointer;
+    }
+
+    /* Deck Stage */
+    .deck {
+      position: relative;
+      width: 100%;
+      height: 100%;
+      padding: 66px 48px 58px;
+      z-index: 5;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .slide {
+      display: none;
+      width: 100%;
+      max-width: 1320px;
+      height: 100%;
+      max-height: 760px;
+      flex-direction: column;
+      justify-content: space-between;
+      padding: 34px 42px;
+      border-radius: 24px;
+      background: linear-gradient(160deg, rgba(14, 30, 24, 0.92), rgba(7, 16, 13, 0.95));
+      border: 1px solid var(--border);
+      box-shadow: 0 28px 80px rgba(0, 0, 0, 0.6);
+      position: relative;
+      overflow: hidden;
+      animation: slideEnter 0.32s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+
+    .slide.active {
+      display: flex;
+    }
+
+    @keyframes slideEnter {
+      from {
+        opacity: 0;
+        transform: translateY(12px) scale(0.992);
+      }
+      to {
+        opacity: 1;
+        transform: translateY(0) scale(1);
+      }
+    }
+
+    /* Slide Header */
+    .slide-eyebrow {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 12px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 1.4px;
+      color: var(--lime);
+      margin-bottom: 8px;
+    }
+
+    .slide-title {
+      font-size: clamp(26px, 3vw, 40px);
+      font-weight: 800;
+      line-height: 1.15;
+      letter-spacing: -0.5px;
+    }
+
+    .slide-subtitle {
+      font-size: clamp(14px, 1.3vw, 17px);
+      color: var(--text-muted);
+      margin-top: 6px;
+      max-width: 920px;
+      line-height: 1.45;
+    }
+
+    .accent-emerald { color: var(--emerald-bright); }
+    .accent-lime { color: var(--lime); }
+    .accent-avax { color: #ff6b6b; }
+
+    /* Grid Helpers */
+    .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 22px; }
+    .grid-3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 18px; }
+    .grid-4 { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; }
+    .grid-hero { display: grid; grid-template-columns: 1.28fr 0.92fr; gap: 28px; align-items: center; }
+
+    .card {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 18px 20px;
+      position: relative;
+    }
+
+    .card.highlight {
+      border-color: var(--border-strong);
+      background: linear-gradient(145deg, rgba(16, 185, 129, 0.14), rgba(13, 29, 23, 0.88));
+    }
+
+    .card.avax-card {
+      border-color: rgba(232, 65, 66, 0.42);
+      background: linear-gradient(145deg, rgba(232, 65, 66, 0.13), rgba(16, 22, 24, 0.9));
+    }
+
+    .card h3 {
+      font-size: 17px;
+      font-weight: 700;
+      margin-bottom: 7px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .card p, .card li {
+      font-size: 13.5px;
+      color: var(--text-muted);
+      line-height: 1.5;
+    }
+
+    .card ul {
+      list-style: none;
+      display: flex;
+      flex-direction: column;
+      gap: 7px;
+    }
+
+    .card ul li::before {
+      content: "▹ ";
+      color: var(--emerald-bright);
+      font-weight: 700;
+    }
+
+    .stat-big {
+      font-size: clamp(28px, 3vw, 42px);
+      font-weight: 900;
+      line-height: 1.05;
+      color: var(--lime);
+      margin-bottom: 4px;
+    }
+
+    .badge-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-top: 14px;
+    }
+
+    .badge {
+      padding: 5px 12px;
+      border-radius: 999px;
+      font-size: 12px;
+      font-weight: 600;
+      background: rgba(16, 185, 129, 0.13);
+      border: 1px solid rgba(52, 211, 153, 0.3);
+      color: #d1fae5;
+    }
+
+    .badge.red {
+      background: rgba(232, 65, 66, 0.15);
+      border-color: rgba(232, 65, 66, 0.4);
+      color: #fecaca;
+    }
+
+    .badge.mono {
+      font-family: var(--mono);
+      font-size: 11.5px;
+    }
+
+    /* Interactive Escrow Stepper on Slide 4 */
+    .escrow-tabs {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 12px;
+    }
+
+    .escrow-step {
+      padding: 14px 16px;
+      border-radius: 14px;
+      background: rgba(255, 255, 255, 0.03);
+      border: 1px solid var(--border);
+      cursor: pointer;
+      transition: all 0.2s ease;
+      text-align: left;
+    }
+
+    .escrow-step.active {
+      background: rgba(16, 185, 129, 0.18);
+      border-color: var(--lime);
+      transform: translateY(-2px);
+    }
+
+    .escrow-step .step-num {
+      font-family: var(--mono);
+      font-size: 11px;
+      color: var(--lime);
+      font-weight: 700;
+      text-transform: uppercase;
+    }
+
+    .escrow-step .step-name {
+      font-size: 15px;
+      font-weight: 700;
+      margin-top: 4px;
+      color: var(--text);
+    }
+
+    .escrow-step .step-fn {
+      font-family: var(--mono);
+      font-size: 11.5px;
+      color: var(--emerald-bright);
+      margin-top: 3px;
+    }
+
+    /* Slide Footer / Bottom Nav */
+    .bottombar {
+      position: fixed;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      height: 48px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 28px;
+      z-index: 30;
+      background: rgba(6, 13, 11, 0.85);
+      border-top: 1px solid rgba(52, 211, 153, 0.12);
+    }
+
+    .progress-dots {
+      display: flex;
+      align-items: center;
+      gap: 7px;
+    }
+
+    .dot {
+      width: 24px;
+      height: 6px;
+      border-radius: 999px;
+      background: rgba(255, 255, 255, 0.14);
+      cursor: pointer;
+      transition: all 0.2s ease;
+      border: none;
+    }
+
+    .dot.active {
+      width: 44px;
+      background: linear-gradient(90deg, var(--emerald-bright), var(--lime));
+    }
+
+    /* Speaker Notes Drawer */
+    .notes-drawer {
+      position: fixed;
+      right: 24px;
+      bottom: 60px;
+      width: min(520px, calc(100vw - 48px));
+      background: rgba(9, 20, 16, 0.97);
+      border: 1px solid var(--lime);
+      border-radius: 16px;
+      padding: 18px 20px;
+      z-index: 50;
+      box-shadow: 0 20px 60px rgba(0, 0, 0, 0.75);
+      display: none;
+    }
+
+    .notes-drawer.open {
+      display: block;
+    }
+
+    .notes-drawer h4 {
+      font-size: 12px;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      color: var(--lime);
+      margin-bottom: 8px;
+      display: flex;
+      justify-content: space-between;
+    }
+
+    .notes-drawer p {
+      font-size: 13.5px;
+      line-height: 1.55;
+      color: #e2f5ea;
+    }
+
+    code.inline {
+      font-family: var(--mono);
+      font-size: 12px;
+      padding: 2px 6px;
+      border-radius: 5px;
+      background: rgba(16, 185, 129, 0.15);
+      color: var(--lime);
+    }
+
+    .callout-strip {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+      padding: 12px 18px;
+      border-radius: 14px;
+      background: rgba(200, 236, 129, 0.08);
+      border: 1px solid rgba(200, 236, 129, 0.28);
+      font-size: 13.5px;
+    }
+
+    /* Print / Save as 16:9 PDF */
+    @page {
+      size: 13.333in 7.5in;
+      margin: 0;
+    }
+
+    @media print {
+      html, body {
+        overflow: visible;
+        height: auto;
+        background: #060d0b !important;
+        -webkit-print-color-adjust: exact;
+        print-color-adjust: exact;
+      }
+      .topbar, .bottombar, .notes-drawer, .ambient, .grid-overlay {
+        display: none !important;
+      }
+      .deck {
+        padding: 0;
+        display: block;
+        height: auto;
+      }
+      .slide {
+        display: flex !important;
+        width: 13.333in !important;
+        height: 7.5in !important;
+        max-width: none !important;
+        max-height: none !important;
+        border-radius: 0 !important;
+        page-break-after: always;
+        break-after: page;
+        box-shadow: none !important;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="ambient"></div>
+  <div class="grid-overlay"></div>
+
+  <!-- Top HUD -->
+  <header class="topbar">
+    <div class="brand-pill">
+      <span class="brand-logo">♻</span>
+      <span>EcoLoop</span>
+      <span class="avax-tag"><span class="avax-tri"></span> Avalanche Team1 Hackathon</span>
+    </div>
+    <div class="hud-controls">
+      <button class="timer-pill" id="timerBtn" title="Bấm để Bắt đầu / Tạm dừng đồng hồ Pitch 3 phút (Phím T)">⏱ 03:00</button>
+      <button class="hud-btn" id="notesBtn" title="Bật/tắt kịch bản nói cho từng slide (Phím N)">🎙 Speaker Notes (N)</button>
+      <button class="hud-btn" onclick="window.print()" title="Xuất ra file PDF 16:9 nộp Ban Tổ Chức">📄 Xuất PDF</button>
+      <button class="hud-btn" id="fsBtn" title="Toàn màn hình trình chiếu (Phím F)">⛶ Fullscreen</button>
+    </div>
+  </header>
+
+  <!-- Main Slide Deck -->
+  <main class="deck">
+
+    <!-- ==================== SLIDE 1: HERO / HOOK ==================== -->
+    <section class="slide active" data-notes="[0:00 - 0:20] Xin chào Ban Giám khảo Avalanche Team1! Mỗi ngày Việt Nam thải ra 67.000 tấn rác sinh hoạt, đánh mất hơn 3 tỷ USD nhựa và vật liệu tái chế mỗi năm — chỉ vì hộ gia đình ngại bán lẻ vài ký phế liệu, còn cô thu gom phải đẩy xe rong ruổi trong mù mờ. Chúng tôi là EcoLoop — Sàn C2C thu gom tái chế tận nơi đầu tiên vận hành thật trên Avalanche!">
+      <div class="grid-hero" style="flex: 1;">
+        <div>
+          <div class="slide-eyebrow">⚡ ReFi · DePIN · Consumer Web2.5 Marketplace trên Avalanche</div>
+          <h1 style="font-size: clamp(36px, 4.3vw, 58px); font-weight: 900; line-height: 1.07; letter-spacing: -1px;">
+            EcoLoop<br/>
+            <span class="accent-emerald">Grab + Shopee</span> cho<br/>
+            Tái Chế Tận Nơi
+          </h1>
+          <p class="slide-subtitle" style="font-size: 17px; margin-top: 14px;">
+            Kết nối trực tiếp <strong>Hộ gia đình</strong> ↔ <strong>Lực lượng thu gom</strong> ↔ <strong>Doanh nghiệp EPR</strong> bằng hợp đồng thông minh ký quỹ 120%, miễn phí gas 100% cho người dân và chứng nhận tái chế On-Chain NFT trên <strong>Avalanche</strong>.
+          </p>
+
+          <div class="badge-row" style="margin-top: 20px;">
+            <span class="badge red">▲ Live on Avalanche Fuji (43113)</span>
+            <span class="badge">⛽ Gasless ERC-2771 Relayer</span>
+            <span class="badge">🔒 120% Smart Escrow V4</span>
+            <span class="badge">🏅 100% On-Chain SVG NFT (ECOREC)</span>
+            <span class="badge">🗺️ Privacy Radar (~1km Grid)</span>
+          </div>
+
+          <div style="margin-top: 24px; display: flex; gap: 18px; flex-wrap: wrap; font-size: 12.5px; color: var(--text-muted);">
+            <div><strong style="color: var(--lime);">Pickup V4:</strong> verify trên Snowtrace</div>
+            <div><strong style="color: var(--lime);">Rewards:</strong> xem bảng contract trong README</div>
+            <div><strong style="color: var(--lime);">Mạng:</strong> <code class="inline">Avalanche Fuji (43113)</code></div>
+          </div>
+        </div>
+
+        <!-- Visual: EcoLoop Card + On-Chain Flow Preview -->
+        <div style="display: flex; flex-direction: column; gap: 16px;">
+          <div style="border-radius: 22px; padding: 24px; background: linear-gradient(135deg, #08785e 0%, #053e31 60%, #161b22 100%); border: 1px solid rgba(200, 236, 129, 0.45); box-shadow: 0 20px 50px rgba(8, 120, 94, 0.38);">
+            <div style="display: flex; justify-content: space-between; align-items: center;">
+              <span style="font-size: 12px; font-weight: 800; letter-spacing: 1.5px; color: var(--lime);">ECOLOOP GREEN CARD · EIP-681</span>
+              <span class="avax-tag" style="background: rgba(0,0,0,0.35);">Fuji C-Chain</span>
+            </div>
+            <div style="margin: 18px 0 6px; font-size: 34px; font-weight: 900; color: #fff;">
+              1,480 <span style="font-size: 16px; color: var(--lime);">ECO</span>
+              <span style="font-size: 14px; font-weight: 500; color: #d6efe4; margin-left: 8px;">+ 4.25 AVAX</span>
+            </div>
+            <div style="font-family: var(--mono); font-size: 13px; color: #b6e3d4; letter-spacing: 1.2px;">
+              VÍ XANH · QR EIP-681
+            </div>
+            <div style="margin-top: 16px; padding-top: 14px; border-top: 1px solid rgba(255,255,255,0.14); display: flex; justify-content: space-between; font-size: 12.5px; color: #e6fffa;">
+              <span>🌱 Đã tái chế: <strong>68.5 kg</strong></span>
+              <span>🌍 Giảm: <strong>-142.4 kg CO₂e</strong></span>
+              <span>🏅 <strong>14 ECOREC NFTs</strong></span>
+            </div>
+          </div>
+
+          <div class="grid-2" style="gap: 12px;">
+            <div class="card" style="padding: 14px 16px;">
+              <div style="font-size: 11px; color: var(--lime); font-weight: 700;">CHỐT ĐƠN TẠI HIÊN NHÀ</div>
+              <div style="font-size: 24px; font-weight: 900; margin-top: 2px;">&lt; 1 Giây</div>
+              <p style="font-size: 12px;">Avalanche Sub-second Finality ngay trên bàn cân điện tử</p>
+            </div>
+            <div class="card" style="padding: 14px 16px;">
+              <div style="font-size: 11px; color: var(--lime); font-weight: 700;">PHÍ GAS HỘ GIA ĐÌNH</div>
+              <div style="font-size: 24px; font-weight: 900; margin-top: 2px;">0 AVAX</div>
+              <p style="font-size: 12px;">Ký EIP-712 + Relayer ERC-2771 &amp; Ví Google nhúng</p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="callout-strip">
+        <span>🎯 <strong>Định vị 1 câu:</strong> Biến rác tái chế tại nguồn thành tài sản số minh bạch, thu nhập bền vững cho người thu gom và tín chỉ EPR chống gian lận trên Avalanche.</span>
+        <span style="color: var(--lime); font-weight: 700;">Nhấn phím → để xem tiếp</span>
+      </div>
+    </section>
+
+    <!-- ==================== SLIDE 2: THE PROBLEM ==================== -->
+    <section class="slide" data-notes="[0:20 - 0:50] Tại sao thị trường phế liệu hàng tỷ đô vẫn dậm chân ở thế kỷ trước? Có 3 nỗi đau đứt gãy: (1) Hộ gia đình ngại gom vì bán 3-5kg vỏ lon chỉ được vài chục nghìn, không biết giá chuẩn, ngại lộ địa chỉ nhà. (2) Lực lượng ve chai chiếm tới 80% sản lượng thu hồi nhưng mất 60% thời gian đạp xe tìm nguồn hàng. (3) Đặc biệt từ 2024-2026, Luật EPR Việt Nam bắt buộc các tập đoàn FMCG phải chứng minh sản lượng tái chế, nhưng hóa đơn viết tay ở vựa ve chai cực kỳ dễ khai khống và tính trùng!">
+      <div>
+        <div class="slide-eyebrow">01 · Nỗi Đau Thị Trường (The $3B Broken Loop)</div>
+        <h2 class="slide-title">Việt Nam lãng phí <span class="accent-avax">&gt;3 Tỷ USD/năm</span> tài nguyên tái chế vì chuỗi thu gom "Mù" dữ liệu</h2>
+        <p class="slide-subtitle">25 triệu tấn rác sinh hoạt/năm (~67.000 tấn/ngày), nhưng dưới 15% được tái chế hiệu quả do sự đứt gãy niềm tin và thông tin giữa 3 bên.</p>
+      </div>
+
+      <div class="grid-3">
+        <div class="card">
+          <div class="stat-big" style="color: #fb7185;">85%</div>
+          <h3>🏠 Hộ Gia Đình Ngại Phân Loại</h3>
+          <ul>
+            <li>Bán lẻ 3–5 kg nhựa/giấy giá trị nhỏ, không bõ công mang ra trạm.</li>
+            <li><strong>Mù giá &amp; sợ cân điêu:</strong> Không biết giá thị trường theo ngày, thiếu đối chiếu minh bạch.</li>
+            <li><strong>Ngại lộ riêng tư:</strong> Không muốn đăng công khai số nhà, số điện thoại lên mạng xã hội.</li>
+          </ul>
+        </div>
+
+        <div class="card">
+          <div class="stat-big" style="color: var(--amber);">60%</div>
+          <h3>🚲 Người Thu Gom Lãng Phí Thời Gian</h3>
+          <ul>
+            <li>Lực lượng thu gom phi chính thức gánh <strong>&gt;80% sản lượng tái chế thực tế</strong> tại đô thị.</li>
+            <li>Mất 60% thời gian mỗi ngày rong ruổi tìm hàng mù mờ, chi phí xăng/sức lực cao.</li>
+            <li>Hay gặp cảnh "bom đơn" hoặc đến nơi khối lượng không như lời hẹn.</li>
+          </ul>
+        </div>
+
+        <div class="card avax-card">
+          <div class="stat-big" style="color: #fca5a5;">EPR 2026</div>
+          <h3>🏢 Doanh Nghiệp Thiếu Bằng Chứng Thật</h3>
+          <ul>
+            <li><strong>Nghị định 08/2022 &amp; Luật EPR</strong> bắt buộc các hãng đồ uống, tiêu dùng (FMCG) đóng phí hoặc chứng minh tái chế.</li>
+            <li> Chuỗi thu mua truyền thống ghi sổ tay: <strong>không thể kiểm toán, dễ mua bán khống hóa đơn &amp; tính trùng (Double-Counting)</strong>.</li>
+          </ul>
+        </div>
+      </div>
+
+      <div class="callout-strip">
+        <span>💡 <strong>Cơ hội cho Web3:</strong> Các app phân loại rác Web2 thất bại vì thiếu <em>cơ chế ký quỹ bảo vệ 2 chiều</em> và <em>sổ cái bất biến chống tính trùng tín chỉ EPR</em>.</span>
+        <span class="badge red">World Bank Vietnam Circular Plastics Opportunity</span>
+      </div>
+    </section>
+
+    <!-- ==================== SLIDE 3: THE SOLUTION ==================== -->
+    <section class="slide" data-notes="[0:50 - 1:20] EcoLoop giải quyết triệt để bằng một sàn C2C Web3 khép kín 4 lớp: Chụp ảnh ước lượng khối lượng & giá ngay trên trình duyệt; Bản đồ Radar ẩn danh làm tròn tọa độ 1km bảo vệ nhà dân; Hợp đồng thông minh ký quỹ 120% chốt cân ngay tại cửa; và ví thẻ EcoLoop đổi thưởng cà phê, xe buýt điện thực tế!">
+      <div>
+        <div class="slide-eyebrow">02 · Giải Pháp EcoLoop (Closed-Loop ReFi C2C)</div>
+        <h2 class="slide-title">Một chạm đặt lịch tại nhà — <span class="accent-emerald">Minh bạch từng gam trên Avalanche</span></h2>
+        <p class="slide-subtitle">Trải nghiệm mượt như Shopee &amp; Grab cho người dùng phổ thông, được bảo chứng ngầm bởi Smart Contract V4 dưới nền.</p>
+      </div>
+
+      <div class="grid-4">
+        <div class="card highlight">
+          <div style="font-size: 26px; margin-bottom: 8px;">📸</div>
+          <h3>1. Smart Estimate</h3>
+          <p>Chụp 1 tấm ảnh đa vật liệu (Nhựa, Giấy, Kim loại, Thủy tinh). Thuật toán phân tích màu/vật liệu gợi ý sẵn số kg, tính ngay tiền mặt &amp; điểm ECO.</p>
+          <div style="margin-top: 10px;"><code class="inline">SHA-256 Hash</code> chống đăng trùng ảnh trên chain.</div>
+        </div>
+
+        <div class="card highlight">
+          <div style="font-size: 26px; margin-bottom: 8px;">🗺️</div>
+          <h3>2. Privacy Radar Map</h3>
+          <p>Người thu gom quét lô rác quanh mình (500m – 50km) để gom nhiều đơn cùng tuyến đường. Tọa độ công khai làm tròn <strong>~1km</strong> (<code class="inline">int32</code>).</p>
+          <div style="margin-top: 10px;">Số nhà &amp; Chat chỉ mở khi đã <strong>khóa cọc</strong>.</div>
+        </div>
+
+        <div class="card highlight">
+          <div style="font-size: 26px; margin-bottom: 8px;">⚖️</div>
+          <h3>3. Smart Escrow 120%</h3>
+          <p>Cân điện tử tận cửa, đối chiếu <em>Dự kiến vs. Thực tế</em> trên 2 điện thoại. Chủ nhà bấm đồng ý → Giải ngân tự động + đúc NFT chứng nhận.</p>
+          <div style="margin-top: 10px;">Có nút <strong>Yêu cầu cân lại</strong> 1 chạm nếu lệch.</div>
+        </div>
+
+        <div class="card highlight">
+          <div style="font-size: 26px; margin-bottom: 8px;">🎁</div>
+          <h3>4. EcoLoop Card &amp; Quà</h3>
+          <p>Thẻ thanh toán QR chuẩn <code class="inline">EIP-681</code> chuyển ECO miễn phí gas, đốt (<code class="inline">_burn</code>) ECO đổi voucher của nhãn hàng đối tác.</p>
+          <div style="margin-top: 10px;">Biên nhận đổi quà xác thực on-chain chống dùng 2 lần.</div>
+        </div>
+      </div>
+
+      <div class="callout-strip">
+        <span>🚀 <strong>Đã nâng cấp hoàn chỉnh lên V4 sau phiên Mentor:</strong> Bỏ 100% dữ liệu giả lập (mock), chạy hoàn toàn bằng Smart Contract thật trên Avalanche Fuji!</span>
+        <span class="badge">Song ngữ Việt / Anh · Desktop &amp; Mobile App Layout</span>
+      </div>
+    </section>
+
+    <!-- ==================== SLIDE 4: SMART ESCROW 4 STEPS (INTERACTIVE) ==================== -->
+    <section class="slide" data-notes="[1:20 - 1:55] Đây là trái tim công nghệ của EcoLoop: Hợp đồng thông minh EcoLoopPickup V4. Thay vì bấm một nút duyệt giả lập, chúng tôi thiết kế State Machine 4 bước đối xứng: Bước 1 Hộ dân đăng lô tốn 0 đồng gas qua ERC-2771. Bước 2 Collector khóa 120% giá trị ước tính — tại sao là 120%? Để vừa chống nhận đơn ảo, vừa đủ tiền trả ngay nếu cân thực tế nặng hơn dự kiến! Bước 3 Cân tại chỗ. Bước 4 Chủ nhà xác nhận — trong chưa đầy 1 giây, contract trả tiền, hoàn cọc dư và đúc luôn NFT ECOREC!">
+      <div>
+        <div class="slide-eyebrow">03 · Cơ Chế Đột Phá (Trustless Physical Handoff)</div>
+        <h2 class="slide-title">Hợp Đồng Ký Quỹ 4 Bước <span class="accent-lime">120% Smart Escrow</span> &amp; <span class="accent-emerald">Zero-Gas</span></h2>
+        <p class="slide-subtitle">Bấm vào từng bước bên dưới để xem cơ chế bảo vệ cả Hộ gia đình lẫn Người thu gom trong <code class="inline">contracts/EcoLoopPickup.sol</code>:</p>
+      </div>
+
+      <div class="escrow-tabs" id="escrowTabs">
+        <button class="escrow-step active" onclick="selectEscrow(0)">
+          <div class="step-num">Bước 01 · Hộ gia đình</div>
+          <div class="step-name">Đăng Lô Miễn Gas</div>
+          <div class="step-fn">createLot() · EIP-712</div>
+        </button>
+        <button class="escrow-step" onclick="selectEscrow(1)">
+          <div class="step-num">Bước 02 · Người thu gom</div>
+          <div class="step-name">Khóa Cọc 120%</div>
+          <div class="step-fn">claimLot() · 12,000 BPS</div>
+        </button>
+        <button class="escrow-step" onclick="selectEscrow(2)">
+          <div class="step-num">Bước 03 · Tại hiên nhà</div>
+          <div class="step-name">Cân &amp; Đề Xuất On-Chain</div>
+          <div class="step-fn">proposeLot(actualGrams)</div>
+        </button>
+        <button class="escrow-step" onclick="selectEscrow(3)">
+          <div class="step-num">Bước 04 · Đồng thuận kép</div>
+          <div class="step-name">Giải Ngân + Đúc NFT</div>
+          <div class="step-fn">acceptLot() / disputeLot()</div>
+        </button>
+      </div>
+
+      <div class="grid-2" id="escrowDetailBox" style="align-items: stretch;">
+        <div class="card highlight" id="escrowLeft">
+          <h3>📝 Hộ gia đình ký EIP-712 — 0 đồng phí Gas</h3>
+          <ul>
+            <li>Chọn khối lượng ước tính cho 4 nhóm: <strong>Nhựa (20 ECO/kg), Giấy (10), Kim loại (40), Thủy tinh (8)</strong>.</li>
+            <li>Ảnh thật được băm <code class="inline">bytes32 evidence</code>; contract từ chối ngay nếu ảnh từng được sử dụng (<code class="inline">DuplicateEvidence</code>).</li>
+            <li>Relayer <code class="inline">EcoLoopForwarder (ERC-2771)</code> tài trợ 100% phí mạng Avalanche — nhưng <code class="inline">_msgSender()</code> vẫn ghi nhận đúng ví hộ dân!</li>
+          </ul>
+        </div>
+        <div class="card" id="escrowRight">
+          <h3>🛡️ Bảo vệ an toàn &amp; Chống kẹt vốn tuyệt đối</h3>
+          <ul>
+            <li><strong>Chống tự duyệt (<code class="inline">SelfApproval</code>):</strong> Cùng 1 ví không thể tự đăng lô rồi tự nhận gom để trục lợi điểm thưởng.</li>
+            <li><strong>Cơ chế Timeout 7 ngày:</strong> Nếu đơn bị treo quá 7 ngày, cả khi hệ thống <code class="inline">Paused</code>, hàm <code class="inline">releaseLot()</code> vẫn cho phép mở khóa và hoàn cọc an toàn.</li>
+            <li><strong>Quyền yêu cầu cân lại (<code class="inline">disputeLot</code>):</strong> Nếu collector nhập sai số cân, chủ nhà bấm từ chối 1 chạm — cọc vẫn giữ nguyên để cân lại minh bạch.</li>
+          </ul>
+        </div>
+      </div>
+
+      <div class="callout-strip">
+        <span>⚡ <strong>Atomic Settlement:</strong> 1 giao dịch <code class="inline">acceptLot()</code> duy nhất thực hiện đồng thời 3 việc (không in thêm ECO): Trả ECO từ ký quỹ cho chủ nhà → Hoàn cọc thừa cho collector → Đúc NFT <code class="inline">ECOREC</code>!</span>
+        <span class="badge mono">ReentrancyGuard + OpenZeppelin v5.4</span>
+      </div>
+    </section>
+
+    <!-- ==================== SLIDE 5: WHY AVALANCHE ==================== -->
+    <section class="slide" data-notes="[1:55 - 2:25] Giám khảo sẽ hỏi: Tại sao dự án này cần Blockchain và tại sao phải là Avalanche? Thứ nhất, đứng trước cửa nhà dưới trời nắng Sài Gòn, cô ve chai và chủ nhà không thể đợi 15 giây hay 2 phút để xác nhận block — Sub-second finality của Avalanche biến việc chốt cân on-chain nhanh như quẹt thẻ! Thứ hai, hệ sinh thái Core Wallet kết hợp ERC-2771 giúp người dùng phổ thông không cần mua AVAX làm gas. Và thứ ba, khi mở rộng ra toàn quốc phục vụ Luật EPR, kiến trúc Avalanche L1 + ICM cho phép EcoLoop vận hành chuỗi riêng dùng chính token ECO làm gas!">
+      <div>
+        <div class="slide-eyebrow">04 · Tại Sao Phải Là Avalanche? (Why Avalanche Wins)</div>
+        <h2 class="slide-title">Được thiết kế tối ưu cho <span class="accent-avax">Avalanche C-Chain hôm nay</span> &amp; <span class="accent-emerald">Avalanche L1 ngày mai</span></h2>
+        <p class="slide-subtitle">Không chỉ vì phí rẻ — EcoLoop khai thác trọn vẹn tốc độ chốt khối tức thì, chuẩn ví EIP-6963 của Core và lộ trình Sovereign L1.</p>
+      </div>
+
+      <div class="grid-3">
+        <div class="card avax-card">
+          <h3>⚡ 1. Sub-Second Finality Tại Hiên Nhà</h3>
+          <p style="margin-bottom: 10px;">Giao dịch bàn giao vật lý (Doorstep POS) đòi hỏi hai bên đứng cạnh bàn cân phải thấy tiền &amp; biên nhận về ví <strong>ngay lập tức</strong>.</p>
+          <ul>
+            <li>Chốt giao dịch <code class="inline">proposeLot</code> → <code class="inline">acceptLot</code> dưới <strong>1 giây</strong>.</li>
+            <li>Chi phí micro-tx cực thấp (&lt;$0.01), khả thi cho cả các lô phế liệu nhỏ chỉ 2–3 kg (~15.000đ).</li>
+          </ul>
+        </div>
+
+        <div class="card highlight">
+          <h3>🪪 2. Web2.5 Onboarding Không Rào Cản</h3>
+          <p style="margin-bottom: 10px;">Xóa bỏ hoàn toàn nỗi sợ Seed Phrase và phí Gas cho cô thu gom &amp; bà nội trợ:</p>
+          <ul>
+            <li><strong>Core Wallet Native (<code class="inline">EIP-6963</code>):</strong> Tự động nhận diện ví, tự chuyển mạng Fuji 43113.</li>
+            <li><strong>Thirdweb Google Wallet &amp; Password Wallet:</strong> Đăng nhập 1 chạm bằng tài khoản Google.</li>
+            <li><strong>ERC-2771 + EIP-4337 Ready:</strong> Hộ dân giao dịch 0 gas hoàn toàn.</li>
+          </ul>
+        </div>
+
+        <div class="card">
+          <h3>🌐 3. Lộ Trình Mở Rộng Avalanche L1 + ICM</h3>
+          <p style="margin-bottom: 10px;">Khi mở rộng lên hàng triệu giao dịch thu gom đô thị &amp; khu công nghiệp:</p>
+          <ul>
+            <li>Triển khai <strong>EcoLoop Green L1</strong> chuyên biệt với <strong>ECO làm Native Gas Token</strong>.</li>
+            <li>Validator là các Liên minh Tái chế Việt Nam (PRO Vietnam), trường ĐH &amp; đối tác ESG.</li>
+            <li>Dùng <strong>Teleporter / ICM</strong> đưa tín chỉ EPR (<code class="inline">ECOREC</code>) sang giao dịch thanh khoản trên Avalanche C-Chain.</li>
+          </ul>
+        </div>
+      </div>
+
+      <div class="callout-strip">
+        <span>🔺 <strong>Avalanche Alignment:</strong> Thực chiến C-Chain + Core Wallet + Real-World Asset (Tín chỉ tái chế EPR) + Kiến trúc sẵn sàng nâng cấp lên Avalanche L1.</span>
+        <span class="badge red">Built for Consumer Mass Adoption</span>
+      </div>
+    </section>
+
+    <!-- ==================== SLIDE 6: ARCHITECTURE & ON-CHAIN NFT ==================== -->
+    <section class="slide" data-notes="[2:25 - 2:55] Về mặt kỹ thuật, EcoLoop không lưu ảnh hay địa chỉ nhà lên blockchain gây lộ lọt và tốn gas. Chúng tôi xây dựng kiến trúc Hybrid chuẩn mực: On-chain lưu mã băm ảnh SHA-256, tọa độ làm tròn 1km, trạng thái ký quỹ và đặc biệt là hợp đồng EcoLoopCertificate tự vẽ ảnh SVG trực tiếp bằng Solidity 100% On-Chain! Off-chain lưu ảnh và số nhà có kiểm soát chữ ký Nonce dùng 1 lần — chỉ đúng người thu gom đang giữ đơn mới xem được.">
+      <div>
+        <div class="slide-eyebrow">05 · Kiến Trúc Hybrid &amp; Chứng Nhận 100% On-Chain</div>
+        <h2 class="slide-title">Bảo mật riêng tư Off-chain · <span class="accent-emerald">Chứng thực bất biến On-chain</span></h2>
+      </div>
+
+      <div class="grid-hero" style="flex: 1;">
+        <div style="display: flex; flex-direction: column; gap: 14px;">
+          <div class="card">
+            <h3>⛓️ Lớp On-Chain (Solidity 0.8.37 · Hardhat 3 · OpenZeppelin 5)</h3>
+            <ul>
+              <li><code class="inline">EcoLoopPickup.sol</code> (V4): Quản lý đa vật liệu, ký quỹ 120%, đổi nhanh AVAX→ECO (<code class="inline">buyEco</code>), thanh toán &amp; chống tấn công Reentrancy.</li>
+              <li><code class="inline">EcoLoopForwarder.sol</code> (<code class="inline">ERC-2771</code>): Xác thực chữ ký <code class="inline">EIP-712</code> với giới hạn hạn mức theo giờ/ngày chống spam relayer.</li>
+              <li><code class="inline">EcoLoopCertificate.sol</code> (<code class="inline">ERC-721 ECOREC</code>): Metadata &amp; hình ảnh SVG được render <strong>100% trong Smart Contract</strong> — tồn tại vĩnh viễn không phụ thuộc server ngoài!</li>
+            </ul>
+          </div>
+
+          <div class="card">
+            <h3>🔐 Lớp Off-Chain Bảo Vệ Quyền Riêng Tư (Zero Address Leakage)</h3>
+            <ul>
+              <li><strong>Xác thực ảnh &amp; địa chỉ bằng Nonce 1 lần (TTL 3 phút):</strong> Kiểm tra magic-bytes JPG/PNG/WebP, khớp mã băm <code class="inline">SHA-256</code> với dữ liệu on-chain.</li>
+              <li>Chỉ <strong>chủ lô</strong> và <strong>ví collector đang khóa cọc</strong> mới mở khóa được địa chỉ số nhà &amp; phòng Chat bàn giao.</li>
+              <li><strong>Bản đồ Vector tự chủ (<code class="inline">PMTiles</code> + <code class="inline">MapLibre</code>):</strong> Tốc độ tải tức thì tại Việt Nam, không phụ thuộc Google Maps API đắt đỏ.</li>
+            </ul>
+          </div>
+        </div>
+
+        <!-- Actual SVG rendering from EcoLoopCertificate.sol! -->
+        <div style="display: flex; flex-direction: column; align-items: center; gap: 10px;">
+          <div style="font-size: 12px; font-weight: 700; color: var(--lime); letter-spacing: 1px;">BẢN KẾT XUẤT SVG THẬT TỪ CONTRACT ECOLOOPCERTIFICATE.SOL</div>
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 400" style="width: 310px; height: 310px; border-radius: 24px; box-shadow: 0 22px 50px rgba(8, 120, 94, 0.5); border: 2px solid rgba(200,236,129,0.45);">
+            <rect width="400" height="400" rx="28" fill="#08785e"/>
+            <circle cx="330" cy="70" r="90" fill="#0b8a6c"/>
+            <text x="32" y="60" fill="#c8ec81" font-family="sans-serif" font-size="16" font-weight="700">ECOLOOP</text>
+            <text x="32" y="96" fill="#fff" font-family="sans-serif" font-size="24" font-weight="800">Recycling Certificate</text>
+            <text x="32" y="128" fill="#d6efe4" font-family="sans-serif" font-size="16">Lot #18 - Avalanche</text>
+            <text x="32" y="210" fill="#fff" font-family="sans-serif" font-size="56" font-weight="800">12.50 kg</text>
+            <text x="32" y="262" fill="#d6efe4" font-family="sans-serif" font-size="15">Plastic 4.50 | Paper 5.00</text>
+            <text x="32" y="288" fill="#d6efe4" font-family="sans-serif" font-size="15">Metal 2.00 | Glass 1.00</text>
+            <text x="32" y="360" fill="#c8ec81" font-family="sans-serif" font-size="14">Weighed, accepted and paid on-chain</text>
+          </svg>
+          <div style="font-size: 12px; color: var(--text-muted); text-align: center;">
+            Mỗi lô hoàn tất = 1 <code class="inline">tokenId</code> duy nhất gắn liền <code class="inline">lotId</code> → <strong>Không thể đúc trùng lần 2!</strong>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ==================== SLIDE 7: BUSINESS MODEL & INTERACTIVE UNIT ECONOMICS ==================== -->
+    <section class="slide" data-notes="[2:55 - 3:25] Khác với các dự án GameFi/ReFi lạm phát token rồi sụp đổ, EcoLoop tạo ra dòng tiền thật ngay từ ngày đầu nhờ 3 động cơ doanh thu: (1) Chênh lệch giá gom lẻ tận nhà và bán sỉ cho trạm tái chế — chia 60% cho người thu gom, 40% phí sàn. (2) Bán chứng chỉ EPR On-chain (~800đ/kg) cho các hãng đồ uống/tiêu dùng cần chứng minh hạn ngạch tái chế. (3) Các thương hiệu xanh tài trợ voucher — người dân đổi quà sẽ ĐỐT (burn) token ECO, tạo cơ chế giảm phát bền vững! Giám khảo có thể kéo thanh trượt ngay trên slide để kiểm chứng lợi nhuận ròng trên từng tấn rác!">
+      <div>
+        <div class="slide-eyebrow">06 · Mô Hình Kinh Doanh &amp; Tokenomics Thực Chiến (Non-Ponzi ReFi)</div>
+        <h2 class="slide-title">3 Động Cơ Doanh Thu Thật &amp; <span class="accent-lime">Cơ Chế Đốt Token Giảm Phát</span></h2>
+      </div>
+
+      <div class="grid-3">
+        <div class="card">
+          <h3>💵 1. Biên Chênh Lệch Vựa Sỉ (Spread)</h3>
+          <p>Mua lẻ tận cửa (Nhựa 3.500đ, Giấy 2.200đ, Kim loại 12.000đ/kg) → Tập kết bán sỉ cho nhà máy/trạm thu mua (4.200đ – 14.500đ/kg).</p>
+          <div style="margin-top: 10px; font-size: 13px; color: var(--lime); font-weight: 700;">Chia 60% cho Collector · 40% Phí nền tảng</div>
+        </div>
+
+        <div class="card highlight">
+          <h3>📜 2. Tín Chỉ EPR B2B (<code class="inline">ECOREC</code> RWA)</h3>
+          <p>Doanh nghiệp FMCG mua chứng nhận tái chế gắn mã băm ảnh + chữ ký kép 2 ví + tọa độ vùng để báo cáo tuân thủ Luật EPR quốc gia.</p>
+          <div style="margin-top: 10px; font-size: 13px; color: var(--lime); font-weight: 700;">~800 VNĐ / kg (~$32 / tấn) doanh thu ròng</div>
+        </div>
+
+        <div class="card">
+          <h3>🔥 3. ESG Voucher &amp; Burn-to-Redeem</h3>
+          <p>Nhãn hàng đối tác (mục tiêu) tài trợ kho quà để tiếp cận tệp khách hàng sống xanh. Khi đổi quà, hàm <code class="inline">_burn()</code> tiêu hủy ECO vĩnh viễn.</p>
+          <div style="margin-top: 10px; font-size: 13px; color: var(--lime); font-weight: 700;">Cầu thực từ CSR/Marketing doanh nghiệp</div>
+        </div>
+      </div>
+
+      <!-- Interactive Unit Economics Simulator from src/EcoEconomics.ts -->
+      <div class="card" style="background: rgba(8, 120, 94, 0.14); border-color: rgba(200, 236, 129, 0.35);">
+        <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px; margin-bottom: 12px;">
+          <div>
+            <strong style="color: var(--lime); font-size: 14px;">🧮 MÔ PHỎNG UNIT ECONOMICS TRỰC TIẾP (Từ công thức <code class="inline">src/EcoEconomics.ts</code>):</strong>
+          </div>
+          <label style="display: flex; align-items: center; gap: 10px; font-size: 13.5px; font-weight: 700;">
+            Quy mô thu gom mỗi tháng:
+            <input id="tonsSlider" type="range" min="10" max="500" step="10" value="100" oninput="updateEcon()" style="width: 180px; accent-color: #c8ec81; cursor: pointer;" />
+            <span id="tonsLabel" style="color: var(--lime); font-family: var(--mono); min-width: 82px;">100 tấn</span>
+          </label>
+        </div>
+        <div class="grid-4" style="gap: 12px;">
+          <div style="padding: 10px 14px; border-radius: 12px; background: rgba(0,0,0,0.28);">
+            <div style="font-size: 11.5px; color: var(--text-muted);">Tiền trả Hộ gia đình</div>
+            <div id="valSeller" style="font-size: 20px; font-weight: 800; color: #fff; margin-top: 2px;">470.0 tr ₫</div>
+          </div>
+          <div style="padding: 10px 14px; border-radius: 12px; background: rgba(0,0,0,0.28);">
+            <div style="font-size: 11.5px; color: var(--text-muted);">Thưởng chênh lệch Collector (60%)</div>
+            <div id="valCollector" style="font-size: 20px; font-weight: 800; color: var(--emerald-bright); margin-top: 2px;">55.8 tr ₫</div>
+          </div>
+          <div style="padding: 10px 14px; border-radius: 12px; background: rgba(0,0,0,0.28);">
+            <div style="font-size: 11.5px; color: var(--text-muted);">Doanh thu Tín chỉ EPR (800đ/kg)</div>
+            <div id="valEpr" style="font-size: 20px; font-weight: 800; color: #fcd34d; margin-top: 2px;">80.0 tr ₫</div>
+          </div>
+          <div style="padding: 10px 14px; border-radius: 12px; background: rgba(200,236,129,0.14); border: 1px solid rgba(200,236,129,0.4);">
+            <div style="font-size: 11.5px; color: var(--lime);">Tổng Lợi Nhuận Gộp EcoLoop</div>
+            <div id="valPlatform" style="font-size: 20px; font-weight: 900; color: var(--lime); margin-top: 2px;">117.2 tr ₫/tháng</div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ==================== SLIDE 8: ESG & LCA IMPACT ==================== -->
+    <section class="slide" data-notes="[3:25 - 3:45] Không dừng ở lợi nhuận, EcoLoop đo lường tác động môi trường theo bộ chỉ số Đánh giá Vòng đời Sản phẩm (LCA) trực tiếp từ số gam thực tế trên blockchain: giảm bao nhiêu kg CO2e, tiết kiệm bao nhiêu lít nước sạch và kWh điện. Đồng thời nâng thu nhập người thu gom thêm 35-50% mỗi ngày nhờ tối ưu lộ trình gom đơn theo cụm!">
+      <div>
+        <div class="slide-eyebrow">07 · Tác Động Xã Hội &amp; Đo Lường ESG Chuẩn Quốc Tế (LCA)</div>
+        <h2 class="slide-title">Biến từng kg phế liệu thành <span class="accent-emerald">Chỉ số Net-Zero kiểm chứng được</span></h2>
+        <p class="slide-subtitle">Mỗi lô hàng hoàn tất trên Avalanche tự động quy đổi ra báo cáo ESG theo chuẩn Life Cycle Assessment (<code class="inline">src/EnvironmentalImpact.tsx</code>).</p>
+      </div>
+
+      <div class="grid-4">
+        <div class="card highlight">
+          <div style="font-size: 13px; color: var(--lime); font-weight: 700;">🧴 NHỰA (PET / HDPE)</div>
+          <div class="stat-big" style="font-size: 30px; margin-top: 6px;">-1.8 kg CO₂e</div>
+          <p>Tiết kiệm <strong>22 lít nước</strong> &amp; <strong>5.7 kWh điện</strong> trên mỗi kg nhựa thu hồi tái sinh. Thưởng <strong>20 ECO/kg</strong>.</p>
+        </div>
+
+        <div class="card highlight">
+          <div style="font-size: 13px; color: var(--lime); font-weight: 700;">📦 GIẤY &amp; CARTON</div>
+          <div class="stat-big" style="font-size: 30px; margin-top: 6px;">-1.2 kg CO₂e</div>
+          <p>Tiết kiệm <strong>26 lít nước</strong> &amp; <strong>4.0 kWh điện</strong> trên mỗi kg giấy carton, bảo tồn rừng tự nhiên. Thưởng <strong>10 ECO/kg</strong>.</p>
+        </div>
+
+        <div class="card highlight">
+          <div style="font-size: 13px; color: var(--lime); font-weight: 700;">🥫 KIM LOẠI (NHÔM / ĐỒNG)</div>
+          <div class="stat-big" style="font-size: 30px; margin-top: 6px;">-4.5 kg CO₂e</div>
+          <p>Tiết kiệm tới <strong>40 lít nước</strong> &amp; <strong>14.0 kWh điện</strong> so với luyện quặng nguyên sinh. Thưởng <strong>40 ECO/kg</strong>.</p>
+        </div>
+
+        <div class="card highlight">
+          <div style="font-size: 13px; color: var(--lime); font-weight: 700;">🍾 THỦY TINH</div>
+          <div class="stat-big" style="font-size: 30px; margin-top: 6px;">-0.35 kg CO₂e</div>
+          <p>Tiết kiệm <strong>4 lít nước</strong> &amp; <strong>0.42 kWh điện</strong>, tái tuần hoàn vô hạn không giảm chất lượng. Thưởng <strong>8 ECO/kg</strong>.</p>
+        </div>
+      </div>
+
+      <div class="grid-2">
+        <div class="card">
+          <h3>👷 Nâng Tầm Lực Lượng Lao Động Yếu Thế ("Ve Chai Công Nghệ")</h3>
+          <p>Giúp hàng chục nghìn cô chú thu gom tự do chuyển từ đi bộ/đạp xe tìm rác sang <strong>nhận đơn định vị sẵn theo cụm 500m–2km</strong>, tăng <strong>35–50% năng suất &amp; thu nhập ngày</strong>.</p>
+        </div>
+        <div class="card">
+          <h3>🏛️ Sẵn Sàng Cho Đô Thị Thông Minh &amp; Trường Đại Học Xanh</h3>
+          <p>Dashboard KPI thời gian thực hỗ trợ Ban quản lý chung cư, Đoàn trường ĐH và Phường/Xã theo dõi bảng xếp hạng phân loại rác tại nguồn minh bạch.</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- ==================== SLIDE 9: TRACTION, MENTOR UPGRADE & LIVE DEMO ==================== -->
+    <section class="slide" data-notes="[3:45 - 4:25] Chúng tôi không mang tới Hackathon một bản vẽ slide lý thuyết! Từ góp ý của Mentor tại cuộc thi, đội ngũ đã nâng cấp thẳng từ V1 lên V4: viết lại bộ 5 Smart Contracts, tích hợp kiểm thử tự động 17+ test cases, loại bỏ hoàn toàn dữ liệu mẫu để chạy 100% on-chain trên Avalanche Fuji. Ngay bây giờ, chúng tôi sẵn sàng thực hiện Live Demo 90 giây với 2 ví thật trên màn hình!">
+      <div>
+        <div class="slide-eyebrow">08 · Kết Quả Xây Dựng Thực Tế &amp; Kịch Bản Live Demo</div>
+        <h2 class="slide-title">Sản Phẩm Chạy Thật Trên <span class="accent-avax">Avalanche Fuji</span> — Kiểm Chứng Trên Snowtrace</h2>
+      </div>
+
+      <div class="grid-2" style="flex: 1;">
+        <div class="card highlight">
+          <h3>✅ Những Gì Đội Ngũ Đã Hoàn Thiện Trong Hackathon</h3>
+          <ul>
+            <li><strong>5 Smart Contracts hoàn chỉnh:</strong> <code class="inline">EcoLoop</code>, <code class="inline">EcoLoopPickup V4</code>, <code class="inline">EcoLoopCertificate</code>, <code class="inline">EcoLoopForwarder</code>, <code class="inline">EcoLoopRewards</code>.</li>
+            <li><strong>Tiếp thu Mentor &amp; Ship V4 thần tốc:</strong> Từ thu gom tại trạm (V1) → Thu gom tận nơi đa vật liệu + Ký quỹ 120% + Bản đồ ẩn danh + NFT On-chain + Ví Google/Core (V4).</li>
+            <li><strong>Kiểm thử nghiêm ngặt:</strong> Full bộ automated test EVM + mô phỏng EIP-6963 Core + chống replay chữ ký ảnh + kiểm tra ngôn ngữ i18n Việt/Anh.</li>
+            <li><strong>EcoLoop QR Card:</strong> Quét camera chuyển/nhận ECO miễn phí gas chuẩn EIP-681 ngay trên điện thoại.</li>
+          </ul>
+        </div>
+
+        <div class="card avax-card">
+          <h3>🎬 Luồng Live Demo 90 Giây Trước Ban Giám Khảo</h3>
+          <div style="display: flex; flex-direction: column; gap: 10px; margin-top: 8px;">
+            <div style="padding: 9px 12px; border-radius: 10px; background: rgba(0,0,0,0.3); font-size: 13px;">
+              <strong style="color: var(--lime);">00s – 25s (Hộ dân):</strong> Chụp ảnh bao nhựa + giấy → app gợi ý kg → Bấm <em>Đăng lô</em> ký EIP-712 (<strong>0 tốn gas</strong>).
+            </div>
+            <div style="padding: 9px 12px; border-radius: 10px; background: rgba(0,0,0,0.3); font-size: 13px;">
+              <strong style="color: var(--lime);">25s – 50s (Người thu gom):</strong> Mở Radar Map quét bán kính 1km → Bấm <em>Nhận thu gom</em> khóa cọc 120% → Mở khóa địa chỉ &amp; nhập số cân thực tế.
+            </div>
+            <div style="padding: 9px 12px; border-radius: 10px; background: rgba(0,0,0,0.3); font-size: 13px;">
+              <strong style="color: var(--lime);">50s – 75s (Chốt đơn &lt;1s):</strong> Chủ nhà đối chiếu bảng cân → Bấm <em>Đồng ý</em> → Tiền về ví, hoàn cọc dư, tự đúc <strong>NFT ECOREC</strong> xem ngay trên Snowtrace!
+            </div>
+            <div style="padding: 9px 12px; border-radius: 10px; background: rgba(0,0,0,0.3); font-size: 13px;">
+              <strong style="color: var(--lime);">75s – 90s (Đổi quà):</strong> Mở Ví Xanh quét QR hoặc đốt ECO nhận biên nhận voucher đối tác.
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="callout-strip">
+        <span>🔍 <strong>Kiểm chứng trực tiếp trên Snowtrace Testnet:</strong> Mọi lô hàng, sự kiện <code class="inline">EscrowLocked</code>, <code class="inline">LotSettled</code> và ảnh SVG NFT đều công khai minh bạch.</span>
+        <span class="badge mono">Chain ID: 43113 · Fuji C-Chain</span>
+      </div>
+    </section>
+
+    <!-- ==================== SLIDE 10: ROADMAP & ASK ==================== -->
+    <section class="slide" data-notes="[4:25 - 4:50] Lộ trình tiếp theo của EcoLoop rất rõ ràng và thực tế: Sau Hackathon Q4/2026, chúng tôi triển khai Pilot tại 2 cụm đại học và 5 chung cư tại TP.HCM cùng 30 cô chú thu gom và 3 vựa tái chế để tinh chỉnh vận hành thực địa trước khi lên Avalanche Mainnet. Tới nửa cuối 2027 ra mắt cổng EPR B2B cho doanh nghiệp, và 2028 khởi chạy EcoLoop Avalanche L1. Chúng tôi mong muốn nhận được sự đồng hành cố vấn, kết nối đối tác từ Avalanche Team1 để đưa Web3 đi vào đời sống hàng triệu gia đình Việt! Xin cảm ơn Ban Giám khảo!">
+      <div>
+        <div class="slide-eyebrow">09 · Lộ Trình Phát Triển &amp; Tầm Nhìn Dài Hạn</div>
+        <h2 class="slide-title">Từ <span class="accent-avax">Avalanche Team1 Hackathon</span> đến Hạ Tầng Tái Chế Quốc Gia</h2>
+      </div>
+
+      <div class="grid-4">
+        <div class="card highlight">
+          <div style="font-family: var(--mono); font-size: 12px; color: var(--lime); font-weight: 700;">GIAI ĐOẠN 1 · HIỆN TẠI</div>
+          <h3 style="margin-top: 6px;">Hackathon V4 Live</h3>
+          <ul>
+            <li>Hoàn thành Smart Escrow V4, Relayer ERC-2771 miễn gas, NFT ECOREC trên Fuji.</li>
+            <li>AI ước lượng ảnh, Radar Map ẩn danh, EcoLoop QR Card &amp; Cửa hàng quà.</li>
+          </ul>
+        </div>
+
+        <div class="card">
+          <div style="font-family: var(--mono); font-size: 12px; color: var(--emerald-bright); font-weight: 700;">GIAI ĐOẠN 2 · Q1–Q2/2027</div>
+          <h3 style="margin-top: 6px;">Pilot Đô Thị &amp; Mainnet</h3>
+          <ul>
+            <li>Audit Smart Contract &amp; triển khai <strong>Avalanche C-Chain Mainnet</strong>.</li>
+            <li>Thí điểm tại <strong>2 trường Đại học &amp; 5 khu chung cư TP.HCM</strong> (500 hộ dân, 30 collector, 3 trạm vựa).</li>
+          </ul>
+        </div>
+
+        <div class="card">
+          <div style="font-family: var(--mono); font-size: 12px; color: var(--sky); font-weight: 700;">GIAI ĐOẠN 3 · Q3–Q4/2027</div>
+          <h3 style="margin-top: 6px;">Cổng B2B EPR &amp; Cân IoT</h3>
+          <ul>
+            <li>Ra mắt B2B Dashboard cho doanh nghiệp FMCG mua &amp; truy xuất tín chỉ EPR (<code class="inline">ECOREC</code>).</li>
+            <li>Kết nối cân điện tử Bluetooth ký dữ liệu khối lượng trực tiếp chống gian lận.</li>
+          </ul>
+        </div>
+
+        <div class="card avax-card">
+          <div style="font-family: var(--mono); font-size: 12px; color: #fca5a5; font-weight: 700;">GIAI ĐOẠN 4 · 2028+</div>
+          <h3 style="margin-top: 6px;">EcoLoop Avalanche L1</h3>
+          <ul>
+            <li>Khởi chạy <strong>Dedicated ReFi L1</strong> dùng <code class="inline">ECO</code> làm phí gas, tối ưu cho hàng triệu micro-tx.</li>
+            <li>Kết nối thanh khoản tín chỉ nhựa &amp; carbon Đông Nam Á qua <strong>Avalanche ICM</strong>.</li>
+          </ul>
+        </div>
+      </div>
+
+      <div class="card highlight" style="display: flex; align-items: center; justify-content: space-between; gap: 24px; padding: 20px 26px;">
+        <div>
+          <h3 style="font-size: 20px; margin-bottom: 4px;">🤝 Đồng Hành Cùng EcoLoop Tại Avalanche Team1</h3>
+          <p style="font-size: 14px; color: #d6efe4;">
+            Chúng tôi tìm kiếm <strong>Grant &amp; Mentorship từ hệ sinh thái Avalanche / Retro9000 / Team1 Vietnam</strong> để tài trợ kiểm toán bảo mật (Audit), quỹ Gas Relayer Mainnet cho 10.000 hộ dân đầu tiên và kết nối đối tác ESG.
+          </p>
+        </div>
+        <div style="text-align: right; flex-shrink: 0;">
+          <div style="font-size: 22px; font-weight: 900; color: var(--lime);">RECYCLE MORE.<br/>VERIFY ON AVALANCHE.</div>
+          <div style="font-size: 12px; color: var(--text-muted); margin-top: 4px;">Cảm ơn Ban Giám khảo · Sẵn sàng Q&amp;A &amp; Live Demo!</div>
+        </div>
+      </div>
+    </section>
+
+  </main>
+
+  <!-- Speaker Notes Overlay -->
+  <aside class="notes-drawer" id="notesDrawer">
+    <h4>
+      <span>🎙 Gợi ý lời thoại thuyết trình (Speaker Script)</span>
+      <span style="cursor: pointer; color: var(--text-muted);" onclick="toggleNotes()">✕ Đóng</span>
+    </h4>
+    <p id="notesContent"></p>
+  </aside>
+
+  <!-- Bottom Navigation Bar -->
+  <footer class="bottombar">
+    <div style="font-size: 12.5px; color: var(--text-muted); font-family: var(--mono);" id="slideCounter">
+      SLIDE 01 / 10
+    </div>
+    <div class="progress-dots" id="dotsContainer"></div>
+    <div style="display: flex; gap: 8px;">
+      <button class="hud-btn" onclick="prevSlide()">← Trước</button>
+      <button class="hud-btn" onclick="nextSlide()">Tiếp theo →</button>
+    </div>
+  </footer>
+
+  <script>
+    const slides = Array.from(document.querySelectorAll('.slide'));
+    const dotsContainer = document.getElementById('dotsContainer');
+    const slideCounter = document.getElementById('slideCounter');
+    const notesDrawer = document.getElementById('notesDrawer');
+    const notesContent = document.getElementById('notesContent');
+    const notesBtn = document.getElementById('notesBtn');
+    let current = 0;
+
+    // Build progress dots
+    slides.forEach((_, idx) => {
+      const btn = document.createElement('button');
+      btn.className = 'dot' + (idx === 0 ? ' active' : '');
+      btn.title = 'Đi tới Slide ' + (idx + 1);
+      btn.onclick = () => goToSlide(idx);
+      dotsContainer.appendChild(btn);
+    });
+
+    function updateView() {
+      slides.forEach((s, idx) => s.classList.toggle('active', idx === current));
+      Array.from(dotsContainer.children).forEach((d, idx) => d.classList.toggle('active', idx === current));
+      slideCounter.textContent = `SLIDE ${String(current + 1).padStart(2, '0')} / ${String(slides.length).padStart(2, '0')}`;
+      notesContent.textContent = slides[current].getAttribute('data-notes') || '';
+    }
+
+    function goToSlide(idx) {
+      current = (idx + slides.length) % slides.length;
+      updateView();
+    }
+    function nextSlide() { goToSlide(current + 1); }
+    function prevSlide() { goToSlide(current - 1); }
+
+    function toggleNotes() {
+      const isOpen = notesDrawer.classList.toggle('open');
+      notesBtn.classList.toggle('active', isOpen);
+    }
+    notesBtn.onclick = toggleNotes;
+
+    // Fullscreen toggle
+    document.getElementById('fsBtn').onclick = toggleFullscreen;
+    function toggleFullscreen() {
+      if (!document.fullscreenElement) {
+        document.documentElement.requestFullscreen?.();
+      } else {
+        document.exitFullscreen?.();
+      }
+    }
+
+    // 3-Minute Pitch Countdown Timer
+    let remainingSec = 180;
+    let timerId = null;
+    const timerBtn = document.getElementById('timerBtn');
+    function renderTimer() {
+      const m = String(Math.floor(remainingSec / 60)).padStart(2, '0');
+      const s = String(remainingSec % 60).padStart(2, '0');
+      timerBtn.textContent = (timerId ? '⏸ ' : '⏱ ') + `${m}:${s}`;
+      timerBtn.style.borderColor = remainingSec <= 30 ? '#e84142' : 'rgba(16, 185, 129, 0.32)';
+      timerBtn.style.color = remainingSec <= 30 ? '#fca5a5' : '#c8ec81';
+    }
+    function toggleTimer() {
+      if (timerId) {
+        clearInterval(timerId);
+        timerId = null;
+      } else {
+        if (remainingSec <= 0) remainingSec = 180;
+        timerId = setInterval(() => {
+          if (remainingSec > 0) {
+            remainingSec--;
+            renderTimer();
+          } else {
+            clearInterval(timerId);
+            timerId = null;
+            renderTimer();
+          }
+        }, 1000);
+      }
+      renderTimer();
+    }
+    timerBtn.onclick = toggleTimer;
+    timerBtn.ondblclick = () => {
+      if (timerId) { clearInterval(timerId); timerId = null; }
+      remainingSec = 180;
+      renderTimer();
+    };
+
+    // Interactive Escrow Stepper Data (Slide 4)
+    const escrowData = [
+      {
+        leftTitle: '📝 Bước 1: Hộ gia đình ký EIP-712 — 0 đồng phí Gas',
+        leftItems: [
+          'Chọn khối lượng ước tính cho 4 nhóm: <strong>Nhựa (20 ECO/kg), Giấy (10), Kim loại (40), Thủy tinh (8)</strong>.',
+          'Ảnh thật được băm <code class="inline">bytes32 evidence</code>; contract từ chối ngay nếu ảnh từng được dùng (<code class="inline">DuplicateEvidence</code>).',
+          'Relayer <code class="inline">EcoLoopForwarder (ERC-2771)</code> trả 100% phí gas Avalanche — vẫn ghi nhận đúng ví hộ dân là <code class="inline">lot.owner</code>.'
+        ],
+        rightTitle: '🗺️ Quyền riêng tư tại bước Mở bán (Status: Open)',
+        rightItems: [
+          'Trên blockchain chỉ lưu tọa độ <code class="inline">latitude / longitude</code> làm tròn <code class="inline">int32</code> (~1 km) để hiện lên Radar Map.',
+          'Số nhà, số điện thoại và ghi chú giờ giấc được giữ kín off-chain, người lạ quét chain không thể biết địa chỉ nhà dân.',
+          'Chủ nhà có thể hủy đơn bất cứ lúc nào bằng <code class="inline">cancelLot()</code> hoàn toàn miễn phí gas trước khi có người nhận.'
+        ]
+      },
+      {
+        leftTitle: '🔒 Bước 2: Người thu gom khóa 120% Ký quỹ (Status: Claimed)',
+        leftItems: [
+          'Khi bấm nhận đơn <code class="inline">claimLot(id, maxDeposit)</code>, collector phải khóa <strong>120% giá trị ước tính</strong> (<code class="inline">ESCROW_BUFFER_BPS = 12_000</code>).',
+          'Chốt cứng bảng giá <code class="inline">lotPrices[id]</code> ngay thời điểm nhận đơn — biến động giá sau đó không gây thiệt hại cho hai bên.',
+          'Có thể nạp nhanh từ AVAX sang ECO ngay trong contract qua hàm <code class="inline">buyEco()</code>.'
+        ],
+        rightTitle: '🛡️ Tại sao lại là con số 120%?',
+        rightItems: [
+          '<strong>Chống "bom đơn" / giữ chỗ ảo:</strong> Collector có cam kết tài chính thật nên sẽ đến thu gom đúng hẹn.',
+          '<strong>Đệm thanh toán tự động (+20% Buffer):</strong> Khi đến cân thực tế, nếu bao phế liệu nặng hơn ước tính ban đầu 10–20%, tiền ký quỹ vẫn đủ thanh toán tức thì!',
+          'Mở khóa quyền xem ảnh gốc, địa chỉ chính xác và kênh Chat 2 chiều với chủ nhà.'
+        ]
+      },
+      {
+        leftTitle: '⚖️ Bước 3: Cân điện tử tận cửa &amp; Đề xuất On-Chain (Status: Proposed)',
+        leftItems: [
+          'Người thu gom đến tận nơi, phân loại và cân thực tế từng nhóm vật liệu tính bằng <strong>gram</strong> (<code class="inline">uint64[4] actual</code>).',
+          'Gửi giao dịch <code class="inline">proposeLot(id, actual)</code> lên Avalanche Fuji với độ trễ xác nhận &lt;1 giây.',
+          'Giao diện điện thoại của chủ nhà tự động nổi bảng so sánh trực quan: <em>Khối lượng dự kiến vs. Khối lượng cân thực tế</em>.'
+        ],
+        rightTitle: '🔄 Chống ép giá &amp; Sai lệch cân đo',
+        rightItems: [
+          'Chưa một đồng tiền hay điểm ECO nào được phát hành ở bước này — collector không thể tự ý chốt đơn một phía.',
+          'Nếu chủ nhà thấy số cân nhập lên app không khớp mặt đồng hồ cân, chỉ cần bấm <code class="inline">disputeLot()</code> (miễn phí gas) để yêu cầu nhập lại.',
+          'Nếu đơn bị bỏ dở quá 7 ngày (<code class="inline">TIMEOUT = 7 days</code>), chủ nhà có quyền gọi <code class="inline">releaseLot()</code> để mở lại lô hàng.'
+        ]
+      },
+      {
+        leftTitle: '🏅 Bước 4: Đồng thuận kép &amp; Thanh toán Nguyên tử (Status: Completed)',
+        leftItems: [
+          'Chủ nhà bấm xác nhận <code class="inline">acceptLot(id)</code> (0 tốn gas qua Relayer).',
+          'Smart contract tự động tính toán số tiền thực nhận dựa trên số cân thực tế và trả thẳng từ quỹ cọc về ví chủ nhà.',
+          'Phần tiền cọc thừa (<code class="inline">deposit - payment</code>) được hoàn trả ngay lập tức về ví người thu gom trong cùng giao dịch!'
+        ],
+        rightTitle: '✨ Đúc Token thưởng &amp; Chứng chỉ NFT 100% On-Chain',
+        rightItems: [
+          'Cộng dồn tổng khối lượng tái chế quốc gia (<code class="inline">totalRecycledGrams</code>) và thưởng điểm <code class="inline">ECO</code> cho hộ dân.',
+          'Gọi <code class="inline">certificate.mint()</code> phát hành ngay 1 NFT <code class="inline">ECOREC</code> chứa ảnh SVG &amp; thông số kg chi tiết không thể làm giả.',
+          'Dữ liệu lô hàng trở thành 1 chứng từ EPR hợp lệ, sẵn sàng đối soát cho các doanh nghiệp FMCG.'
+        ]
+      }
+    ];
+
+    function selectEscrow(idx) {
+      document.querySelectorAll('.escrow-step').forEach((el, i) => el.classList.toggle('active', i === idx));
+      const d = escrowData[idx];
+      document.getElementById('escrowLeft').innerHTML = `<h3>${d.leftTitle}</h3><ul>${d.leftItems.map(x => `<li>${x}</li>`).join('')}</ul>`;
+      document.getElementById('escrowRight').innerHTML = `<h3>${d.rightTitle}</h3><ul>${d.rightItems.map(x => `<li>${x}</li>`).join('')}</ul>`;
+    }
+
+    // Interactive Unit Economics Calculator (Slide 7)
+    // Weighted average basket: 35% Plastic, 40% Paper, 15% Metal, 10% Glass
+    // Buy VND/kg: [3500, 2200, 12000, 1000] -> avg = 0.35*3500 + 0.40*2200 + 0.15*12000 + 0.10*1000 = 1225 + 880 + 1800 + 100 = 4005 VND/kg (or metal-rich urban mix ~4700 VND/kg)
+    // Let's use exact weighted formula from DEFAULT_ECONOMICS in src/adminCatalog.ts!
+    function updateEcon() {
+      const tons = Number(document.getElementById('tonsSlider').value);
+      document.getElementById('tonsLabel').textContent = `${tons} tấn`;
+      const kg = tons * 1000;
+      // Mix: 35% Plastic, 35% Paper, 20% Metal, 10% Glass
+      const mix = [0.35, 0.35, 0.20, 0.10];
+      const buy = [3500, 2200, 12000, 1000];
+      const station = [4200, 2600, 14500, 1300];
+      let sellerVnd = 0;
+      let stationVnd = 0;
+      for (let i = 0; i < 4; i++) {
+        sellerVnd += kg * mix[i] * buy[i];
+        stationVnd += kg * mix[i] * station[i];
+      }
+      const spread = stationVnd - sellerVnd;
+      const collectorFee = spread * 0.60;
+      const appSpread = spread * 0.40;
+      const eprVnd = kg * 800;
+      const totalPlatform = appSpread + eprVnd;
+
+      const fmtTr = (v) => (v / 1_000_000).toFixed(1) + ' tr ₫';
+      document.getElementById('valSeller').textContent = fmtTr(sellerVnd);
+      document.getElementById('valCollector').textContent = fmtTr(collectorFee);
+      document.getElementById('valEpr').textContent = fmtTr(eprVnd);
+      document.getElementById('valPlatform').textContent = fmtTr(totalPlatform) + '/tháng';
+    }
+    updateEcon();
+
+    // Keyboard shortcuts
+    window.addEventListener('keydown', (e) => {
+      if (e.target.tagName === 'INPUT') return;
+      if (e.key === 'ArrowRight' || e.key === ' ' || e.key === 'PageDown') {
+        e.preventDefault();
+        nextSlide();
+      } else if (e.key === 'ArrowLeft' || e.key === 'PageUp') {
+        e.preventDefault();
+        prevSlide();
+      } else if (e.key === 'n' || e.key === 'N') {
+        toggleNotes();
+      } else if (e.key === 'f' || e.key === 'F') {
+        toggleFullscreen();
+      } else if (e.key === 't' || e.key === 'T') {
+        toggleTimer();
+      } else if (e.key >= '1' && e.key <= '9') {
+        goToSlide(Number(e.key) - 1);
+      } else if (e.key === '0') {
+        goToSlide(9);
+      }
+    });
+
+    updateView();
+  </script>
+</body>
+</html>

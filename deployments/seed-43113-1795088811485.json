@@ -1,0 +1,54 @@
+{
+  "chainId": 43113,
+  "contract": "0xdBbd713C1d37Eb96653D5b7EBfb03E608A7beD0f",
+  "test": true,
+  "createdAt": "2026-11-19T11:46:02.529Z",
+  "lots": [
+    {
+      "stage": "completed",
+      "household": "0x9fc1158eC4285fDEBaEC8e7B2f698f378AC31681",
+      "evidence": "0x7203494ee619b11511aca285ca2f640a3358a5a5034ab88801c0ab6f83ca1822",
+      "txs": {
+        "create": "0x8935e830c89926bbb41aa1f4cc4e5b63aec2ddb912a843e8a5b52a9cf887657d",
+        "claim": "0x6ed73767a101e57a8a2c89f55814b634b1dcad014e323241475590caee368049",
+        "propose": "0x9ebdc851d1a308399f6c0f65543baf148b927cf733ba9091ad68bea6930b5183",
+        "accept": "0xad2a6efe43e17edd5c2dc5648311cb6ae0ef663c8e29ed1ad3c2787d4f4544fd"
+      },
+      "id": 1,
+      "depositEco": "180",
+      "paidEco": "145"
+    },
+    {
+      "stage": "proposed",
+      "household": "0xD5ccf7578354F11dc5fCa27A8C2ba0A6e9e396d5",
+      "evidence": "0x7a9d6cbffaca629bdc024de2f6fdbb3057558c38cccb53957dc17da32b731e42",
+      "txs": {
+        "create": "0x13e994f821d1d92a8cb42c650b2ed55e00236adb2eae8d3a70827885a2a81bc8",
+        "claim": "0xf30a148054c6adcdb858fc4f5b90d0f25bc1f65a58aa6582f9be76db921a4484",
+        "propose": "0x525c0c5fc6f803d1c2fe835ee6de0334f05024172d63ccf5b4d067ef08eacc72"
+      },
+      "id": 2,
+      "depositEco": "120"
+    },
+    {
+      "stage": "claimed",
+      "household": "0x9fc1158eC4285fDEBaEC8e7B2f698f378AC31681",
+      "evidence": "0xb051603098ff25d0a0e98ffbeeb646915619e757fa7c86d1f068e027e9a9a941",
+      "txs": {
+        "create": "0x523219e6cda78ec931704ccc01b300003546dccfe29f4e43eb94249de55bb250",
+        "claim": "0x488c1f8d5b44eb64ab579363060611888436c54e221c0e7bb4cdd89bdc896ca2"
+      },
+      "id": 3,
+      "depositEco": "144"
+    },
+    {
+      "stage": "open",
+      "household": "0xD5ccf7578354F11dc5fCa27A8C2ba0A6e9e396d5",
+      "evidence": "0x19e0cf3d02e33eae5e24e7d924330b2c4eef5c480497e50a666e0701d7e14b77",
+      "txs": {
+        "create": "0xf8a905c5436aac4e78e7e84a34e1705636a3c88789f1a301c6a1531d18e689ea"
+      },
+      "id": 4
+    }
+  ]
+}

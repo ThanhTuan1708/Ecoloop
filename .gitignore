@@ -8,4 +8,12 @@ cache/
 *.log
 .data/
 .tools/
+.backups/
 seed-photos/
+p0-log.txt
+kiem-tra-p0.bat
+p0-deploy-log.txt
+chay-deploy-p0.bat
+day-len-github.bat
+p0-push-log.txt
+push-github.bat

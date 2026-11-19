@@ -1,0 +1,16 @@
+{
+  "createdAt": "2026-11-19T11:47:04.870Z",
+  "teleporter": "0x253b2784c75e510dD0fF1da844684a1aC0aa5fcf",
+  "certificate": "0x06830388ee6CD0942A84D6e5422A8b0c1eF45a9E",
+  "source": {
+    "chain": "Avalanche Fuji C-Chain",
+    "blockchainId": "0x7fc93d85c6d62c5b2ac0b519c87010ea5294012d1e407030d6acd0021cac10d5",
+    "address": "0x63facfA100D194B057EB429A91e2f2dEfb2c1FF5",
+    "txHash": "0x84fb7835ab4492c47fd6b685e99d9d2dc61540dc312b0816574fce11ec1167bf",
+    "args": [
+      "0x4AA84B5f9E1E71fbae7f1298096B32b735bd90bf",
+      "0x253b2784c75e510dD0fF1da844684a1aC0aa5fcf",
+      "0x06830388ee6CD0942A84D6e5422A8b0c1eF45a9E"
+    ]
+  }
+}

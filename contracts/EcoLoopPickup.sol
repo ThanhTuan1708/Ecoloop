@@ -31,6 +31,7 @@ contract EcoLoopPickup is EcoLoop, ERC2771Context, ReentrancyGuard {
     }
 
     uint256 public constant ESCROW_BUFFER_BPS = 12_000; // collector locks 120% of the estimated value
+    uint256 public constant MAX_BONUS_BPS = 5_000; // cap verified-station green subsidy at 50%
     uint256 public constant TIMEOUT = 7 days;
     uint256 public constant VERSION = 4;
     uint256 public constant MAX_PRICE_PER_KG = 1_000_000 ether;
@@ -43,6 +44,10 @@ contract EcoLoopPickup is EcoLoop, ERC2771Context, ReentrancyGuard {
     mapping(uint256 => uint256[4]) private lotPrices;
     /// @notice ECO base units per AVAX. Zero disables the exchange.
     uint256 public ecoPerAvax;
+    uint256 public exchangeProceeds;
+    /// @notice Optional subsidy (in bps of escrow payout) minted ONLY when a verified COLLECTOR_ROLE settles a lot.
+    /// Zero by default so unverified peer-to-peer trades never inflate ECO supply.
+    uint16 public collectorBonusBps;
     uint256 public totalEscrowed;
     uint256 public totalPaid;
 
@@ -55,6 +60,7 @@ contract EcoLoopPickup is EcoLoop, ERC2771Context, ReentrancyGuard {
     event EscrowReleased(uint256 indexed id, address indexed owner, uint256 paid, uint256 refunded);
     event EscrowRefunded(uint256 indexed id, address indexed collector, uint256 amount);
     event PricesUpdated(uint256[4] pricePerKg);
+    event CollectorBonusUpdated(uint16 bonusBps);
     event ExchangeRateUpdated(uint256 ecoPerAvax);
     event EcoPurchased(address indexed buyer, uint256 avaxPaid, uint256 ecoReceived);
     event ExchangeProceedsWithdrawn(address indexed recipient, uint256 amount);
@@ -110,6 +116,7 @@ contract EcoLoopPickup is EcoLoop, ERC2771Context, ReentrancyGuard {
         uint256 amount = msg.value * rate / 1 ether;
         if (amount < minimumEco) revert ExchangeQuoteChanged();
         if (amount > exchangeInventory()) revert ExchangeUnavailable();
+        exchangeProceeds += msg.value;
         address buyer = _msgSender();
         _transfer(address(this), buyer, amount);
         emit EcoPurchased(buyer, msg.value, amount);
@@ -120,6 +127,12 @@ contract EcoLoopPickup is EcoLoop, ERC2771Context, ReentrancyGuard {
         for (uint256 i; i < 4; i++) if (prices[i] > MAX_PRICE_PER_KG) revert InvalidInput();
         pricePerKg = prices;
         emit PricesUpdated(prices);
+    }
+
+    function setCollectorBonusBps(uint16 bps) external onlyRole(DEFAULT_ADMIN_ROLE) {
+        if (bps > MAX_BONUS_BPS) revert InvalidInput();
+        collectorBonusBps = bps;
+        emit CollectorBonusUpdated(bps);
     }
 
     function setExchangeRate(uint256 rate) external onlyRole(DEFAULT_ADMIN_ROLE) {
@@ -139,7 +152,8 @@ contract EcoLoopPickup is EcoLoop, ERC2771Context, ReentrancyGuard {
     }
 
     function withdrawExchangeProceeds(address payable recipient, uint256 amount) external onlyRole(DEFAULT_ADMIN_ROLE) nonReentrant {
-        if (recipient == address(0) || amount == 0) revert InvalidInput();
+        if (recipient == address(0) || amount == 0 || amount > exchangeProceeds) revert InvalidInput();
+        exchangeProceeds -= amount;
         (bool ok,) = recipient.call{value: amount}("");
         if (!ok) revert InvalidInput();
         emit ExchangeProceedsWithdrawn(recipient, amount);
@@ -163,12 +177,14 @@ contract EcoLoopPickup is EcoLoop, ERC2771Context, ReentrancyGuard {
         if (lot.status != PickupStatus.Proposed || lot.owner != _msgSender()) revert InvalidStatus();
         if (block.timestamp > lot.updatedAt + TIMEOUT) revert InvalidStatus();
         uint256 total = checkWeights(lot.actual);
-        uint256 amount;
-        for (uint256 i; i < 4; i++) amount += uint256(lot.actual[i]) * rates[i] * 1 ether / 1000;
 
         uint256 deposit = lot.deposit;
         uint256 payment = quotedPayout(id);
         uint256 refund = deposit - payment;
+        uint256 bonus = (collectorBonusBps > 0 && hasRole(COLLECTOR_ROLE, lot.collector))
+            ? (payment * collectorBonusBps) / 10_000
+            : 0;
+
         lot.deposit = 0;
         delete lotPrices[id];
         lot.paid = payment;
@@ -178,13 +194,14 @@ contract EcoLoopPickup is EcoLoop, ERC2771Context, ReentrancyGuard {
 
         recycledGrams[lot.owner] += total;
         totalRecycledGrams += total;
-        earned[lot.owner] += amount;
-        _mint(lot.owner, amount);
-        emit LotSettled(id, total, amount);
+        uint256 settledTotal = payment + bonus;
+        earned[lot.owner] += settledTotal;
+        if (bonus > 0) _mint(lot.owner, bonus);
+        emit LotSettled(id, total, settledTotal);
         emit EscrowReleased(id, lot.owner, payment, refund);
 
         _transfer(address(this), lot.owner, payment);
-        _transfer(address(this), lot.collector, refund);
+        if (refund > 0) _transfer(address(this), lot.collector, refund);
         certificate.mint(lot.owner, id, lot.actual, lot.collector, payment);
     }
 
@@ -213,6 +230,14 @@ contract EcoLoopPickup is EcoLoop, ERC2771Context, ReentrancyGuard {
         redemptionOwner[redemptionId] = user;
         redemptionReward[redemptionId] = rewardId;
         emit Redeemed(redemptionId, user, rewardId, r.cost);
+    }
+
+    /// @notice ERC-2771-compatible reward fulfillment using _msgSender() instead of legacy msg.sender.
+    function fulfillRewardRedemption(uint256 id) external onlyRole(COLLECTOR_ROLE) whenNotPaused {
+        address recipient = redemptionOwner[id];
+        if (recipient == address(0) || redemptionFulfilled[id]) revert InvalidStatus();
+        redemptionFulfilled[id] = true;
+        emit RewardFulfilled(id, _msgSender(), recipient);
     }
 
     // ---------- collector ----------

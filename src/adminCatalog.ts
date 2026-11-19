@@ -225,11 +225,31 @@ export async function syncAdminCatalogFromServer(): Promise<AdminCatalogState> {
   return currentState;
 }
 
+export async function fetchAdminAccountsWithSignature(adminAccount: string): Promise<AdminCatalogState> {
+  const normalized = adminAccount.toLowerCase();
+  const timestamp = Date.now();
+  const message = `EcoLoop Admin Catalog Read\nAdmin: ${normalized}\nTimestamp: ${timestamp}`;
+  const signature = await signAuthorizationMessage(adminAccount as Address, message);
+  const res = await fetch('/api/admin/catalog', {
+    cache: 'no-store',
+    headers: {
+      'X-EcoLoop-Admin': normalized,
+      'X-EcoLoop-Timestamp': String(timestamp),
+      'X-EcoLoop-Signature': signature,
+    },
+  });
+  if (res.ok) {
+    const adminData = (await res.json()) as Partial<AdminCatalogState>;
+    persistLocal(mergeCatalog({...currentState, ...adminData}));
+  }
+  return currentState;
+}
+
 export async function saveAdminCatalog(
   updater: (prev: AdminCatalogState) => AdminCatalogState,
   adminAccount?: string
 ): Promise<AdminCatalogState> {
-  if (!adminAccount || adminAccount.toLowerCase() !== ADMIN_WALLET.toLowerCase()) {
+  if (!adminAccount) {
     throw new Error('Chỉ ví Quản trị viên mới có quyền lưu thay đổi quản trị.');
   }
   const next = mergeCatalog(updater(currentState));

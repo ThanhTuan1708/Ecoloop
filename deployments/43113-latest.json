@@ -1,0 +1,45 @@
+{
+  "chainId": 43113,
+  "deployer": "0x4AA84B5f9E1E71fbae7f1298096B32b735bd90bf",
+  "previousPickup": "0x0b9f8c5c1a841b4903772230f6d862de3a1fee7e",
+  "createdAt": "2026-11-19T11:45:27.886Z",
+  "contracts": {
+    "forwarder": {
+      "address": "0xC8D4404D0aB0a5F14FAa7628C6aEee489cE4a141",
+      "txHash": "0xf4e605e86dc878c407caf409878900531e536849a2c25a822253ae62fd6b480b",
+      "block": 61329090,
+      "args": []
+    },
+    "pickup": {
+      "address": "0xdBbd713C1d37Eb96653D5b7EBfb03E608A7beD0f",
+      "txHash": "0x2755cd71843fa859ba91a6384afa2dbb59ba6e988c13a88188638ff6c1248b60",
+      "block": 61329094,
+      "args": [
+        "0x4AA84B5f9E1E71fbae7f1298096B32b735bd90bf",
+        "0xC8D4404D0aB0a5F14FAa7628C6aEee489cE4a141",
+        "10000000000000000000000",
+        "1000000000000000000000000"
+      ]
+    },
+    "certificate": {
+      "address": "0x06830388ee6CD0942A84D6e5422A8b0c1eF45a9E",
+      "createdBy": "0xdBbd713C1d37Eb96653D5b7EBfb03E608A7beD0f",
+      "block": 61329094,
+      "args": []
+    },
+    "rewards": {
+      "address": "0xeD388d3F48eE66db2271e036187569aEE19020F3",
+      "txHash": "0x47431001a2d31249b76799248675fda532a69184d9003b1fc0349827feef6b49",
+      "block": 61329097,
+      "args": [
+        "0xdBbd713C1d37Eb96653D5b7EBfb03E608A7beD0f"
+      ]
+    }
+  },
+  "rewardsFunding": {
+    "avax": "0.02",
+    "eco": "200",
+    "buyTx": "0x5b7451ad76556b8b7fc9aa61c389049c9c6ff6493bd06d4877e160b72554a1e7",
+    "transferTx": "0x2ccd06ecf68a55a85061d6768707d25190a906696c57302caa4d21bbaf54efe9"
+  }
+}

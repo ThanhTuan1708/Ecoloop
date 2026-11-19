@@ -1123,6 +1123,11 @@ export const en:Record<string,string>={
  "Chiết khấu điều phối về Chủ App EcoLoop ({pct}% chênh lệch):":"EcoLoop App Owner commission ({pct}% spread):",
  "Đang phân tích màu sắc ảnh chụp để gợi ý vật liệu & giá…":"Analyzing photo colors to suggest materials & price…",
  "Gợi ý nhanh từ ảnh chụp: {label}":"Quick photo suggestion: {label}",
+ "Đã tải danh sách tài khoản bảo mật từ máy chủ.":"Loaded protected account registry from server.",
+ "Chưa đọc được danh sách tài khoản.":"Could not load account registry.",
+ "Tải danh sách tài khoản (Ký xác thực Admin)":"Load Account Registry (Admin Signature)",
+ "Avalanche ICM (Teleporter) · Chứng thực EPR Liên chuỗi":"Avalanche ICM (Teleporter) · Cross-Chain EPR Attestation",
+ "Hợp đồng EcoLoopTeleporterBridge sẵn sàng đồng bộ chứng nhận NFT ECOREC sang các Avalanche L1 kiểm toán ESG.":"EcoLoopTeleporterBridge is ready to sync ECOREC NFT certificates across ESG audit Avalanche L1s.",
 };
 
 // Messages with a dynamic part (from wallet/server errors).

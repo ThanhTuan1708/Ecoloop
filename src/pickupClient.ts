@@ -1,6 +1,6 @@
 import { concatHex, encodeDeployData, encodeFunctionData, formatEther, getContractAddress, keccak256, stringToHex, TransactionNotFoundError, TransactionReceiptNotFoundError, type Abi, type Address, type Hash, type TransactionReceipt } from 'viem';
 import { publicClient } from './chain';
-import { assertWallet, chain, getWalletName } from './wallet';
+import { assertWallet, chain, getWalletName, signAuthorizationMessage } from './wallet';
 import { tr } from './settings';
 import { pickupAbi, pickupBytecode, pickupRuntimeHash, pickupImmutables, forwarderAbi, forwarderBytecode, forwarderRuntimeHash, forwarderImmutables, certificateAbi } from './generated/pickup';
 import { authorize, uploadEvidence } from './evidence';
@@ -61,6 +61,7 @@ export function codeHash(code:Hash|undefined,immutables:[number,number][]){
 export async function pickupAccess(address:Address){
   const code=await publicClient.getCode({address});
   if(codeHash(code,pickupImmutables)===pickupRuntimeHash)return 'public';
+  if(codeHash(code,[])===pickupRuntime.publicEcoV4)return 'public';
   if(codeHash(code,[])===pickupRuntime.roleRestrictedEco)return 'restricted';
 }
 export async function isPickupV4(address:Address){
@@ -114,9 +115,12 @@ async function checkPickupFunds(address:Address,account:Address,functionName:str
   if(sponsored&&value===0n)return;
   let balance=await publicClient.getBalance({address:account});
   const feeBuffer=2_000_000_000_000_000n;
-  if(balance<value+feeBuffer&&value<=50_000_000_000_000_000n){
+  if(balance<value+feeBuffer&&value===0n){
     try{
-      await api('/api/relay/stipend',{account,needed:(value+feeBuffer*2n).toString()});
+      const needed=(feeBuffer*2n).toString();
+      const timestamp=Date.now();
+      const signature=await signAuthorizationMessage(account,`EcoLoop Gas Stipend\nAccount: ${account.toLowerCase()}\nNeeded: ${needed}\nTimestamp: ${timestamp}`);
+      await api('/api/relay/stipend',{account,needed,timestamp,signature});
       balance=await publicClient.getBalance({address:account});
     }catch{/* fall through to standard balance check */}
   }
@@ -152,10 +156,7 @@ export async function pickupWrite(address:Address,account:Address,functionName:s
 export async function relayWrite(address:Address,account:Address,functionName:string,args:unknown[]=[]){
   if(!GASLESS_FUNCTIONS.has(functionName))throw new Error('Thao tác này không hỗ trợ miễn phí gas.');
   if(pendingPickup())throw new Error('Có giao dịch thu gom đang chờ. Kiểm tra giao dịch trước khi gửi tiếp.');
-  // For claimLot, the server relayer auto-credits any missing ECO deposit before executing.
-  if(functionName!=='claimLot'){
-    await publicClient.simulateContract({address,abi:pickupAbi,functionName,args,account} as never);
-  }
+  await publicClient.simulateContract({address,abi:pickupAbi,functionName,args,account} as never);
   const forwarder=await readFrom(address)('trustedForwarder') as Address;
   const nonce=await publicClient.readContract({address:forwarder,abi:forwarderAbi,functionName:'nonces',args:[account]}) as bigint;
   const data=encodeFunctionData({abi:pickupAbi,functionName,args} as never);

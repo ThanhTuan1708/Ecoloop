@@ -103,7 +103,16 @@ if (photos.length && !server) fail('Photos found but SEED_SERVER_URL is not set:
 
 const quotes=await Promise.all(plan.filter(p=>p.stage!=='open').map(p=>read('quote',[p.weights])));
 const requiredEco=quotes.reduce((sum,quote)=>sum+quote*12_000n/10_000n,0n);
-if(await read('balanceOf',[collector.address])<requiredEco)fail(`Fund the collector with at least ${formatEther(requiredEco)} ECO before seeding.`);
+const collectorEco=await read('balanceOf',[collector.address]);
+if(collectorEco<requiredEco){
+  // Top up the collector on the testnet AVAX -> ECO exchange of the contract when it is enabled.
+  const rate=await read('ecoPerAvax');
+  const shortfall=requiredEco-collectorEco;
+  if(rate===0n||await read('exchangeInventory')<shortfall)fail(`Fund the collector with at least ${formatEther(requiredEco)} ECO before seeding.`);
+  const avax=(shortfall*10n**18n+rate-1n)/rate+1n;
+  console.log(`\nCollector buys ${formatEther(shortfall)} ECO for ${formatEther(avax)} AVAX (testnet exchange).`);
+  await send(collector,'buyEco',[shortfall],avax);
+}
 
 const log = { chainId: chain.id, contract: address, test: true, createdAt: new Date().toISOString(), lots: [] };
 const tx = h => explorer ? `${explorer}/tx/${h}` : h;

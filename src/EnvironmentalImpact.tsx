@@ -1,7 +1,8 @@
-import {Leaf,Droplets,Zap,TreePine,Globe2} from 'lucide-react';
+import {Leaf,Droplets,Zap,TreePine,Globe2,ShieldCheck} from 'lucide-react';
 import {materials} from './model';
 import {tr,num as fmt,wt} from './settings';
 import type {Lot} from './pickupClient';
+import {CANONICAL_TELEPORTER_ADDRESS} from './generated/teleporter';
 
 // Standard LCA (Life Cycle Assessment) recycling savings per 1 kg of material:
 // [Plastic (PET/HDPE), Paper/Cardboard, Metal (Al/Fe/Cu), Glass]
@@ -109,6 +110,15 @@ export function EnvironmentalImpactBanner({
             </small>
           </div>
         ))}
+      </div>
+
+      <div className="pickup-callout" style={{marginTop: '10px', padding: '10px 12px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '10px', flexWrap: 'wrap'}}>
+        <span>
+          <ShieldCheck size={15}/>{' '}
+          <strong>{tr('Avalanche ICM (Teleporter) · Chứng thực EPR Liên chuỗi')}</strong>:{' '}
+          <small>{tr('Hợp đồng EcoLoopTeleporterBridge sẵn sàng đồng bộ chứng nhận NFT ECOREC sang các Avalanche L1 kiểm toán ESG.')}</small>
+        </span>
+        <code>{CANONICAL_TELEPORTER_ADDRESS.slice(0, 10)}…{CANONICAL_TELEPORTER_ADDRESS.slice(-6)}</code>
       </div>
     </section>
   );

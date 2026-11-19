@@ -35,10 +35,12 @@ export default function EcoLoopWeb(){
  const [loginRole,setLoginRole]=useState<'seller'|'collector'>('seller');
  const [username,setUsername]=useState('');
  const [password,setPassword]=useState('');
- const admin=isDesignatedAdminWallet(session.account);
+ const [contractAdmin,setContractAdmin]=useState(false);
+ const admin=isDesignatedAdminWallet(session.account)||contractAdmin;
  const seller=role==='seller';const links=navLinks(seller,admin);
  const dialog=useRef<HTMLDialogElement>(null);const content=useRef<HTMLDivElement>(null);const prevAccount=useRef(session.account);
  useEffect(()=>{
+   if(!session.account)setContractAdmin(false);
    if(!prevAccount.current&&session.account){
      setProfile(false);
      setPassword('');
@@ -52,11 +54,11 @@ export default function EcoLoopWeb(){
        speakFeedback(targetRole==='collector'?'Đã đăng nhập vai trò Người thu gom.':'Đã đăng nhập vai trò Người bán.');
      }
    }
-   if(!isDesignatedAdminWallet(session.account)&&page==='admin'){
+   if(!admin&&page==='admin'){
      setPage('home');
    }
    prevAccount.current=session.account;
- },[session.account,session.accountRole,loginRole,page]);
+ },[session.account,session.accountRole,loginRole,page,admin]);
  useEffect(()=>{let active=true;setConfigError('');void(async()=>{try{await initializeConfiguration();}catch(e){if(active)setConfigError(e instanceof Error?e.message:tr('Chưa đọc được cấu hình hệ thống.'));}})();return()=>{active=false;};},[session.account,configVersion]);
  useEffect(()=>{let active=true;setBalance(undefined);setBalanceError('');if(session.account)walletBalance(session.account).then(b=>{if(active)setBalance(b);}).catch(()=>{if(active)setBalanceError(tr('Chưa đọc được số dư AVAX.'));});return()=>{active=false;};},[session.account,session.network,profile]);
  useEffect(()=>{if(profile)dialog.current?.showModal();else dialog.current?.close();},[profile]);
@@ -81,7 +83,7 @@ export default function EcoLoopWeb(){
     {configError&&<div className="web-warning" role="alert">{tr(configError)}<button onClick={()=>setConfigVersion(v=>v+1)}><RefreshCw size={14}/>{tr('Thử lại')}</button></div>}
     {page==='home'&&seller&&<><section className="web-hero"><div><p>{tr('GOM ĐIỀU CŨ · GIEO ĐIỀU XANH')}</p><h1>{tr('Dọn nhà nhẹ tênh.')}<br/><span>{tr('Tích điểm xanh.')}</span></h1><div>{tr('Thu gom tận nơi, gần bạn hơn.')}<br/>{tr('Google hoặc Core. Bạn tự chọn.')}</div>{!admin&&<button onClick={post}>{tr('Đăng lô phế liệu')} <ArrowUpRight size={16}/></button>}</div><Recycle className="web-hero-art" strokeWidth={1.2}/></section><div className="web-rates"><b>{tr('ĐIỂM THAM KHẢO')}</b><span>{tr('Giấy')} <strong>10 ECO/kg</strong></span><span>{tr('Nhựa')} <strong>20 ECO/kg</strong></span><span>{tr('Kim loại')} <strong>40 ECO/kg</strong></span><span>{tr('Thủy tinh')} <strong>8 ECO/kg</strong></span><small>{tr('Theo số cân được xác nhận')}</small></div></>}
     {page==='home'&&!seller&&<section className="web-hero"><div><p>{tr('NGƯỜI THU GOM')}</p><h1>{tr('Tìm lô thu gom gần bạn')}</h1><div>{tr('Chọn lô phế liệu gần bạn, bấm nhận đơn để xem địa chỉ, đến nơi cân thực tế và gửi kết quả.')}</div><button onClick={()=>navigate('orders')}>{tr('Lô đã nhận')} <ArrowUpRight size={16}/></button></div><Truck className="web-hero-art" strokeWidth={1.2}/></section>}
-    <Pickup collectorLot={collectorLot} onBrowseAsCollector={id=>switchRole('collector',id)} onOpenOrders={()=>navigate('orders')} account={session.account} admin={admin} demo={false} page={page} role={role} createRequest={createRequest} onConnect={()=>setProfile(true)} walletSlot={<WalletCard account={session.account} holder={session.email||session.name} onConnect={()=>setProfile(true)}/>}><SettingsPanel account={session.account} network={session.network} chainId={session.chain.id} chainName={session.chain.name} walletName={session.name}/></Pickup>
+    <Pickup collectorLot={collectorLot} onContractAdmin={setContractAdmin} onBrowseAsCollector={id=>switchRole('collector',id)} onOpenOrders={()=>navigate('orders')} account={session.account} admin={admin} demo={false} page={page} role={role} createRequest={createRequest} onConnect={()=>setProfile(true)} walletSlot={<WalletCard account={session.account} holder={session.email||session.name} onConnect={()=>setProfile(true)}/>}><SettingsPanel account={session.account} network={session.network} chainId={session.chain.id} chainName={session.chain.name} walletName={session.name}/></Pickup>
     {page==='admin'&&admin&&<details className="nullmaps-settings"><summary>{tr('Bản đồ Nullmaps local · kiểm tra kết nối')}</summary><p>{tr('Nền bản đồ Việt Nam và tìm địa điểm từ máy chủ của bạn. Chưa cấu hình dịch vụ sẽ có thông báo tại đây.')}</p><Suspense fallback={<p>{tr('Đang tải bản đồ…')}</p>}><PickupMap lots={[]}/></Suspense></details>}
     <footer className="web-footer">© EcoLoop · Make good things go round.<span>● Avalanche Fuji · 43113</span></footer>
    </div>

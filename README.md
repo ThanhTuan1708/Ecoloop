@@ -1,4 +1,54 @@
-# EcoLoop · Avalanche Fuji application
+# EcoLoop · Doorstep recycling marketplace on Avalanche
+
+> **EN:** EcoLoop connects households, informal waste collectors and EPR-obligated brands. A collector locks **120% ECO escrow** to claim a pickup, weighs the scrap at the door, the household accepts on-chain, and the contract pays from escrow and mints an **on-chain SVG recycling certificate (ECOREC NFT)**. Household actions are **gasless (ERC-2771)**, and certificates can be attested to another Avalanche L1 through **Avalanche ICM (Teleporter)**. Built for Team1 Vietnam UniHack 2026.
+
+**Demo:** https://ecoloop-pi-six.vercel.app · **Pitch deck:** `EcoLoop-Avalanche-T1-PitchDeck.pdf` · **Tài liệu ICM:** [docs/AVALANCHE-ICM.md](docs/AVALANCHE-ICM.md)
+
+## Dành cho giám khảo: kiểm tra trong 3 phút
+
+1. Mở bảng contract bên dưới: mọi contract đã **verify mã nguồn trên Snowtrace**, đọc được hàm `claimLot`, `acceptLot`, `bridgeCertificate`.
+2. Mở demo, đăng nhập bằng Core (Fuji) hoặc tài khoản mật khẩu, xem lô đang mở trên bản đồ, chứng nhận ECOREC trong **Ví xanh**.
+3. Chạy test: `npm install && npm test` (EVM thật qua Hardhat EDR: escrow, chống tự duyệt, timeout, relayer EIP-712, ICM chống giả mạo/phát lại).
+
+### Hợp đồng trên Fuji
+
+<!-- contracts:start -->
+Mạng: **Avalanche Fuji C-Chain (43113)** · block triển khai #61329094 · cập nhật 2026-11-19
+
+| Contract | Địa chỉ (Snowtrace) | Deploy |
+|---|---|---|
+| EcoLoopPickup V4 (ECO + escrow + ERC-2771) | [`0xdBbd713C1d37Eb96653D5b7EBfb03E608A7beD0f`](https://testnet.snowtrace.io/address/0xdBbd713C1d37Eb96653D5b7EBfb03E608A7beD0f#code) | [tx](https://testnet.snowtrace.io/tx/0x2755cd71843fa859ba91a6384afa2dbb59ba6e988c13a88188638ff6c1248b60) |
+| EcoLoopCertificate (ECOREC NFT, SVG on-chain) | [`0x06830388ee6CD0942A84D6e5422A8b0c1eF45a9E`](https://testnet.snowtrace.io/address/0x06830388ee6CD0942A84D6e5422A8b0c1eF45a9E#code) |  |
+| EcoLoopForwarder (gasless, ERC-2771) | [`0xC8D4404D0aB0a5F14FAa7628C6aEee489cE4a141`](https://testnet.snowtrace.io/address/0xC8D4404D0aB0a5F14FAa7628C6aEee489cE4a141#code) | [tx](https://testnet.snowtrace.io/tx/0xf4e605e86dc878c407caf409878900531e536849a2c25a822253ae62fd6b480b) |
+| EcoLoopRewards (check-in, missions) | [`0xeD388d3F48eE66db2271e036187569aEE19020F3`](https://testnet.snowtrace.io/address/0xeD388d3F48eE66db2271e036187569aEE19020F3#code) | [tx](https://testnet.snowtrace.io/tx/0x47431001a2d31249b76799248675fda532a69184d9003b1fc0349827feef6b49) |
+| EcoLoopTeleporterBridge (Avalanche ICM, source) | [`0x63facfA100D194B057EB429A91e2f2dEfb2c1FF5`](https://testnet.snowtrace.io/address/0x63facfA100D194B057EB429A91e2f2dEfb2c1FF5#code) | [tx](https://testnet.snowtrace.io/tx/0x84fb7835ab4492c47fd6b685e99d9d2dc61540dc312b0816574fce11ec1167bf) |
+
+**ICM (Teleporter):** bridge nguồn đã triển khai trên Fuji, chưa kết nối L1 đích. Luồng gửi/nhận, chống giả mạo và chống phát lại được kiểm thử tự động trong `tests/teleporter-bridge.test.mjs`.
+<!-- contracts:end -->
+
+### Kiến trúc
+
+```mermaid
+flowchart LR
+  H[Hộ gia đình] -- "createLot / acceptLot (ký EIP-712, 0 gas)" --> R[Relayer /api/relay]
+  R --> F[EcoLoopForwarder ERC-2771]
+  F --> P[EcoLoopPickup V4<br/>ECO + escrow 120%]
+  C[Người thu gom] -- "claimLot (khóa ECO) / proposeLot (cân thật)" --> P
+  P -- "acceptLot: trả từ escrow + đúc NFT" --> N[EcoLoopCertificate ECOREC]
+  N --> B[EcoLoopTeleporterBridge]
+  B -- "Avalanche ICM / Teleporter" --> L1[Avalanche L1 kiểm toán ESG]
+  S[(Server: ảnh, liên hệ mã hóa AES-GCM)] -. "chữ ký nonce 1 lần" .- H
+```
+
+### Đã làm / chưa làm (minh bạch)
+
+- **Chạy thật trên Fuji:** đăng lô, ký quỹ ECO, cân, xác nhận, trả tiền từ escrow, NFT, đổi quà (burn ECO), relayer miễn gas.
+- **Mô phỏng, chưa phải tiền thật:** khung thanh toán VNĐ (VietQR/ví/tiền mặt) chỉ để minh họa luồng tiền mặt ngoài đời; ước lượng kg từ ảnh dùng phân tích màu, không phải mô hình AI đã huấn luyện.
+- **Tin cậy ngoài chain:** cân và giao nhận vẫn do người thu gom thực hiện; contract chưa audit, chỉ dùng trên testnet.
+
+---
+
+## Giới thiệu (tiếng Việt)
 
 Ứng dụng tái chế nhận ECO, đổi và giao quà. Giao diện tiếng Việt, dùng Core Wallet trên Chrome/Edge. Web mặc định chạy chế độ testnet với số liệu thật; demo là lựa chọn riêng.
 
@@ -151,26 +201,31 @@ Cách thêm chữ mới cho giao diện:
 
 Nếu sửa màu trong `src/web.css` hoặc `src/pickup.css`, chạy `npm run theme:dark` để tạo lại `src/theme-dark.css`.
 
-## Hợp đồng thu gom V4: ký quỹ thật, miễn phí gas, chứng nhận NFT
+## Hợp đồng thu gom V4: Ký quỹ ECO thông minh, Quầy đổi AVAX ↔ ECO, Miễn phí gas & Avalanche ICM
 
-**Ký quỹ AVAX thật.** Khi nhận một lô, người thu gom phải khóa AVAX vào contract, bằng giá ước tính cộng thêm 20%.
-- Người thu gom gửi số cân thực tế, chủ lô xác nhận. Contract tự trả AVAX cho chủ lô theo số cân thực tế và hoàn phần dư cho người thu gom.
-- Nếu người thu gom trả việc, hoặc quá 7 ngày không xong, toàn bộ AVAX được hoàn lại người thu gom.
-- Giá thu mua (AVAX/kg cho từng loại vật liệu) do quản trị viên chỉnh trong **Thiết lập**.
+**Ký quỹ ECO bảo vệ hai chiều & Chống lạm phát nguồn cung.**
+- Khi nhận một lô (`claimLot`), người thu gom khóa **120% giá trị ước tính bằng token ECO** vào hợp đồng (`ESCROW_BUFFER_BPS = 12_000`) kèm tham số `maximumDeposit` chống trượt giá. Người thu gom có thể quy đổi AVAX sang ECO trực tiếp trên chain qua hàm `buyEco(minimumEco)` (doanh thu AVAX được hạch toán tách biệt qua `exchangeProceeds`).
+- Người thu gom cân thực tế tại chỗ (`proposeLot`), chủ lô đối chiếu và xác nhận (`acceptLot`). Hợp đồng tự động giải ngân số ECO thực tế cho chủ lô và hoàn trả phần dư cho người thu gom.
+- **Bảo toàn tổng cung (Zero-Inflation C2C):** Giao dịch ngang hàng C2C thanh toán 100% từ khoản ký quỹ đã khóa, không phát hành thêm ECO mới (ngăn chặn hoàn toàn tấn công thông đồng wash-trading giữa 2 ví để in token). Quỹ thưởng xanh bổ sung (`collectorBonusBps`) chỉ kích hoạt khi đơn được nghiệm thu bởi trạm thu gom chính thức có `COLLECTOR_ROLE`.
+- Nếu người thu gom trả việc hoặc quá 7 ngày không hoàn tất (`TIMEOUT = 7 days`), `releaseLot` hoàn trả toàn bộ ECO ký quỹ ngay cả khi hệ thống đang tạm dừng (`paused`).
 
-**Miễn phí gas cho hộ gia đình.** Các thao tác đăng lô, xác nhận, yêu cầu cân lại, hủy lô và đổi quà được ký bằng EIP-712. Server EcoLoop gửi giao dịch qua forwarder ERC-2771 và trả phí gas. Contract vẫn ghi nhận đúng ví của hộ gia đình là người thực hiện.
-- Cách bật: đặt `RELAYER_PRIVATE_KEY` trong `.env`, dùng **một ví Fuji riêng** có ít AVAX test. Không dùng chung khóa của ví quản trị.
-- Server tự giới hạn số lượt: `RELAY_DAILY_LIMIT` (cả ngày) và `RELAY_HOURLY_PER_WALLET` (mỗi ví mỗi giờ).
-- Người thu gom vẫn tự trả gas, vì họ phải khóa AVAX.
+**Miễn phí gas qua chuẩn ERC-2771 (`EcoLoopForwarder`).**
+- Các thao tác của người dùng (`createLot`, `claimLot`, `proposeLot`, `acceptLot`, `disputeLot`, `cancelLot`, `releaseLot`, `redeemReward`, `fulfillRewardRedemption`, `transfer`) hỗ trợ ký cấu trúc EIP-712 và gửi qua relayer `/api/relay`. Hợp đồng thu hồi đúng định danh người ký qua `_msgSender()`.
+- Cách bật: đặt `RELAYER_PRIVATE_KEY` trong `.env` bằng **một ví Fuji riêng** có ít AVAX test (không dùng khóa của ví quản trị). Server tự giới hạn lượt gọi theo ngày (`RELAY_DAILY_LIMIT`) và theo ví/giờ (`RELAY_HOURLY_PER_WALLET`); API hỗ trợ phí gas tối thiểu (`/api/relay/stipend`, tối đa 0.005 AVAX/24h) bắt buộc chữ ký xác thực ví.
 
-**Chứng nhận tái chế NFT.** Mỗi lô hoàn tất tạo một NFT (contract `EcoLoopCertificate`, ký hiệu ECOREC) cho chủ lô. NFT ghi số kg của từng vật liệu, ví người thu gom và số AVAX đã trả. Hình ảnh và dữ liệu nằm hoàn toàn trên chain, xem được trên Snowtrace và trong trang **Ví xanh**.
+**Chứng nhận tái chế NFT (`ECOREC`) 100% On-chain & Cầu nối liên chuỗi Avalanche ICM (Teleporter).**
+- Mỗi lô hoàn tất tự động đúc một NFT `EcoLoopCertificate` (`ECOREC`) cho chủ lô với ảnh vector SVG và thuộc tính khối lượng từng loại vật liệu lưu hoàn toàn trên chain (xem trực tiếp trên Snowtrace và trang **Ví xanh**).
+- Hợp đồng [contracts/EcoLoopTeleporterBridge.sol](contracts/EcoLoopTeleporterBridge.sol) tích hợp chuẩn **Avalanche Interchain Messaging (Teleporter — `0x253b2784c75e510dD0fF1da844684a1aC0aa5fcf`)**, cho phép đồng bộ bằng chứng tái chế EPR từ Avalanche Fuji C-Chain sang các mạng **Avalanche L1** kiểm toán ESG doanh nghiệp với cơ chế chống giả mạo và chống phát lại. Xem chi tiết tại [docs/AVALANCHE-ICM.md](docs/AVALANCHE-ICM.md).
 
-**Chỉ dữ liệu thật.** App đã bỏ hẳn 28 lô mẫu, phần quà mẫu và chế độ demo. Mọi lô, số dư, phần thưởng và chứng nhận đều đọc từ contract V4 trên Avalanche. Lô mới bắt buộc có ảnh thật, và chỉ mã băm của ảnh được ghi lên chain. Cách tạo dữ liệu thật và dữ liệu thử xem ở [docs/DU-LIEU-THAT.md](docs/DU-LIEU-THAT.md).
+**Chỉ dữ liệu thật & Bảo mật quyền riêng tư.**
+- Mọi lô hàng, số dư, lượt bán hoàn tất, biên nhận đổi quà và chứng nhận NFT đều đọc trực tiếp từ hợp đồng trên Avalanche Fuji (không cộng số liệu ảo hay link IPFS giả lập).
+- Tọa độ công khai trên chain được làm tròn ~1 km; số điện thoại, địa chỉ nhà, ảnh gốc và tin nhắn chỉ mở khóa cho đúng chủ lô và người thu gom đang nhận đơn thông qua chữ ký nonce dùng một lần và mã hóa `AES-256-GCM`. Danh sách tài khoản đăng ký được ẩn khỏi API công khai và quyền Quản trị tự động đồng bộ với `DEFAULT_ADMIN_ROLE` trên Smart Contract.
 
 **Triển khai V4**, chọn một trong hai cách:
 - Qua giao diện: vào **Thiết lập** bằng ví quản trị → **Triển khai bằng ví quản trị** (2 giao dịch: forwarder, rồi contract thu gom) → **Kích hoạt dùng chung**. Lô, ký quỹ và ECO của contract cũ vẫn thuộc địa chỉ cũ.
-- Qua dòng lệnh: chạy `npm run deploy:pickup:fuji` (cần `DEPLOYER_PRIVATE_KEY` trong `.env`). Script tự ghi địa chỉ mới vào `config/app.json`.
-- Mọi ví có thể đăng lô hoặc nhận thu gom lô của ví khác. Người nhận việc vẫn phải ký quỹ AVAX.
+- Qua dòng lệnh: chạy `npm run deploy:pickup:fuji` (cần `DEPLOYER_PRIVATE_KEY` trong `.env`). Script triển khai Forwarder, Pickup V4 (kèm quầy đổi AVAX→ECO), Rewards, ghi địa chỉ vào `config/app.json`, `deployments/43113-latest.json` và bảng contract ở đầu README.
+- Sau đó: `npm run seed:fuji` (lô thử), `npm run deploy:bridge:fuji` (ICM), `npm run verify:fuji` (verify trên Snowtrace).
+- Mọi ví có thể đăng lô hoặc nhận thu gom lô của ví khác. Người nhận việc phải ký quỹ **ECO** (mua ECO bằng AVAX test qua quầy đổi `buyEco` của contract).
 - Nếu chạy trên **Vercel**: server không ghi được `config/app.json`, nên nút **Kích hoạt dùng chung** không dùng được. Hãy chạy `npm run deploy:pickup:fuji` trên máy, commit file `config/app.json` rồi deploy lại. Đặt `RELAYER_PRIVATE_KEY` trong mục **Environment Variables** của Vercel.
 
 ## Thẻ ví EcoLoop (EcoLoop Card)

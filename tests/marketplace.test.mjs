@@ -91,7 +91,9 @@ describe('Shopee-style C2C Web3 Marketplace Engine & API', () => {
     })
 
     assert.equal(card.lotId, 2)
-    assert.equal(card.thumbnail.protocol, 'ipfs')
+    assert.equal(card.thumbnail.protocol, 'sha256')
+    assert.equal(card.seller.completedSalesCount, 0)
+    assert.equal(card.metrics.viewsCount, 0)
     assert.equal(card.seller.location.district, 'Quận 7')
     assert.equal(card.seller.location.province, 'TP. Hồ Chí Minh')
     assert.ok(typeof card.seller.location.distanceKm === 'number' && card.seller.location.distanceKm > 0)
@@ -142,6 +144,14 @@ describe('Shopee-style C2C Web3 Marketplace Engine & API', () => {
           if (functionName === 'getLot') {
             const id = Number(args[0])
             return SAMPLE_LOTS.find((l) => l.id === id)
+          }
+          if (functionName === 'lotPaymentValue') {
+            const id = Number(args[0])
+            const lot = SAMPLE_LOTS.find((l) => l.id === id)
+            const weights = [3, 4].includes(lot.status) && lot.actual.some((w) => w > 0) ? lot.actual : lot.estimated
+            const rates = [20n, 10n, 40n, 8n]
+            const eco = weights.reduce((s, g, i) => s + (BigInt(g) * rates[i] * 10n ** 18n) / 1000n, 0n)
+            return eco
           }
           throw new Error(`Unexpected call: ${functionName}`)
         },

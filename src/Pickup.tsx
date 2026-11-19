@@ -29,10 +29,11 @@ try{for(const k of ['ecoloop-pickup-catalog-v2','ecoloop-pickup-rewards-v2','eco
 
 const same=(a?:string,b?:string)=>!!a&&!!b&&a.toLowerCase()===b.toLowerCase();
 
-export default function Pickup({account,admin,onConnect,page='home',role='seller',createRequest=0,onOpenOrders,onBrowseAsCollector,collectorLot,children,walletSlot}:{
+export default function Pickup({account,admin,onConnect,page='home',role='seller',createRequest=0,onOpenOrders,onBrowseAsCollector,collectorLot,onContractAdmin,children,walletSlot}:{
   children?:ReactNode;walletSlot?:ReactNode;account?:Address;admin:boolean;
   demo?:boolean;onConnect:()=>void;page?:'home'|'orders'|'wallet'|'rewards'|'settings'|'messages'|'admin';
   role?:'seller'|'collector';createRequest?:number;collectorLot?:number;
+  onContractAdmin?:(isAdmin:boolean)=>void;
   onOpenOrders:()=>void;onBrowseAsCollector:(lotId:number)=>void;
 }){
   const [rewardsAddress,setRewardsAddress]=useState<Address>();
@@ -206,6 +207,9 @@ export default function Pickup({account,admin,onConnect,page='home',role='seller
         const wallet=await pickupReadWallet(configured,account).catch(()=>undefined);
         if(v!==version.current)return;
         setBalanceAtomic(wallet?.balanceAtomic??0n);setCanFulfillRewards(!!wallet?.collector);
+        onContractAdmin?.(!!wallet?.admin);
+      }else{
+        onContractAdmin?.(false);
       }
     }catch{
       if(v!==version.current)return;

@@ -177,11 +177,11 @@ export function lotToProductCard(lot, { chainId = 43113, contractAddress = ZERO,
     l => String(l.owner).toLowerCase() === String(lot.owner).toLowerCase()
   );
   const completedOnChain = sellerLots.filter(l => Number(l.status) === 4).length;
-  const evidenceStr = String(lot.evidence || '0x' + '1'.repeat(64));
-  const seedNum = parseInt(evidenceStr.slice(2, 6) || '1a2b', 16) || Number(lot.id) * 17;
-  const completedSalesCount = completedOnChain + (seedNum % 24) + 1;
-  const reputationScore = Number((4.7 + (seedNum % 4) * 0.1).toFixed(1));
-  const totalReviews = Math.max(1, Math.floor(completedSalesCount * 0.65));
+  const evidenceStr = String(lot.evidence || '0x' + '0'.repeat(64));
+  // Strict real on-chain metrics: no synthetic sales, ratings, or views.
+  const completedSalesCount = completedOnChain;
+  const reputationScore = 0;
+  const totalReviews = 0;
 
   const status = mapPickupStatusToWeb3(statusNum);
   const uiState = buildUiState(statusNum);
@@ -189,7 +189,6 @@ export function lotToProductCard(lot, { chainId = 43113, contractAddress = ZERO,
   const updatedMs = rawUpdated > 1e11 ? rawUpdated : rawUpdated * 1000;
   const updatedIso = new Date(updatedMs || Date.now()).toISOString();
   const expiresIso = status === 'IN_ESCROW' ? new Date(updatedMs + SEVEN_DAYS_MS).toISOString() : null;
-  const cidSuffix = evidenceStr.slice(2, 46).toLowerCase();
   const lotId = Number(lot.id);
   const popularityScore = Number(
     (completedSalesCount * 2.5 + reputationScore * 10 + (status === 'ACTIVE' ? 25 : 0) + lotId).toFixed(2)
@@ -213,9 +212,9 @@ export function lotToProductCard(lot, { chainId = 43113, contractAddress = ZERO,
     totalKilograms,
     condition: totalKilograms >= 5 ? 'LIKE_NEW' : 'GOOD',
     thumbnail: {
-      cidOrTxId: `bafybei${cidSuffix}`,
-      protocol: 'ipfs',
-      gatewayUrl: `ipfs://bafybei${cidSuffix}`,
+      cidOrTxId: evidenceStr,
+      protocol: 'sha256',
+      gatewayUrl: '/api/evidence/read',
       previewUrl: `/sample-scrap-${MATERIALS[dominant.index].id}.jpg`,
       mimeType: 'image/jpeg',
       width: 600,
@@ -244,8 +243,8 @@ export function lotToProductCard(lot, { chainId = 43113, contractAddress = ZERO,
     metrics: {
       ratingAvg: reputationScore,
       ratingCount: totalReviews,
-      viewsCount: 18 + (seedNum % 140),
-      favoritesCount: 2 + (seedNum % 25),
+      viewsCount: 0,
+      favoritesCount: 0,
       popularityScore,
     },
     badges: {

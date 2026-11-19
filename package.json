@@ -21,6 +21,8 @@
     "deploy:fuji": "node --env-file=.env scripts/deploy.mjs",
     "deploy:pickup:local": "node scripts/deploy-pickup.mjs --local",
     "deploy:pickup:fuji": "node --env-file=.env scripts/deploy-pickup.mjs",
+    "deploy:bridge:fuji": "node --env-file=.env scripts/deploy-bridge.mjs",
+    "verify:fuji": "node --env-file-if-exists=.env scripts/verify-snowtrace.mjs",
     "seed:local": "node scripts/seed-fuji.mjs --local",
     "seed:fuji": "node --env-file=.env scripts/seed-fuji.mjs"
   },

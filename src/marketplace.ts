@@ -23,7 +23,7 @@ export type ItemCondition = 'NEW' | 'LIKE_NEW' | 'GOOD' | 'FAIR' | 'SCRAP';
 
 export interface MediaAsset {
   cidOrTxId: string;
-  protocol: 'ipfs' | 'ar';
+  protocol: 'sha256' | 'ipfs' | 'ar';
   gatewayUrl: string;
   previewUrl: string;
   mimeType: 'image/webp' | 'image/jpeg' | 'image/png';
@@ -378,7 +378,6 @@ export function lotToProductCard(
   const expiresIso =
     status === 'IN_ESCROW' ? new Date(updatedMs + SEVEN_DAYS_MS).toISOString() : null;
 
-  const cidSuffix = lot.evidence.slice(2, 46).toLowerCase();
   const previewUrl =
     CATEGORY_PREVIEW_IMAGES[dominantSlug] ?? '/sample-scrap-plastic.jpg';
   const popularityScore = Number(
@@ -400,9 +399,9 @@ export function lotToProductCard(
     totalKilograms,
     condition: totalKilograms >= 5 ? 'LIKE_NEW' : 'GOOD',
     thumbnail: {
-      cidOrTxId: `bafybei${cidSuffix}`,
-      protocol: 'ipfs',
-      gatewayUrl: `ipfs://bafybei${cidSuffix}`,
+      cidOrTxId: lot.evidence,
+      protocol: 'sha256',
+      gatewayUrl: '/api/evidence/read',
       previewUrl,
       mimeType: 'image/jpeg',
       width: 600,
