@@ -13,7 +13,8 @@
 1. Mở bảng contract bên dưới: mọi contract đã **verify mã nguồn trên Snowtrace**, đọc được hàm `claimLot`, `acceptLot`, `bridgeCertificate`.
 2. Mở **[Bằng chứng on-chain](docs/ON-CHAIN-PROOF.md)**: mỗi luồng (ký quỹ, quỹ ứng trước miễn gas, P2P, cân lại, trả đơn, hủy, đổi quà, điểm danh) có link Snowtrace từng giao dịch. Đây là giao dịch kiểm thử từ ví test của nhóm, ghi rõ như vậy.
 3. Mở demo, đăng nhập bằng Core (Fuji) hoặc tài khoản mật khẩu, xem lô đang mở trên bản đồ, chứng nhận ECOREC trong **Ví xanh** kèm trạng thái gửi qua **Avalanche ICM**.
-4. Chạy test: `npm install && npm test`: 119 test trên EVM thật (Hardhat EDR), gồm 61 test đơn vị, fuzz bất biến ký quỹ/tổng cung, 19 test cầu ICM (giả mạo, phát lại, sai chain).
+4. Đọc [docs/SECURITY.md](docs/SECURITY.md): Slither 0.11.6 trong CI (0 lỗi High, có đánh giá từng cảnh báo) và 6 bất biến được fuzz.
+5. Chạy test: `npm install && npm test`: 119 test trên EVM thật (Hardhat EDR), gồm 61 test đơn vị, fuzz bất biến ký quỹ/tổng cung, 19 test cầu ICM (giả mạo, phát lại, sai chain).
 
 ### Hợp đồng trên Fuji
 

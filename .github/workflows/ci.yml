@@ -20,3 +20,18 @@ jobs:
         run: npm test
       - name: Type check + production build
         run: npm run build
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Slither static analysis (fails on High findings; triage in docs/SECURITY.md)
+        run: |
+          pip install --quiet slither-analyzer==0.11.6 solc-select
+          solc-select install 0.8.37 && solc-select use 0.8.37
+          for c in EcoLoopPickup EcoLoopTeleporterBridge EcoLoopRewards EcoLoopForwarder EcoLoopCertificate; do
+            echo "::group::Slither $c"
+            slither contracts/$c.sol \
+              --solc-remaps "@openzeppelin=node_modules/@openzeppelin" \
+              --solc-args "--optimize --optimize-runs 200 --evm-version cancun" \
+              --filter-paths node_modules --exclude-optimization --exclude-informational --fail-high
+            echo "::endgroup::"
+          done

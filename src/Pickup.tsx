@@ -1,5 +1,5 @@
-import {lazy,Suspense,useEffect,useRef,useState,type FormEvent,type ReactNode} from 'react';
-import {MapPin,Plus,RefreshCw,Navigation,ArrowRight,CheckCircle2,PackageCheck,ShieldCheck,Lock,Star,Coins,SlidersHorizontal,ChevronLeft,ChevronRight,History,Award,ExternalLink,Database,Fuel,Pencil,Trash2,Eye,EyeOff} from 'lucide-react';
+import {lazy,Suspense,useEffect,useRef,useState,type ReactNode} from 'react';
+import {MapPin,Plus,RefreshCw,Navigation,ArrowRight,CheckCircle2,PackageCheck,ShieldCheck,Lock,Star,Coins,SlidersHorizontal,ChevronLeft,ChevronRight,Award,ExternalLink,Database,Fuel,Pencil,Trash2,Eye,EyeOff} from 'lucide-react';
 import {formatEther,isAddress,keccak256,parseEther,stringToHex,type Address,type Hash} from 'viem';
 import {chain,getWalletName} from './wallet';
 import {errorMessage,txUrl,publicClient} from './chain';
@@ -7,7 +7,7 @@ import {materials,short} from './model';
 import {tr,num as fmt,wt,dateTime,notify,unit} from './settings';
 import {uploadEvidence,viewEvidence} from './evidence';
 import {pickupAbi} from './generated/pickup';
-import {lotStatuses,activatePickup,deployPickup,digest,distanceKm,pendingPickup,pickupDetails,pickupRead,pickupReadWallet,pickupWrite,householdWrite,fundRelayer,exchangeState,requiredDeposit,payoutPreview,readCertificate,certificateUrl,addressUrl,isPickupV4,checkPendingPickup,dismissUnseenPickup,savePickupPhoto,savePickupDetails,ZERO,type Lot,type CertificateView} from './pickupClient';
+import {lotStatuses,activatePickup,deployPickup,digest,distanceKm,pendingPickup,pickupDetails,pickupRead,pickupReadWallet,pickupWrite,householdWrite,fundRelayer,exchangeState,requiredDeposit,payoutPreview,addressUrl,isPickupV4,checkPendingPickup,dismissUnseenPickup,savePickupPhoto,savePickupDetails,ZERO,type Lot} from './pickupClient';
 import {queryProductCards,type ListingStatus,type SortOption,type ShopeeWeb3ProductCard} from './marketplace';
 import PickupChat from './PickupChat';
 import './pickup.css';
@@ -18,11 +18,13 @@ import {saveAdminCatalog,useAdminCatalog,type CustomLotItem} from './adminCatalo
 import {DummyLotPaymentCard,DummyWalletWidget} from './DummyPaymentBox';
 import {EnvironmentalImpactBanner} from './EnvironmentalImpact';
 import {LotReviewBox,useLotReviews,getWalletRatingSummary} from './LotReviewBox';
-import {ScrapPhotoSmartBox,ScrapQuickPresets} from './ScrapSmartEstimate';
-import {totalKg as total,pointsEco as points,buyCashVnd,calcLotEconomics} from './EcoEconomics';
+import {totalKg as total,pointsEco as points,calcLotEconomics} from './EcoEconomics';
 import {AdminRevenueDashboard,AdminEconomicsPanel,AdminAccountsPanel,ExchangeSettings} from './AdminPanels';
 import {PickupRewards} from './PickupRewards';
-import {IcmBridgePanel} from './IcmBridgePanel';
+import {PickupHistorySection} from './PickupHistory';
+import {LotForm,WeightInputs} from './LotForm';
+import {EcoExchange,type EcoExchangeProps} from './EcoExchange';
+import {CertificateCard} from './CertificateCard';
 import {requestCollectorVerification,verificationRequested,pendingVerificationRequests,type VerificationRequest} from './collectorVerification';
 
 const PickupMap=lazy(()=>import('./PickupMap'));
@@ -906,245 +908,4 @@ export default function Pickup({account,admin,onConnect,page='home',role='seller
     {page==='rewards'&&<PickupRewards balanceAtomic={balanceAtomic} gasless={gasless} admin={admin} address={address} account={account} collector={admin} busy={busy} balance={effectiveBalance} run={run} onChange={refresh} onConnect={onConnect} onDone={setMessage}/>}
     {busy&&<p role="status" className="pickup-busy">{tr('Đang xử lý… Kiểm tra cửa sổ ví nếu được yêu cầu ký. Không đóng trang khi gửi giao dịch.')}</p>}
   </section>;
-}
-
-function PickupHistorySection({
-  allCards,
-  lots,
-  seller,
-  selected,
-  onSelectLot,
-}:{
-  allCards:ShopeeWeb3ProductCard[];
-  lots:Lot[];
-  seller:boolean;
-  selected?:number;
-  onSelectLot:(id:number)=>void;
-}){
-  const lotMap=new Map(lots.map(l=>[l.id,l]));
-  const activeList=[...allCards].sort((a,b)=>(lotMap.get(b.lotId)?.updatedAt||0)-(lotMap.get(a.lotId)?.updatedAt||0));
-  const totalKg=activeList.reduce((sum,c)=>sum+c.totalKilograms,0);
-  const totalEco=activeList.reduce((sum,c)=>sum+c.pricing.ecoAmount,0);
-  const completedCount=activeList.filter(c=>c.uiState.status==='SOLD').length;
-  const inProgressCount=activeList.filter(c=>c.uiState.status==='IN_ESCROW'||c.uiState.status==='ACTIVE').length;
-
-  return (
-    <section className="pickup-history-panel" aria-label={tr("Lịch sử đã đăng lô và thu gom lô")}>
-      <div className="pickup-history-header">
-        <div>
-          <span className="eyebrow"><History size={14}/> {tr('LỊCH SỬ ĐƠN THU GOM')}</span>
-          <h3>{seller?tr('Lô của tôi'):tr('Lô đã nhận')}</h3>
-        </div>
-      </div>
-      <div className="history-kpis">
-        <div className="history-kpi-card">
-          <span>{seller?tr('Tổng lô đã đăng'):tr('Tổng chuyến thu gom')}</span>
-          <strong>{tr('{n} lô',{n:activeList.length})}</strong>
-        </div>
-        <div className="history-kpi-card">
-          <span>{tr('Đang chờ / Đang thu gom')}</span>
-          <strong>{tr('{n} lô',{n:inProgressCount})}</strong>
-        </div>
-        <div className="history-kpi-card">
-          <span>{tr('Đã hoàn tất bàn giao')}</span>
-          <strong>{tr('{n} lô',{n:completedCount})}</strong>
-        </div>
-        <div className="history-kpi-card">
-          <span>{tr('Tổng khối lượng')}</span>
-          <strong>{wt(totalKg,1)}</strong>
-        </div>
-        <div className="history-kpi-card highlight">
-          <span>{tr('Tổng giá trị quy đổi')}</span>
-          <strong>+{fmt(totalEco)} ECO</strong>
-        </div>
-      </div>
-
-      {activeList.length===0?(
-        <div className="pickup-empty">
-          <PackageCheck size={28}/>
-          <h4>{tr('Chưa có bản ghi nào trong mục này')}</h4>
-          <p>{seller?tr('Các lô bạn đăng bằng ví này sẽ hiện ở đây.'):tr('Các lô bạn nhận bằng ví này sẽ hiện ở đây.')}</p>
-        </div>
-      ):(
-        <div className="history-table-wrap">
-          <table className="history-table">
-            <thead>
-              <tr>
-                <th>{tr('Mã lô & Phế liệu')}</th>
-                <th>{tr('Vật liệu & Cân nặng')}</th>
-                <th>{seller?tr('Người thu gom'):tr('Người bán & Người thu gom')}</th>
-                <th>{tr('Điểm thưởng & Giá trị')}</th>
-                <th>{tr('Trạng thái & Thời gian')}</th>
-                <th>{tr('Thao tác')}</th>
-              </tr>
-            </thead>
-            <tbody>
-              {activeList.map(card=>{
-                const lot=lotMap.get(card.lotId);
-                const estKg=lot?total(lot.estimated):card.totalKilograms;
-                const actKg=lot&&lot.actual.some(w=>w>0)?total(lot.actual):null;
-                const isNewUserLot=!!lot&&Date.now()-lot.updatedAt<24*3600_000&&lot.status===1;
-                const updatedStr=lot?dateTime(lot.updatedAt,{hour:'2-digit',minute:'2-digit',day:'2-digit',month:'2-digit'}):tr('Vừa xong');
-                return (
-                  <tr key={card.id} className={`history-row ${selected===card.lotId?'selected':''} ${isNewUserLot?'new-user-lot':''}`}>
-                    <td>
-                      <div className="history-lot-cell">
-                        <img src={card.thumbnail.previewUrl} alt="" className="history-thumb" loading="lazy"/>
-                        <div>
-                          <div className="history-lot-badges">
-                            <span className="history-id-pill">#{card.lotId}</span>
-                            {isNewUserLot&&<span className="history-new-pill">{tr('MỚI ĐĂNG')}</span>}
-                            <span className="history-cat-pill">{tr(card.category.name)}</span>
-                          </div>
-                          <strong className="history-lot-title">{card.title}</strong>
-                          <small className="history-lot-loc"><MapPin size={11}/> {card.seller.location.district}, {card.seller.location.province}</small>
-                        </div>
-                      </div>
-                    </td>
-                    <td>
-                      <div className="history-weight-cell">
-                        <span>{card.materialTags.map(m=>`${m.symbol} ${tr(m.name)} ${wt(m.kilograms)}`).join(' · ')}</span>
-                        <small>
-                          {tr('Dự kiến:')} <b>{wt(estKg)}</b>
-                          {actKg!==null?<> {tr('· Cân thực tế:')} <b className="actual-weight-highlight">{wt(actKg)}</b></>:<> {tr('· Cân thực tế:')} <em>{tr('Chưa cân')}</em></>}
-                        </small>
-                      </div>
-                    </td>
-                    <td>
-                      <div className="history-wallet-cell">
-                        <div><small>{tr('Chủ lô:')}</small> <code>{short(card.onChain.sellerWallet)}</code></div>
-                        <div>
-                          <small>Thu gom:</small>{' '}
-                          {card.onChain.buyerWallet&&card.onChain.buyerWallet!==ZERO?(
-                            <code>{short(card.onChain.buyerWallet)}</code>
-                          ):(
-                            <span className="unassigned-tag">{tr('Chưa có người nhận')}</span>
-                          )}
-                        </div>
-                      </div>
-                    </td>
-                    <td>
-                      <div className="history-price-cell">
-                        <strong className="history-eco">+{card.pricing.amountFormatted} ECO</strong>
-                        {lot&&lot.status===4&&(lot.paid||0)>0&&<small>{tr('Đã trả {eco} ECO',{eco:fmt(lot.paid||0,6)})}</small>}
-                      </div>
-                    </td>
-                    <td>
-                      <div className="history-status-cell">
-                        <span className={`web3-status-pill pill-${card.uiState.badgeColor}`}>
-                          {tr(card.uiState.statusLabelVi)}
-                        </span>
-                        <small className="history-substatus">{tr(card.uiState.subStatusLabelVi)}</small>
-                        <small className="history-time">{tr('Cập nhật:')} {updatedStr}</small>
-                      </div>
-                    </td>
-                    <td>
-                      <button
-                        type="button"
-                        className={selected===card.lotId?'primary history-action-btn':'secondary history-action-btn'}
-                        onClick={()=>onSelectLot(card.lotId)}
-                      >
-                        {selected===card.lotId?tr('Đang xem'):lot?.status===4?tr('⭐ Đánh giá & Xem'):tr('Xem & xử lý →')}
-                      </button>
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
-      )}
-    </section>
-  );
-}
-function WeightInputs({values,onChange}:{values:string[];onChange:(v:string[])=>void}){return <div className="pickup-weights">{materials.map((m,i)=><label key={m.name}>{tr(m.name)} (kg)<input type="number" min="0" max="1000" step="0.001" required value={values[i]} onChange={e=>onChange(values.map((v,j)=>j===i?e.target.value:v))}/></label>)}</div>;}
-function LotForm({busy,center,onCreate}:{busy:boolean;center?:[number,number];onCreate:(weights:number[],file:File,evidence:Hash,point:[number,number],contact:string,address:string)=>void}){
-  const [address,setAddress]=useState('');
-  const lastSelectedAddress=useRef('');
-  function selectAddress(label:string){
-    const next=label.slice(0,400);
-    const previousSelection=lastSelectedAddress.current;
-    lastSelectedAddress.current=next;
-    setAddress(previous=>!previous.trim()||previous===previousSelection?next:previous);
-  }
-  const [weights,setWeights]=useState(['0','0','0','0']);
-  const [file,setFile]=useState<File>();
-  const [point,setPoint]=useState<[number,number]>(()=>center||[10.78,106.70]);
-  const [error,setError]=useState('');
-  const [hashing,setHashing]=useState(false);
-  async function submit(e:FormEvent<HTMLFormElement>){
-    e.preventDefault();
-    setError('');
-    const f=new FormData(e.currentTarget);
-    const grams=weights.map(v=>Math.round(Number(v)*1000));
-    if(grams.some(n=>!Number.isSafeInteger(n)||n<0)||total(grams)<=0||total(grams)>1000){
-      setError(tr('Nhập ít nhất một vật liệu (từ 0,001 đến 1.000 kg).'));
-      return;
-    }
-    const [lat,lng]=point;
-    if(!Number.isFinite(lat)||Math.abs(lat)>90||!Number.isFinite(lng)||Math.abs(lng)>180){
-      setError(tr('Tọa độ bàn giao không hợp lệ. Chọn lại vị trí trên bản đồ hoặc nhập vĩ độ từ -90 đến 90 và kinh độ từ -180 đến 180.'));
-      return;
-    }
-    setHashing(true);
-    try{
-      // A real photo of the lot is required: its SHA-256 is the on-chain evidence.
-      if(!file){setError(tr('Chụp hoặc chọn ảnh thật của lô phế liệu.'));return;}
-      if(file.size>4*1024*1024){setError(tr('Chọn ảnh tối đa 4 MB.'));return;}
-      const hash=await digest(await file.arrayBuffer());
-      onCreate(grams,file,hash,point,String(f.get('contact')||'').trim(),String(f.get('address')||'').trim());
-    }catch{
-      setError(tr('Lỗi xử lý ảnh. Hãy chọn lại.'));
-    }finally{
-      setHashing(false);
-    }
-  }
-  return <form className="lot-form" onSubmit={submit}><h3>{tr('Một lô, nhiều loại vật liệu')}</h3><p>{tr('Ước lượng khối lượng từng loại. Ảnh minh họa cả lô; ECO cuối cùng tính theo kết quả cân thực tế.')}</p><label>{tr('Ảnh thật của cả lô (bắt buộc)')}<input type="file" required accept="image/jpeg,image/png,image/webp" capture="environment" onChange={e=>setFile(e.target.files?.[0])}/></label><ScrapPhotoSmartBox file={file} onApplyWeights={setWeights}/><ScrapQuickPresets weights={weights} onChangeWeights={setWeights}/><WeightInputs values={weights} onChange={setWeights}/><div className="pickup-weights"><label>{tr('Số điện thoại / cách liên hệ')}<input name="contact" minLength={3} maxLength={120} required placeholder={tr("Người nhận việc sẽ dùng thông tin này")}/></label><label>{tr('Địa chỉ & thời gian bàn giao')}<input name="address" value={address} onChange={e=>setAddress(e.target.value)} minLength={5} maxLength={400} required placeholder={tr("Số nhà, đường, khung giờ thuận tiện")}/></label></div><p>{tr('Địa chỉ và liên hệ chỉ chia sẻ với chủ lô và người đã nhận việc.')} {tr('Ảnh được lưu riêng trên server local; không đưa ảnh hoặc số điện thoại lên blockchain.')}</p><h4>{tr('Vị trí bàn giao trên bản đồ (mặc định: {lat}, {lng})',{lat:point[0].toFixed(2),lng:point[1].toFixed(2)})}</h4><Suspense fallback={<p>{tr('Đang tải bản đồ…')}</p>}><PickupMap lots={[]} center={point} onPin={setPoint} onPlace={selectAddress}/></Suspense><div className="pickup-weights"><label>{tr('Vĩ độ')}<input type="number" step="any" min="-90" max="90" value={point?.[0]??''} onChange={e=>setPoint([Number(e.target.value),point?.[1]??106.69])}/></label><label>{tr('Kinh độ')}<input type="number" step="any" min="-180" max="180" value={point?.[1]??''} onChange={e=>setPoint([point?.[0]??10.78,Number(e.target.value)])}/></label></div><p className="footnote">{tr('Chỉ tọa độ làm tròn khoảng 1 km được ghi công khai, vĩnh viễn trên blockchain. Có thể nhập tọa độ nếu bản đồ không tải được.')}</p><div className="estimate"><span>{tr('Tổng dự kiến: {kg}',{kg:wt(total(weights.map(v=>Number(v)*1000)))})} · {tr('Tiền bán phế liệu ≈ {vnd} ₫',{vnd:fmt(buyCashVnd(weights.map(v=>Number(v)*1000)))})}</span><strong>+{fmt(points(weights.map(v=>Number(v)*1000)))} ECO</strong></div>{error&&<p className="form-error" role="alert">{error}</p>}<button className="primary full-width" disabled={busy||hashing}>{hashing?tr('Đang đọc ảnh & tạo mã băm…'):tr('Ký hợp đồng & Đăng lô tìm người thu gom')}<ArrowRight size={17}/></button></form>;
-}
-const rewardArtwork=new Map([
-  ['Coffee voucher',{image:'/rewards/coffee.webp',name:'Voucher cà phê',tone:'coffee'}],
-  ['Canvas tote bag',{image:'/rewards/tote.webp',name:'Túi vải canvas',tone:'tote'}],
-  ['Green shopping voucher',{image:'/rewards/shopping.webp',name:'Voucher mua sắm xanh',tone:'shopping'}],
-]);
-
-type EcoExchangeProps = {
-  exchange?:{rate:bigint;inventory:bigint;sponsorPool?:bigint};
-  busy:boolean;
-  buy:(avax:bigint,minimumEco:bigint)=>void;
-  needed?:bigint;
-};
-
-const avaxUnit=10n**18n;
-function decimalAmount(input:string,maxLength:number){
-  const value=input.trim().replace(',','.');
-  return value.length<=maxLength&&/^\d+(?:\.\d{1,18})?$/.test(value)?parseEther(value):undefined;
-}
-
-function EcoExchange({exchange,busy,buy,needed}:EcoExchangeProps){
-  const [input,setInput]=useState('');
-  const rate=exchange?.rate??0n;
-  const value=needed!==undefined&&rate>0n?(needed*avaxUnit+rate-1n)/rate:decimalAmount(input,36)??0n;
-  const output=value*rate/avaxUnit;
-  const available=!!exchange&&rate>0n&&exchange.inventory>0n;
-  const sufficientInventory=!!exchange&&output<=exchange.inventory;
-  return <div className="pickup-callout eco-exchange">
-    <strong>{tr('Đổi AVAX lấy ECO')}</strong>
-    {needed!==undefined&&<p>{tr('Cần thêm {n} ECO',{n:formatEther(needed)})}</p>}
-    {!available?<p>{tr('Quầy đổi AVAX chưa mở hoặc đã hết ECO dự trữ.')}</p>:<>
-      <p>1 AVAX = {formatEther(rate)} ECO</p>
-      {needed===undefined&&<label>{tr('Số AVAX muốn đổi')}<input value={input} onChange={e=>setInput(e.target.value)} inputMode="decimal" maxLength={36} placeholder="0.01"/></label>}
-      {!sufficientInventory&&<p>{tr('Quầy đổi còn {n} ECO.',{n:formatEther(exchange.inventory)})}</p>}
-      <button type="button" className="secondary" disabled={busy||output===0n||!sufficientInventory} onClick={()=>buy(value,output)}>
-        {output>0n?tr('Đổi {avax} AVAX lấy {eco} ECO',{avax:formatEther(value),eco:formatEther(output)}):tr('Đổi AVAX lấy ECO')}
-      </button>
-    </>}
-  </div>;
-}
-
-function CertificateCard({certificate,lotId,compact,account,canSend}:{certificate:Address;lotId:number;compact?:boolean;account?:Address;canSend?:boolean}){
-  const [cert,setCert]=useState<CertificateView|null>();
-  useEffect(()=>{let live=true;setCert(undefined);readCertificate(certificate,lotId).then(c=>{if(live)setCert(c||null);});return()=>{live=false;};},[certificate,lotId]);
-  if(cert===undefined)return <p role="status" className="footnote">{tr('Đang tải chứng nhận NFT…')}</p>;
-  if(!cert)return null;
-  return <div className={compact?'cert-card compact':'cert-card'}><img src={cert.image} alt={cert.name}/><div><strong><Award size={15}/>{tr('Chứng nhận tái chế NFT #{id}',{id:lotId})}</strong>{!compact&&<p>{tr('Lưu vĩnh viễn trên Avalanche: ai cũng kiểm chứng được số kg đã tái chế, ví dụ doanh nghiệp cần báo cáo trách nhiệm tái chế.')}</p>}<a className="text-link" href={certificateUrl(certificate,lotId)} target="_blank" rel="noreferrer">{tr('Xem trên Snowtrace')}<ExternalLink size={12}/></a><IcmBridgePanel certificate={certificate} lotId={lotId} account={account} canSend={canSend}/></div></div>;
 }
