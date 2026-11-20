@@ -18,6 +18,9 @@ const messages: Record<string, string> = {
   DepositAboveMaximum: 'Giá ECO ký quỹ đã tăng. Làm mới dữ liệu và kiểm tra số ECO cần khóa.',
   ExchangeUnavailable: 'Quầy đổi AVAX chưa mở hoặc không đủ ECO dự trữ.',
   ExchangeQuoteChanged: 'Tỷ lệ đổi đã thay đổi. Làm mới báo giá rồi thử lại.',
+  DisputeLimitReached: 'Đã yêu cầu cân lại tối đa 2 lần. Hãy đồng ý số cân hoặc chờ người thu gom trả lại đơn.',
+  IssuanceCapExceeded: 'Đã chạm trần phát hành ECO của quản trị viên (2.000.000 ECO).',
+  LegacyMintDisabled: 'Contract V4 đã tắt luồng gửi/duyệt kiểu V1. Hãy đăng lô thu gom để nhận ECO từ ký quỹ.',
   OnlyMinter: 'Chỉ contract thu gom được tạo chứng nhận.',
 };
 export function errorMessage(error: unknown): string {

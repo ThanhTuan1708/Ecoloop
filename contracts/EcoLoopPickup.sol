@@ -37,6 +37,12 @@ contract EcoLoopPickup is EcoLoop, ERC2771Context, ReentrancyGuard {
     uint256 public constant MAX_PRICE_PER_KG = 1_000_000 ether;
     /// @notice A verified station collector may hold at most this many sponsored (pool-funded) jobs at once.
     uint256 public constant MAX_SPONSORED_ACTIVE = 3;
+    /// @notice Hard cap on ECO the admin can ever issue (exchange reserve + sponsor pool). Settlement bonuses are
+    /// capped separately by MAX_BONUS_BPS, so the admin key cannot inflate supply without limit.
+    uint256 public constant ADMIN_ISSUANCE_CAP = 2_000_000 ether;
+    /// @notice A household may ask for a re-weigh at most this many times per claim; afterwards it must accept,
+    /// or the collector releases the job (escrow refunded). Stops endless dispute griefing.
+    uint8 public constant MAX_DISPUTES = 2;
 
     // Constructor-only values stored in storage so deployed bytecode can be verified exactly.
     EcoLoopCertificate public certificate;
@@ -61,6 +67,12 @@ contract EcoLoopPickup is EcoLoop, ERC2771Context, ReentrancyGuard {
     uint256 public sponsorPool;
     mapping(uint256 => bool) public lotSponsored;
     mapping(address => uint256) public activeSponsored;
+    /// @notice ECO issued so far by the admin through the constructor reserve, fundExchange and fundSponsorPool.
+    uint256 public adminIssued;
+    mapping(uint256 => uint8) public disputeCount;
+    /// @dev Set only around the two sanctioned mint paths (adminIssue, settlement bonus). Any other mint, e.g. the
+    /// inherited V1 submit/approve flow, reverts, so a collector colluding with a household cannot print ECO.
+    bool private transient issuing;
 
     mapping(uint256 => Lot) private lots;
     uint256 public lotCount;
@@ -82,12 +94,15 @@ contract EcoLoopPickup is EcoLoop, ERC2771Context, ReentrancyGuard {
     error ExchangeUnavailable();
     error ExchangeQuoteChanged();
     error SponsorUnavailable();
+    error IssuanceCapExceeded();
+    error DisputeLimitReached();
+    error LegacyMintDisabled();
 
     constructor(address admin, address forwarder, uint256 initialRate, uint256 initialReserve) EcoLoop(admin) ERC2771Context(address(0)) {
         pickupForwarder = forwarder;
         certificate = new EcoLoopCertificate();
         if (initialRate != 0) updateExchangeRate(initialRate);
-        if (initialReserve != 0) _mint(address(this), initialReserve);
+        if (initialReserve != 0) adminIssue(initialReserve);
     }
 
     function trustedForwarder() public view override returns (address) { return pickupForwarder; }
@@ -162,13 +177,13 @@ contract EcoLoopPickup is EcoLoop, ERC2771Context, ReentrancyGuard {
     /// @notice Funds the testnet exchange with newly issued ECO.
     function fundExchange(uint256 amount) external onlyRole(DEFAULT_ADMIN_ROLE) {
         if (amount == 0) revert InvalidInput();
-        _mint(address(this), amount);
+        adminIssue(amount);
     }
 
     /// @notice Issues testnet ECO into the escrow sponsor pool.
     function fundSponsorPool(uint256 amount) external onlyRole(DEFAULT_ADMIN_ROLE) {
         if (amount == 0) revert InvalidInput();
-        _mint(address(this), amount);
+        adminIssue(amount);
         sponsorPool += amount;
         emit SponsorPoolFunded(amount);
     }
@@ -224,7 +239,7 @@ contract EcoLoopPickup is EcoLoop, ERC2771Context, ReentrancyGuard {
         }
         uint256 settledTotal = payment + bonus;
         earned[lot.owner] += settledTotal;
-        if (bonus > 0) _mint(lot.owner, bonus);
+        if (bonus > 0) { issuing = true; _mint(lot.owner, bonus); issuing = false; }
         emit LotSettled(id, total, settledTotal);
         emit EscrowReleased(id, lot.owner, payment, refund);
 
@@ -238,6 +253,8 @@ contract EcoLoopPickup is EcoLoop, ERC2771Context, ReentrancyGuard {
     function disputeLot(uint256 id) external {
         Lot storage lot = lots[id];
         if (lot.owner != _msgSender() || lot.status != PickupStatus.Proposed) revert InvalidStatus();
+        if (disputeCount[id] >= MAX_DISPUTES) revert DisputeLimitReached();
+        disputeCount[id]++;
         delete lot.actual;
         change(id, PickupStatus.Claimed);
     }
@@ -330,7 +347,7 @@ contract EcoLoopPickup is EcoLoop, ERC2771Context, ReentrancyGuard {
         delete lotPrices[id];
         totalEscrowed -= deposit;
         bool sponsored = endSponsorship(id, collector);
-        delete lot.collector; delete lot.actual;
+        delete lot.collector; delete lot.actual; delete disputeCount[id];
         change(id, PickupStatus.Open);
         emit EscrowRefunded(id, sponsored ? address(this) : collector, deposit);
         if (sponsored) sponsorPool += deposit;
@@ -338,6 +355,20 @@ contract EcoLoopPickup is EcoLoop, ERC2771Context, ReentrancyGuard {
     }
 
     // ---------- internals ----------
+    function adminIssue(uint256 amount) private {
+        if (adminIssued + amount > ADMIN_ISSUANCE_CAP) revert IssuanceCapExceeded();
+        adminIssued += amount;
+        issuing = true;
+        _mint(address(this), amount);
+        issuing = false;
+    }
+
+    /// @dev ECO supply grows only through adminIssue (capped) and the verified-station bonus (capped in bps).
+    function _update(address from, address to, uint256 value) internal override {
+        if (from == address(0) && !issuing) revert LegacyMintDisabled();
+        super._update(from, to, value);
+    }
+
     function endSponsorship(uint256 id, address collector) private returns (bool sponsored) {
         sponsored = lotSponsored[id];
         if (sponsored) {

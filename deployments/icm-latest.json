@@ -1,16 +1,123 @@
 {
-  "createdAt": "2026-11-19T13:52:50.800Z",
+  "createdAt": "2026-11-20T04:45:33.273Z",
   "teleporter": "0x253b2784c75e510dD0fF1da844684a1aC0aa5fcf",
-  "certificate": "0x61bc32d781002ecE6f441AD1ce857548d1Be5102",
+  "certificate": "0x49487c0656713535c416097E988c447a86DD5a6B",
   "source": {
     "chain": "Avalanche Fuji C-Chain",
     "blockchainId": "0x7fc93d85c6d62c5b2ac0b519c87010ea5294012d1e407030d6acd0021cac10d5",
-    "address": "0xe65c88e48C213BFCc2fbaE0B59061a2A1d802774",
-    "txHash": "0x39fab4c46c8de5ce217d3d704dd52a51eee9000b54b9cee9a3d52d90e7bb7270",
+    "address": "0x11812cf3eD0EFc07345308F194F7A60846B89083",
+    "txHash": "0x750110db75f43d87cc676d44afb4e1b1e14bf4574ee3c1757ae2088a8f27c202",
     "args": [
       "0x4AA84B5f9E1E71fbae7f1298096B32b735bd90bf",
       "0x253b2784c75e510dD0fF1da844684a1aC0aa5fcf",
-      "0x61bc32d781002ecE6f441AD1ce857548d1Be5102"
-    ]
-  }
+      "0x49487c0656713535c416097E988c447a86DD5a6B"
+    ],
+    "trustTx": "0xdb203a7b0a4d001276663158297800f9260986132ceb9d7753ef51bce8c3e589"
+  },
+  "destination": {
+    "chain": "Dispatch (Avalanche L1 testnet)",
+    "chainId": 779672,
+    "blockchainId": "0x9f3be606497285d0ffbb5ac9ba24aa60346a9b1812479ed66cb329f394a4b1c7",
+    "rpc": "https://subnets.avax.network/dispatch/testnet/rpc",
+    "explorer": "https://subnets-test.avax.network/dispatch",
+    "address": "0xdA71C1dCC8209006f2AfFDd7E406D0f31146Ac4C",
+    "txHash": "0xa3fa94cadfae34981c28dcfd360ac6e21d96240a0ca1b08f32f45b41ddf58cd6",
+    "args": [
+      "0x4AA84B5f9E1E71fbae7f1298096B32b735bd90bf",
+      "0x253b2784c75e510dD0fF1da844684a1aC0aa5fcf",
+      "0x0000000000000000000000000000000000000000"
+    ],
+    "trustTx": "0xbcb5e265c041241975c2296830e4378f87a549c3861fa891a8f8502b1b4a4bb9"
+  },
+  "messages": [
+    {
+      "lotId": "1",
+      "bridgeTx": "0xa64f8810499bf8825ec9b105e3181e22f75b11cf98f94da7496013c94719a9df",
+      "messageId": "0x3e0eeb2e5cac5045ad832d4183ecd7b984a35afcb7dd10db235f7d379d5434cc",
+      "delivered": true,
+      "received": {
+        "household": "0x9fc1158eC4285fDEBaEC8e7B2f698f378AC31681",
+        "collector": "0xaaa0B3523718e20A707369Fb89A1c3212b3ED347",
+        "grams": [
+          "3500",
+          "2500",
+          "0",
+          "2600"
+        ],
+        "paidEco": "115800000000000000000"
+      }
+    },
+    {
+      "lotId": "2",
+      "bridgeTx": "0xbe41981e58af559d4084383407580e3182a6123537c61eaecf159ade254f8f69",
+      "messageId": "0xcbcab02bc1abdf21f263ff6193c366545dff42034df595f13e954e7eaf06fb1d",
+      "delivered": true,
+      "received": {
+        "household": "0xD5ccf7578354F11dc5fCa27A8C2ba0A6e9e396d5",
+        "collector": "0xAD488988783f748C16511FD00955b903A1655f4C",
+        "grams": [
+          "2400",
+          "7600",
+          "1400",
+          "200"
+        ],
+        "paidEco": "181600000000000000000"
+      }
+    },
+    {
+      "lotId": "4",
+      "bridgeTx": "0x6f70466bbef69373db809ed426fa202eea75821eee67a81c6148d54b6cca0908",
+      "messageId": "0x52ab197ab15cb4e14235d260d01fbe89ed9475bea8de5daea957602aae30caee",
+      "delivered": true,
+      "received": {
+        "household": "0xA94B6A873f238214Be16bd77d7C7B2fc723e2D29",
+        "collector": "0xaaa0B3523718e20A707369Fb89A1c3212b3ED347",
+        "grams": [
+          "2400",
+          "6500",
+          "1900",
+          "1200"
+        ],
+        "paidEco": "198600000000000000000"
+      }
+    },
+    {
+      "lotId": "5",
+      "bridgeTx": "0x4a7051ff39fe32b9f24650204f20d81d6e55a9a3f5e3f09748cf3c93d1bee7fd",
+      "messageId": "0xc56aa2739fc01789280e2f8138e71051e8da476df3c6e223473dd1fcc4fa1993",
+      "delivered": true,
+      "received": {
+        "household": "0x57EbBb7cea780C58518516f47bb0bA68C9a4b952",
+        "collector": "0xAD488988783f748C16511FD00955b903A1655f4C",
+        "grams": [
+          "1900",
+          "6500",
+          "1800",
+          "600"
+        ],
+        "paidEco": "179800000000000000000"
+      }
+    },
+    {
+      "lotId": "7",
+      "bridgeTx": "0x91c33ff0fb36d246868df9e33f205c8d34aa2cd6105b2e834792b2f4ad808d3b",
+      "messageId": "0x43c9958bcb4c777f268e9bc33a4515f862704c303187eaca11c5b498e1f90ccb",
+      "delivered": true,
+      "received": {
+        "household": "0x200993E9D086ab2b117406a2E0e585bcCc035995",
+        "collector": "0xaaa0B3523718e20A707369Fb89A1c3212b3ED347",
+        "grams": [
+          "0",
+          "100",
+          "500",
+          "1000"
+        ],
+        "paidEco": "29000000000000000000"
+      }
+    }
+  ],
+  "lotId": "1",
+  "messageId": "0x3e0eeb2e5cac5045ad832d4183ecd7b984a35afcb7dd10db235f7d379d5434cc",
+  "bridgeTx": "0xa64f8810499bf8825ec9b105e3181e22f75b11cf98f94da7496013c94719a9df",
+  "delivered": true
 }

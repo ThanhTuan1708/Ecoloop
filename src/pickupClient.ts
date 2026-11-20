@@ -257,3 +257,33 @@ export async function pickupDetails(account:Address,address:Address,lot:Lot){
   return api('/api/pickup/details',{auth,id:lot.id}) as Promise<{contact:string;address:string}>;
 }
 export function distanceKm(a:[number,number],b:[number,number]){const rad=Math.PI/180;const dlat=(b[0]-a[0])*rad,dlon=(b[1]-a[1])*rad;const h=Math.sin(dlat/2)**2+Math.cos(a[0]*rad)*Math.cos(b[0]*rad)*Math.sin(dlon/2)**2;return 6371*2*Math.asin(Math.min(1,Math.sqrt(h)));}
+
+// ---------- Avalanche ICM (Teleporter): send verified certificates to an ESG audit L1 ----------
+export type IcmDestination={name:string;chainId?:number;blockchainId:Hash;sourceBlockchainId?:Hash;bridge:Address;rpc?:string;explorer?:string};
+export type IcmConfig={bridge:Address;destination:IcmDestination};
+export type IcmStatus={verified:boolean;messageId?:Hash;delivered?:boolean};
+let icmConfigPromise:Promise<IcmConfig|undefined>|undefined;
+export function loadIcmConfig(){
+  return icmConfigPromise??=fetch('/api/config',{cache:'no-store'}).then(r=>r.json()).then(c=>c.teleporterBridge&&c.icmDestination?{bridge:c.teleporterBridge,destination:c.icmDestination} as IcmConfig:undefined).catch(()=>undefined);
+}
+const ZERO_HASH=`0x${'0'.repeat(64)}`;
+/** Source-side message id plus, when the destination RPC is public, whether the L1 bridge has received it. */
+export async function icmStatus(cfg:IcmConfig,certificate:Address,lotId:number):Promise<IcmStatus>{
+  const [{teleporterBridgeAbi,FUJI_C_CHAIN_BLOCKCHAIN_ID},cert]=await Promise.all([import('./generated/teleporter'),publicClient.readContract({address:certificate,abi:certificateAbi,functionName:'certificate',args:[BigInt(lotId)]}) as Promise<{verified:boolean}>]);
+  const messageId=await publicClient.readContract({address:cfg.bridge,abi:teleporterBridgeAbi,functionName:'outboundMessageIds',args:[cfg.destination.blockchainId,BigInt(lotId)]}) as Hash;
+  if(messageId===ZERO_HASH)return {verified:cert.verified};
+  let delivered:boolean|undefined;
+  if(cfg.destination.rpc){
+    try{
+      const {createPublicClient,http}=await import('viem');
+      const remote=createPublicClient({transport:http(cfg.destination.rpc,{timeout:10000})});
+      delivered=await remote.readContract({address:cfg.destination.bridge,abi:teleporterBridgeAbi,functionName:'hasInboundAttestation',args:[cfg.destination.sourceBlockchainId||FUJI_C_CHAIN_BLOCKCHAIN_ID,BigInt(lotId)]}) as boolean;
+    }catch{/* destination RPC unreachable: show as in transit */}
+  }
+  return {verified:cert.verified,messageId,delivered};
+}
+/** The certificate holder sends its verified ECOREC proof across Avalanche L1s (pays a little AVAX gas). */
+export async function bridgeCertificate(cfg:IcmConfig,account:Address,lotId:number){
+  const {teleporterBridgeAbi}=await import('./generated/teleporter');
+  return pickupWrite(cfg.bridge,account,'bridgeCertificate',[cfg.destination.blockchainId,BigInt(lotId),0n],undefined,teleporterBridgeAbi as Abi);
+}

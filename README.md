@@ -9,23 +9,34 @@
 ## Dành cho giám khảo: kiểm tra trong 3 phút
 
 1. Mở bảng contract bên dưới: mọi contract đã **verify mã nguồn trên Snowtrace**, đọc được hàm `claimLot`, `acceptLot`, `bridgeCertificate`.
-2. Mở demo, đăng nhập bằng Core (Fuji) hoặc tài khoản mật khẩu, xem lô đang mở trên bản đồ, chứng nhận ECOREC trong **Ví xanh**.
-3. Chạy test: `npm install && npm test` (EVM thật qua Hardhat EDR: escrow, chống tự duyệt, timeout, relayer EIP-712, ICM chống giả mạo/phát lại).
+2. Mở **[Bằng chứng on-chain](docs/ON-CHAIN-PROOF.md)**: mỗi luồng (ký quỹ, quỹ ứng trước miễn gas, P2P, cân lại, trả đơn, hủy, đổi quà, điểm danh) có link Snowtrace từng giao dịch. Đây là giao dịch kiểm thử từ ví test của nhóm, ghi rõ như vậy.
+3. Mở demo, đăng nhập bằng Core (Fuji) hoặc tài khoản mật khẩu, xem lô đang mở trên bản đồ, chứng nhận ECOREC trong **Ví xanh** kèm trạng thái gửi qua **Avalanche ICM**.
+4. Chạy test: `npm install && npm test`: 119 test trên EVM thật (Hardhat EDR), gồm 61 test đơn vị, fuzz bất biến ký quỹ/tổng cung, 19 test cầu ICM (giả mạo, phát lại, sai chain).
 
 ### Hợp đồng trên Fuji
 
 <!-- contracts:start -->
-Mạng: **Avalanche Fuji C-Chain (43113)** · block triển khai #61333023 · cập nhật 2026-11-19
+Mạng: **Avalanche Fuji C-Chain (43113)** · block triển khai #61362576 · cập nhật 2026-11-20
 
 | Contract | Địa chỉ (Snowtrace) | Deploy |
 |---|---|---|
-| EcoLoopPickup V4 (ECO + escrow + ERC-2771) | [`0xd8D1629D9712a3856489f2D3487e281fb05F8E8a`](https://testnet.snowtrace.io/address/0xd8D1629D9712a3856489f2D3487e281fb05F8E8a#code) | [tx](https://testnet.snowtrace.io/tx/0x30350a1804c203834373ed8bfe69cba468e0011d2b222bc1c39dd442525afd83) |
-| EcoLoopCertificate (ECOREC NFT, SVG on-chain) | [`0x61bc32d781002ecE6f441AD1ce857548d1Be5102`](https://testnet.snowtrace.io/address/0x61bc32d781002ecE6f441AD1ce857548d1Be5102#code) |  |
-| EcoLoopForwarder (gasless, ERC-2771) | [`0xdaD7d7136845b9D4cdA8aDaf833302B5c98649bd`](https://testnet.snowtrace.io/address/0xdaD7d7136845b9D4cdA8aDaf833302B5c98649bd#code) | [tx](https://testnet.snowtrace.io/tx/0x4a7f5d603afad6c81fc9029deb3e4bff4466d31f3d0ae2850e304c39be00eefc) |
-| EcoLoopRewards (check-in, missions) | [`0xd6A6dc2A6da0169C7B46832c9519c427fBBb8F30`](https://testnet.snowtrace.io/address/0xd6A6dc2A6da0169C7B46832c9519c427fBBb8F30#code) | [tx](https://testnet.snowtrace.io/tx/0x720bbe53c17bf1d64ea3d91f5f4b98d4c9689b7ae6b8920147f5a5a8a75df98d) |
-| EcoLoopTeleporterBridge (Avalanche ICM, source) | [`0xe65c88e48C213BFCc2fbaE0B59061a2A1d802774`](https://testnet.snowtrace.io/address/0xe65c88e48C213BFCc2fbaE0B59061a2A1d802774#code) | [tx](https://testnet.snowtrace.io/tx/0x39fab4c46c8de5ce217d3d704dd52a51eee9000b54b9cee9a3d52d90e7bb7270) |
+| EcoLoopPickup V4 (ECO + escrow + ERC-2771) | [`0x6C0309FD70255cC87d53B14c71F17Ba75b131b8f`](https://testnet.snowtrace.io/address/0x6C0309FD70255cC87d53B14c71F17Ba75b131b8f#code) | [tx](https://testnet.snowtrace.io/tx/0x5d52575ce9cf9ca5225204ddd9c9130fed4203bb4ced4762bb8de1931c5ef663) |
+| EcoLoopCertificate (ECOREC NFT, SVG on-chain) | [`0x49487c0656713535c416097E988c447a86DD5a6B`](https://testnet.snowtrace.io/address/0x49487c0656713535c416097E988c447a86DD5a6B#code) |  |
+| EcoLoopForwarder (gasless, ERC-2771) | [`0xfdA90d9becdF9F6019c9D042CadE9DC61AB2C2ED`](https://testnet.snowtrace.io/address/0xfdA90d9becdF9F6019c9D042CadE9DC61AB2C2ED#code) | [tx](https://testnet.snowtrace.io/tx/0x38a677a6755a56d5946d7b319d52b66c412bebecd3b9de3e0c060dd662fc743d) |
+| EcoLoopRewards (check-in, missions) | [`0x6E46f3e458E123fc665D23Aa0D9dc18b6af10fBd`](https://testnet.snowtrace.io/address/0x6E46f3e458E123fc665D23Aa0D9dc18b6af10fBd#code) | [tx](https://testnet.snowtrace.io/tx/0x94bb8fa1f9920f93e46c739c1504d887f83ce9aabe6179a9269d5789ec5952fa) |
+| EcoLoopTeleporterBridge (Avalanche ICM, source) | [`0x11812cf3eD0EFc07345308F194F7A60846B89083`](https://testnet.snowtrace.io/address/0x11812cf3eD0EFc07345308F194F7A60846B89083#code) | [tx](https://testnet.snowtrace.io/tx/0x750110db75f43d87cc676d44afb4e1b1e14bf4574ee3c1757ae2088a8f27c202) |
 
-**ICM (Teleporter):** bridge nguồn đã triển khai trên Fuji, chưa kết nối L1 đích. Luồng gửi/nhận, chống giả mạo và chống phát lại được kiểm thử tự động trong `tests/teleporter-bridge.test.mjs`.
+**ICM (Teleporter) thật:** Fuji C-Chain → Dispatch (Avalanche L1 testnet) (blockchainID `0x9f3be606497285d0ffbb5ac9ba24aa60346a9b1812479ed66cb329f394a4b1c7`), bridge đích [`0xdA71C1dCC8209006f2AfFDd7E406D0f31146Ac4C`](https://subnets-test.avax.network/dispatch/address/0xdA71C1dCC8209006f2AfFDd7E406D0f31146Ac4C).
+
+| Chứng nhận | Gửi trên Fuji | messageID (Teleporter) | Ở L1 đích |
+|---|---|---|---|
+| ECOREC #1 | [tx](https://testnet.snowtrace.io/tx/0xa64f8810499bf8825ec9b105e3181e22f75b11cf98f94da7496013c94719a9df) | `0x3e0eeb2e5cac5045…` | **đã nhận** ✅ |
+| ECOREC #2 | [tx](https://testnet.snowtrace.io/tx/0xbe41981e58af559d4084383407580e3182a6123537c61eaecf159ade254f8f69) | `0xcbcab02bc1abdf21…` | **đã nhận** ✅ |
+| ECOREC #4 | [tx](https://testnet.snowtrace.io/tx/0x6f70466bbef69373db809ed426fa202eea75821eee67a81c6148d54b6cca0908) | `0x52ab197ab15cb4e1…` | **đã nhận** ✅ |
+| ECOREC #5 | [tx](https://testnet.snowtrace.io/tx/0x4a7051ff39fe32b9f24650204f20d81d6e55a9a3f5e3f09748cf3c93d1bee7fd) | `0xc56aa2739fc01789…` | **đã nhận** ✅ |
+| ECOREC #7 | [tx](https://testnet.snowtrace.io/tx/0x91c33ff0fb36d246868df9e33f205c8d34aa2cd6105b2e834792b2f4ad808d3b) | `0x43c9958bcb4c777f…` | **đã nhận** ✅ |
+
+Tự kiểm tra trên L1 đích: gọi `totalInboundAttestations()` hoặc `getInboundAttestation(sourceBlockchainID, lotId)` trên bridge [`0xdA71C1dCC8209006f2AfFDd7E406D0f31146Ac4C`](https://subnets-test.avax.network/dispatch/address/0xdA71C1dCC8209006f2AfFDd7E406D0f31146Ac4C) (RPC `https://subnets.avax.network/dispatch/testnet/rpc`).
 <!-- contracts:end -->
 
 ### Kiến trúc
@@ -48,6 +59,8 @@ flowchart LR
 - Chỉ lô do **trạm thu gom xác minh** (ví có `COLLECTOR_ROLE`) hoàn tất mới được cộng vào `verifiedRecycledGrams`. Chỉ con số này mở khóa điểm danh và nhiệm vụ trong `EcoLoopRewards`.
 - Mỗi chứng nhận ECOREC có thuộc tính `verified`. `EcoLoopTeleporterBridge` từ chối gửi chứng nhận chưa xác minh (`UnverifiedCertificate`), nên dữ liệu ESG gửi sang L1 khác chỉ gồm lô đã qua trạm.
 - **Quỹ ứng trước ký quỹ:** trạm thu gom đã xác minh không cần có ECO hay AVAX. `claimLotSponsored` dùng `sponsorPool` (do nhãn hàng EPR hoặc quản trị viên nạp) để khóa khoản đảm bảo, tối đa 3 đơn cùng lúc; người bán vẫn được trả ECO theo số cân, phần dư quay về quỹ. Ví chưa xác minh không dùng được quỹ, nên hai ví thông đồng không rút được quỹ.
+- **Không in thêm ECO ngoài 2 đường đã giới hạn:** admin phát hành tối đa `ADMIN_ISSUANCE_CAP` = 2.000.000 ECO (dự trữ quầy đổi + quỹ ứng trước), thưởng trạm tối đa 50% mỗi lô. Luồng `submit/approve` kế thừa từ V1 bị chặn trong V4 (`LegacyMintDisabled`, cờ `transient` trong `_update`), nên một trạm thông đồng với ví hộ dân không tự in được ECO.
+- **Chống kéo dài tranh chấp:** hộ dân yêu cầu cân lại tối đa `MAX_DISPUTES` = 2 lần mỗi lần nhận đơn, sau đó chỉ còn chấp nhận hoặc để người thu gom trả đơn (hoàn 100% ký quỹ).
 - Kiểm thử: `tests/pickup-contract.test.mjs` (anti-Sybil, chống lạm phát) và `tests/teleporter-bridge.test.mjs`.
 
 ### Đã làm / chưa làm (minh bạch)
@@ -153,7 +166,16 @@ npm run build
 node scripts/smoke-local.mjs
 ```
 
-Bộ test gồm quyền/khối lượng/phát thưởng/burn/tồn kho/pause/giao quà một lần trên EVM; demo; ảnh với chữ ký, nonce dùng một lần, hash, quyền và persistence; adapter EIP-1193/6963 mô phỏng Core chạy luồng kết nối → add/switch chain → deploy → submit → approve → redeem → fulfill → khôi phục receipt. Không đồng nghĩa đã ký bằng extension Core thật trên Fuji: bước này cần ví người dùng có AVAX testnet.
+**119 test** chạy trên EVM thật (Hardhat EDR), không cần node riêng:
+
+| File | Nội dung |
+|---|---|
+| `tests/pickup-units.test.mjs` | 61 test đơn vị cho EcoLoopPickup V4, mỗi test một hành vi, reset bằng `evm_snapshot`: ký quỹ, quỹ ứng trước, cân lại tối đa 2 lần, timeout, trần phát hành, chặn mint kiểu V1, ERC-2771, NFT, phần thưởng |
+| `tests/pickup-invariants.test.mjs` | Fuzz có trạng thái: chuỗi hành động ngẫu nhiên (đúng và sai vai), sau **mỗi bước** kiểm tra 6 bất biến: `totalEscrowed` = tổng ký quỹ từng lô, contract luôn đủ ECO cho ký quỹ + quỹ, bảo toàn quỹ ứng trước, giới hạn 3 đơn tài trợ, tổng cung = ECO admin phát hành (thanh toán không in tiền), 1 NFT/lô hoàn tất. Chạy lâu hơn: `FUZZ_SEEDS=10 FUZZ_STEPS=200` |
+| `tests/teleporter-bridge-units.test.mjs` | 19 test cho cầu ICM: cấu hình, gửi, nhận, giả mạo nguồn, sai chain, phát lại, payload hỏng, chuyển NFT, gửi tới 2 L1 |
+| `tests/pickup-contract.test.mjs`, `tests/teleporter-bridge.test.mjs` | Kịch bản đầu-cuối |
+
+Ngoài ra: quyền/khối lượng/phát thưởng/burn/tồn kho/pause/giao quà một lần của contract V1; demo; ảnh với chữ ký, nonce dùng một lần, hash, quyền và persistence; adapter EIP-1193/6963 mô phỏng Core chạy luồng kết nối → add/switch chain → deploy → submit → approve → redeem → fulfill → khôi phục receipt. Không đồng nghĩa đã ký bằng extension Core thật trên Fuji: bước này cần ví người dùng có AVAX testnet.
 
 ## Chạy blockchain local
 

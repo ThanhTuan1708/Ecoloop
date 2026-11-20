@@ -110,48 +110,60 @@ if (dst) {
   if (getAddress(await readBridge(src, srcBridge, 'trustedRemotes', [dstId])) !== dstBridge) record.source.trustTx = (await write(src, srcBridge, 'setTrustedRemote', [dstId, dstBridge])).hash;
   if (getAddress(await readBridge(dst, dstBridge, 'trustedRemotes', [srcId])) !== srcBridge) record.destination.trustTx = (await write(dst, dstBridge, 'setTrustedRemote', [srcId, srcBridge])).hash;
 
-  // Pick a completed lot (status 4) whose ECOREC certificate exists.
-  let lotId = env.ICM_LOT_ID ? BigInt(env.ICM_LOT_ID) : undefined;
-  if (lotId === undefined) {
+  // Pick completed lots whose ECOREC certificate is verified (settled by a station); unverified ones are refused on-chain.
+  const certAbi = JSON.parse(fs.readFileSync('artifacts/EcoLoopCertificate.json', 'utf8')).abi;
+  const maxLots = Number(env.ICM_MAX_LOTS || 5);
+  let lotIds = env.ICM_LOT_ID ? env.ICM_LOT_ID.split(',').map(s => BigInt(s.trim())) : [];
+  if (!lotIds.length) {
     const count = await src.client.readContract({ address: config.pickupContract, abi: pickup.abi, functionName: 'lotCount' });
-    for (let id = 1n; id <= count && lotId === undefined; id++) {
+    for (let id = 1n; id <= count && lotIds.length < maxLots; id++) {
       const lot = await src.client.readContract({ address: config.pickupContract, abi: pickup.abi, functionName: 'getLot', args: [id] });
-      if (Number(lot.status) === 4) lotId = id;
+      if (Number(lot.status) !== 4) continue;
+      const cert = await src.client.readContract({ address: certificate, abi: certAbi, functionName: 'certificate', args: [id] });
+      if (cert.verified) lotIds.push(id);
     }
   }
-  if (lotId === undefined) fail('No completed lot yet. Run npm run seed:fuji (or complete a lot in the app), then rerun with ICM_SOURCE_BRIDGE and ICM_DEST_BRIDGE set.');
-  record.lotId = lotId.toString();
-
-  if (await readBridge(src, srcBridge, 'outboundMessageIds', [dstId, lotId]) === '0x' + '0'.repeat(64)) {
-    const sent = await write(src, srcBridge, 'bridgeCertificate', [dstId, lotId, 0n]);
-    record.bridgeTx = sent.hash;
-    record.messageId = sent.result;
-  } else {
-    record.messageId = await readBridge(src, srcBridge, 'outboundMessageIds', [dstId, lotId]);
-    console.log(`  Lot #${lotId} was already sent (message ${record.messageId}).`);
+  if (!lotIds.length) fail('No verified completed lot yet. Run npm run seed:scenarios (or complete a lot with a verified station), then rerun with ICM_SOURCE_BRIDGE and ICM_DEST_BRIDGE set.');
+  const zero = '0x' + '0'.repeat(64);
+  record.messages = [];
+  for (const lotId of lotIds) {
+    const entry = { lotId: lotId.toString() };
+    const existing = await readBridge(src, srcBridge, 'outboundMessageIds', [dstId, lotId]);
+    if (existing === zero) { const sent = await write(src, srcBridge, 'bridgeCertificate', [dstId, lotId, 0n]); entry.bridgeTx = sent.hash; entry.messageId = sent.result; }
+    else { entry.messageId = existing; console.log(`  Lot #${lotId} was already sent (message ${existing}).`); }
+    const previous = (JSON.parse(fs.existsSync('deployments/icm-latest.json') ? fs.readFileSync('deployments/icm-latest.json', 'utf8') : '{}').messages || []).find(m => m.lotId === entry.lotId && m.messageId === entry.messageId);
+    if (previous?.bridgeTx && !entry.bridgeTx) entry.bridgeTx = previous.bridgeTx;
+    record.messages.push(entry);
   }
 
   const waitSeconds = Number(env.ICM_WAIT_SECONDS || 300);
-  process.stdout.write(`  Waiting up to ${waitSeconds}s for an ICM relayer to deliver message ${record.messageId} `);
+  process.stdout.write(`  Waiting up to ${waitSeconds}s for an ICM relayer to deliver ${record.messages.length} message(s) `);
   const deadline = Date.now() + waitSeconds * 1000;
-  record.delivered = false;
-  while (Date.now() < deadline) {
-    if (await readBridge(dst, dstBridge, 'hasInboundAttestation', [srcId, lotId])) { record.delivered = true; break; }
+  const pending = () => record.messages.filter(m => !m.delivered);
+  while (Date.now() < deadline && pending().length) {
+    for (const m of pending()) if (await readBridge(dst, dstBridge, 'hasInboundAttestation', [srcId, BigInt(m.lotId)])) m.delivered = true;
+    if (!pending().length) break;
     process.stdout.write('.');
     await new Promise(r => setTimeout(r, 10_000));
   }
-  console.log(record.delivered ? ' delivered!' : ' not delivered yet.');
-  if (record.delivered) {
-    const att = await readBridge(dst, dstBridge, 'getInboundAttestation', [srcId, lotId]);
-    record.received = { household: att.household, collector: att.collector, grams: att.grams.map(String), paidEco: att.paidEco.toString() };
-  } else {
-    console.log('  Check that an ICM relayer runs between Fuji and your L1, then rerun with ICM_SOURCE_BRIDGE/ICM_DEST_BRIDGE to keep waiting.');
+  console.log(pending().length ? ` ${record.messages.length - pending().length}/${record.messages.length} delivered.` : ' all delivered!');
+  // Find the delivery transaction on the destination L1 for each attestation.
+  const receivedEvent = bridge.abi.find(x => x.type === 'event' && x.name === 'ImpactAttestationReceived');
+  const latest = await dst.client.getBlockNumber();
+  const logs = await dst.client.getLogs({ address: dstBridge, event: receivedEvent, fromBlock: latest > 5000n ? latest - 5000n : 0n, toBlock: latest }).catch(() => []);
+  for (const m of record.messages.filter(m => m.delivered)) {
+    const att = await readBridge(dst, dstBridge, 'getInboundAttestation', [srcId, BigInt(m.lotId)]);
+    m.received = { household: att.household, collector: att.collector, grams: att.grams.map(String), paidEco: att.paidEco.toString() };
+    m.deliveryTx = logs.find(l => l.args.lotId === BigInt(m.lotId))?.transactionHash;
+    console.log(`  Lot #${m.lotId}: Fuji ${txLink(src, m.bridgeTx || '')} -> ${dst.name} ${m.deliveryTx ? txLink(dst, m.deliveryTx) : '(delivered)'}`);
   }
+  Object.assign(record, { lotId: record.messages[0].lotId, messageId: record.messages[0].messageId, bridgeTx: record.messages[0].bridgeTx, delivered: record.messages.every(m => m.delivered) });
+  if (!record.delivered) console.log('  Check that an ICM relayer runs between Fuji and your L1, then rerun with ICM_SOURCE_BRIDGE/ICM_DEST_BRIDGE to keep waiting.');
 }
 
 fs.mkdirSync('deployments', { recursive: true });
 fs.writeFileSync('deployments/icm-latest.json', JSON.stringify(record, null, 2) + '\n');
-fs.writeFileSync('config/app.json', JSON.stringify({ ...config, teleporterBridge: record.source.address, ...(record.destination ? { icmDestination: { name: record.destination.chain, blockchainId: record.destination.blockchainId, bridge: record.destination.address } } : {}) }, null, 2) + '\n');
+fs.writeFileSync('config/app.json', JSON.stringify({ ...config, teleporterBridge: record.source.address, ...(record.destination ? { icmDestination: { name: record.destination.chain, chainId: record.destination.chainId, blockchainId: record.destination.blockchainId, sourceBlockchainId: record.source.blockchainId, bridge: record.destination.address, rpc: record.destination.rpc, explorer: record.destination.explorer } } : {}) }, null, 2) + '\n');
 updateReadmeContracts();
 console.log(`
 Saved deployments/icm-latest.json and config/app.json (teleporterBridge).

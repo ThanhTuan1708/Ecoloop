@@ -225,7 +225,7 @@ export async function createApp({dataDir=path.resolve(process.env.DATA_DIR||'.da
           relayerFunded=bal>=2_000_000_000_000_000n;
         }
         const gasless=!!pickupContract&&!!relayWallet&&relayerFunded;
-        send(200,{chainId,contract:contract||null,pickupContract:pickupContract||null,rewardsContract:config.chainId===chainId?config.rewardsContract||null:null,publicPickup:access==='public',canConfigurePickup:!deploymentConfig&&!pickupContract,gasless,relayer:pickupContract?(relayer?.address??null):null,collectionName:config.collectionName||'Điểm thu gom EcoLoop',collectionInstructions:config.collectionInstructions||'Liên hệ đơn vị tổ chức để thống nhất địa điểm và giờ bàn giao.'});return;
+        send(200,{chainId,contract:contract||null,pickupContract:pickupContract||null,rewardsContract:config.chainId===chainId?config.rewardsContract||null:null,teleporterBridge:config.chainId===chainId?config.teleporterBridge||null:null,icmDestination:config.chainId===chainId?config.icmDestination||null:null,publicPickup:access==='public',canConfigurePickup:!deploymentConfig&&!pickupContract,gasless,relayer:pickupContract?(relayer?.address??null):null,collectionName:config.collectionName||'Điểm thu gom EcoLoop',collectionInstructions:config.collectionInstructions||'Liên hệ đơn vị tổ chức để thống nhất địa điểm và giờ bàn giao.'});return;
       }
       if(url.pathname.startsWith('/api/')){
         rateLimit(req);

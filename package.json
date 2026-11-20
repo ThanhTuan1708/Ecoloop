@@ -24,7 +24,8 @@
     "deploy:bridge:fuji": "node --env-file=.env scripts/deploy-bridge.mjs",
     "verify:fuji": "node --env-file-if-exists=.env scripts/verify-snowtrace.mjs",
     "seed:local": "node scripts/seed-fuji.mjs --local",
-    "seed:fuji": "node --env-file=.env scripts/seed-fuji.mjs"
+    "seed:fuji": "node --env-file=.env scripts/seed-fuji.mjs",
+    "seed:scenarios": "node --env-file=.env --env-file-if-exists=.env.local scripts/seed-scenarios.mjs"
   },
   "dependencies": {
     "@neondatabase/serverless": "^1.2.1",

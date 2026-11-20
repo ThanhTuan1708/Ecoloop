@@ -35,7 +35,12 @@ export function updateReadmeContracts() {
     const dst = icm.destination;
     const dstLink = a => dst.explorer ? `[\`${a}\`](${dst.explorer}/address/${a})` : `\`${a}\``;
     lines.push('', `**ICM (Teleporter) thật:** Fuji C-Chain → ${dst.chain} (blockchainID \`${dst.blockchainId}\`), bridge đích ${dstLink(dst.address)}.`);
-    if (icm.bridgeTx) lines.push(`Gửi chứng nhận lô #${icm.lotId}: ${tx(icm.bridgeTx)} · messageID \`${icm.messageId}\` · ${icm.delivered ? '**đã nhận ở L1 đích** ✅' : 'đang chờ relayer chuyển tới L1 đích'}.`);
+    const messages = icm.messages || (icm.bridgeTx ? [{ lotId: icm.lotId, bridgeTx: icm.bridgeTx, messageId: icm.messageId, delivered: icm.delivered }] : []);
+    if (messages.length) {
+      lines.push('', '| Chứng nhận | Gửi trên Fuji | messageID (Teleporter) | Ở L1 đích |', '|---|---|---|---|');
+      for (const m of messages) lines.push(`| ECOREC #${m.lotId} | ${tx(m.bridgeTx)} | \`${m.messageId.slice(0, 18)}…\` | ${m.delivered ? '**đã nhận** ✅' : 'đang chờ relayer'}${m.deliveryTx && dst.explorer ? ` ([tx](${dst.explorer}/tx/${m.deliveryTx}))` : ''} |`);
+      lines.push('', `Tự kiểm tra trên L1 đích: gọi \`totalInboundAttestations()\` hoặc \`getInboundAttestation(sourceBlockchainID, lotId)\` trên bridge ${dstLink(dst.address)} (RPC \`${dst.rpc || ''}\`).`);
+    }
   } else {
     const deployed = icm?.source?.address || config.teleporterBridge;
     lines.push('', `**ICM (Teleporter):** ${deployed ? 'bridge nguồn đã triển khai trên Fuji, chưa kết nối L1 đích' : 'chưa triển khai lên mạng'}. Luồng gửi/nhận, chống giả mạo và chống phát lại được kiểm thử tự động trong \`tests/teleporter-bridge.test.mjs\`.`);

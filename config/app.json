@@ -3,10 +3,19 @@
   "contract": "0xb31c43511f79383990f690cbc7a3d07635f70ae1",
   "collectionName": "Điểm thu gom EcoLoop",
   "collectionInstructions": "Liên hệ đơn vị tổ chức để thống nhất địa điểm và giờ bàn giao vật liệu, nhận quà.",
-  "pickupContract": "0xd8D1629D9712a3856489f2D3487e281fb05F8E8a",
-  "pickupDeployBlock": 61333023,
-  "rewardsContract": "0xd6A6dc2A6da0169C7B46832c9519c427fBBb8F30",
-  "forwarderContract": "0xdaD7d7136845b9D4cdA8aDaf833302B5c98649bd",
-  "certificateContract": "0x61bc32d781002ecE6f441AD1ce857548d1Be5102",
-  "teleporterBridge": "0xe65c88e48C213BFCc2fbaE0B59061a2A1d802774"
+  "pickupContract": "0x6C0309FD70255cC87d53B14c71F17Ba75b131b8f",
+  "pickupDeployBlock": 61362576,
+  "rewardsContract": "0x6E46f3e458E123fc665D23Aa0D9dc18b6af10fBd",
+  "forwarderContract": "0xfdA90d9becdF9F6019c9D042CadE9DC61AB2C2ED",
+  "certificateContract": "0x49487c0656713535c416097E988c447a86DD5a6B",
+  "teleporterBridge": "0x11812cf3eD0EFc07345308F194F7A60846B89083",
+  "icmDestination": {
+    "name": "Dispatch (Avalanche L1 testnet)",
+    "chainId": 779672,
+    "blockchainId": "0x9f3be606497285d0ffbb5ac9ba24aa60346a9b1812479ed66cb329f394a4b1c7",
+    "sourceBlockchainId": "0x7fc93d85c6d62c5b2ac0b519c87010ea5294012d1e407030d6acd0021cac10d5",
+    "bridge": "0xdA71C1dCC8209006f2AfFDd7E406D0f31146Ac4C",
+    "rpc": "https://subnets.avax.network/dispatch/testnet/rpc",
+    "explorer": "https://subnets-test.avax.network/dispatch"
+  }
 }

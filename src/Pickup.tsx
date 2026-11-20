@@ -22,6 +22,7 @@ import {ScrapPhotoSmartBox,ScrapQuickPresets} from './ScrapSmartEstimate';
 import {totalKg as total,pointsEco as points,buyCashVnd,calcLotEconomics} from './EcoEconomics';
 import {AdminRevenueDashboard,AdminEconomicsPanel,AdminAccountsPanel,ExchangeSettings} from './AdminPanels';
 import {PickupRewards} from './PickupRewards';
+import {IcmBridgePanel} from './IcmBridgePanel';
 import {requestCollectorVerification,verificationRequested,pendingVerificationRequests,type VerificationRequest} from './collectorVerification';
 
 const PickupMap=lazy(()=>import('./PickupMap'));
@@ -849,7 +850,7 @@ export default function Pickup({account,admin,onConnect,page='home',role='seller
             {isOwner&&current.status===3&&<><p>{tr('Kiểm tra bảng khối lượng thực tế bên trên trước khi xác nhận hoàn tất.')}</p><label className="checkbox"><input type="checkbox" checked={consent} onChange={e=>setConsent(e.target.checked)}/>{tr('Tôi đã bàn giao vật liệu và đồng ý khối lượng thực tế trên.')}</label><button className="primary full-width" disabled={busy||paused||!consent||Date.now()>current.updatedAt+7*86400000} onClick={()=>run(()=>change('acceptLot',[BigInt(current.id)]))}><CheckCircle2 size={16}/>{isCurrentOnChain&&payoutWei!==undefined?tr('Xác nhận & nhận {eco} ECO',{eco:eco(payoutWei)}):tr('Đồng ý số cân')}{freeGas}</button><button className="secondary" disabled={busy} onClick={()=>run(()=>change('disputeLot',[BigInt(current.id)]))}>{tr('Chưa đồng ý · yêu cầu cân lại')}{freeGas}</button></>}
             {actions.releaseLot&&<button className="text-link" disabled={busy} onClick={()=>run(()=>change('releaseLot',[BigInt(current.id)]))}>{isOwner?tr('Mở lại lô do quá hạn'):tr('Hủy nhận đơn (Nhường cho người khác)')}</button>}
             {current.status===4&&<p className="pickup-success"><CheckCircle2 size={18}/>{tr('Hai bên đã xác nhận. Điểm thưởng ECO đã được cộng vào ví người bán.')}</p>}
-            {current.status===4&&isCurrentOnChain&&certAddress&&<CertificateCard certificate={certAddress} lotId={current.id}/>}
+            {current.status===4&&isCurrentOnChain&&certAddress&&<CertificateCard certificate={certAddress} lotId={current.id} account={account} canSend={isOwner}/>}
           </div>
         </div>}
       {page==='orders'&&account&&<>
@@ -892,7 +893,7 @@ export default function Pickup({account,admin,onConnect,page='home',role='seller
         await refresh();
         setMessage(tr('Đã cập nhật quầy đổi ECO.'));
       })}/>}
-      {page==='wallet'&&address&&certAddress&&<section className="pickup-callout"><h3><Award size={18}/> {tr('Chứng nhận tái chế của tôi ({n})',{n:myCertificates.length})}</h3>{myCertificates.length?<div className="cert-grid">{myCertificates.map(l=><CertificateCard key={l.id} certificate={certAddress} lotId={l.id} compact/>)}</div>:<p>{account?tr('Hoàn tất một lô thu gom để nhận chứng nhận NFT đầu tiên.'):tr('Kết nối ví để xem chứng nhận của bạn.')}</p>}</section>}
+      {page==='wallet'&&address&&certAddress&&<section className="pickup-callout"><h3><Award size={18}/> {tr('Chứng nhận tái chế của tôi ({n})',{n:myCertificates.length})}</h3>{myCertificates.length?<div className="cert-grid">{myCertificates.map(l=><CertificateCard key={l.id} certificate={certAddress} lotId={l.id} compact account={account} canSend/>)}</div>:<p>{account?tr('Hoàn tất một lô thu gom để nhận chứng nhận NFT đầu tiên.'):tr('Kết nối ví để xem chứng nhận của bạn.')}</p>}</section>}
     </>}
     {page==='rewards'&&<>
       <EarnEco key={`${address}:${rewardsAddress}:${account}`} pool={rewardsAddress} token={address}
@@ -1140,10 +1141,10 @@ function EcoExchange({exchange,busy,buy,needed}:EcoExchangeProps){
   </div>;
 }
 
-function CertificateCard({certificate,lotId,compact}:{certificate:Address;lotId:number;compact?:boolean}){
+function CertificateCard({certificate,lotId,compact,account,canSend}:{certificate:Address;lotId:number;compact?:boolean;account?:Address;canSend?:boolean}){
   const [cert,setCert]=useState<CertificateView|null>();
   useEffect(()=>{let live=true;setCert(undefined);readCertificate(certificate,lotId).then(c=>{if(live)setCert(c||null);});return()=>{live=false;};},[certificate,lotId]);
   if(cert===undefined)return <p role="status" className="footnote">{tr('Đang tải chứng nhận NFT…')}</p>;
   if(!cert)return null;
-  return <div className={compact?'cert-card compact':'cert-card'}><img src={cert.image} alt={cert.name}/><div><strong><Award size={15}/>{tr('Chứng nhận tái chế NFT #{id}',{id:lotId})}</strong>{!compact&&<p>{tr('Lưu vĩnh viễn trên Avalanche: ai cũng kiểm chứng được số kg đã tái chế, ví dụ doanh nghiệp cần báo cáo trách nhiệm tái chế.')}</p>}<a className="text-link" href={certificateUrl(certificate,lotId)} target="_blank" rel="noreferrer">{tr('Xem trên Snowtrace')}<ExternalLink size={12}/></a></div></div>;
+  return <div className={compact?'cert-card compact':'cert-card'}><img src={cert.image} alt={cert.name}/><div><strong><Award size={15}/>{tr('Chứng nhận tái chế NFT #{id}',{id:lotId})}</strong>{!compact&&<p>{tr('Lưu vĩnh viễn trên Avalanche: ai cũng kiểm chứng được số kg đã tái chế, ví dụ doanh nghiệp cần báo cáo trách nhiệm tái chế.')}</p>}<a className="text-link" href={certificateUrl(certificate,lotId)} target="_blank" rel="noreferrer">{tr('Xem trên Snowtrace')}<ExternalLink size={12}/></a><IcmBridgePanel certificate={certificate} lotId={lotId} account={account} canSend={canSend}/></div></div>;
 }
