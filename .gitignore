@@ -26,3 +26,8 @@ p2-push-log.txt
 push-p3.bat
 p3-log.txt
 p3.tmp
+push-p4.bat
+p4-log.txt
+cap-quyen-tram.bat
+grant-log.txt
+*.bat.tmp

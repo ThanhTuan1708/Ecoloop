@@ -120,3 +120,29 @@ test('activating shared V4 requires both admin roles and cannot replace an activ
   assert.equal((await fetch(url+'/api/marketplace/listings')).status,400);
  }finally{await new Promise(r=>server.close(r));assert.ok(dir.startsWith(path.join(os.tmpdir(),'ecoloop-activation-')));await fs.rm(dir,{recursive:true,force:true});}
 });
+
+test('collector verification requests must be signed by the wallet and are listed for the admin',async()=>{
+ const dir=await fs.mkdtemp(path.join(os.tmpdir(),'ecoloop-verify-'));
+ const wallet=privateKeyToAccount(generatePrivateKey());
+ const other=privateKeyToAccount(generatePrivateKey());
+ const client={getChainId:async()=>43113,getCode:async()=>'0x',readContract:async()=>false};
+ const server=await createApp({dataDir:dir,client,configFile:path.join(dir,'missing.json')});
+ await new Promise(r=>server.listen(0,'127.0.0.1',r));
+ const url='http://127.0.0.1:'+server.address().port+'/api/collector/verify-request';
+ try{
+  const timestamp=Date.now();
+  const message=`EcoLoop Collector Verification Request\nAccount: ${wallet.address.toLowerCase()}\nTimestamp: ${timestamp}`;
+  // A signature from another wallet is rejected
+  const forged=await fetch(url,{method:'POST',body:JSON.stringify({account:wallet.address,timestamp,signature:await other.signMessage({message})})});
+  assert.equal(forged.status,401);
+  const ok=await fetch(url,{method:'POST',body:JSON.stringify({account:wallet.address,timestamp,signature:await wallet.signMessage({message})})});
+  assert.equal(ok.status,200);
+  assert.equal((await (await fetch(url+'?account='+wallet.address)).json()).requested,true);
+  assert.equal((await (await fetch(url+'?account='+other.address)).json()).requested,false);
+  const {requests}=await (await fetch(url)).json();
+  assert.deepEqual(requests.map(r=>r.account),[wallet.address.toLowerCase()]);
+ }finally{
+  await new Promise(r=>server.close(r));
+  await fs.rm(dir,{recursive:true,force:true});
+ }
+});

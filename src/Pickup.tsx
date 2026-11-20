@@ -1,6 +1,6 @@
 import {lazy,Suspense,useEffect,useRef,useState,type FormEvent,type ReactNode} from 'react';
 import {MapPin,Plus,RefreshCw,Navigation,ArrowRight,CheckCircle2,PackageCheck,ShieldCheck,Lock,Star,Coins,SlidersHorizontal,ChevronLeft,ChevronRight,History,Award,ExternalLink,Database,Fuel,Pencil,Trash2,Eye,EyeOff} from 'lucide-react';
-import {formatEther,isAddress,parseEther,type Address,type Hash} from 'viem';
+import {formatEther,isAddress,keccak256,parseEther,stringToHex,type Address,type Hash} from 'viem';
 import {chain,getWalletName} from './wallet';
 import {errorMessage,txUrl,publicClient} from './chain';
 import {materials,short} from './model';
@@ -22,6 +22,7 @@ import {ScrapPhotoSmartBox,ScrapQuickPresets} from './ScrapSmartEstimate';
 import {totalKg as total,pointsEco as points,buyCashVnd,calcLotEconomics} from './EcoEconomics';
 import {AdminRevenueDashboard,AdminEconomicsPanel,AdminAccountsPanel,ExchangeSettings} from './AdminPanels';
 import {PickupRewards} from './PickupRewards';
+import {requestCollectorVerification,verificationRequested,pendingVerificationRequests,type VerificationRequest} from './collectorVerification';
 
 const PickupMap=lazy(()=>import('./PickupMap'));
 // Sample data has been removed from the app; clear what older versions stored in this browser.
@@ -124,6 +125,14 @@ export default function Pickup({account,admin,onConnect,page='home',role='seller
 
   const effectiveBalance=Number(formatEther(balanceAtomic));
   const canSponsor=canFulfillRewards&&gasless&&depositWei!==undefined&&(exchange?.sponsorPool??0n)>=depositWei;
+  const [verifyRequested,setVerifyRequested]=useState(false);
+  const [verifyQueue,setVerifyQueue]=useState<VerificationRequest[]>([]);
+  useEffect(()=>{
+    if(!account||canFulfillRewards){setVerifyRequested(false);return;}
+    let live=true;void verificationRequested(account).then(r=>{if(live)setVerifyRequested(r);});
+    return()=>{live=false;};
+  },[account,canFulfillRewards]);
+  const loadVerifyQueue=()=>void pendingVerificationRequests().then(setVerifyQueue);
 
   const applyCardOverrides=(card:ShopeeWeb3ProductCard):ShopeeWeb3ProductCard=>{
     const ov=catalog.lotOverrides[card.lotId];
@@ -807,8 +816,12 @@ export default function Pickup({account,admin,onConnect,page='home',role='seller
               ?<div className="pickup-callout"><strong>{tr('⚡ Nhận đơn miễn phí — Quỹ ứng trước của EcoLoop khóa {eco} ECO đảm bảo thay bạn',{eco:eco(depositWei)})}</strong><p>{tr('Bạn là trạm thu gom đã xác minh nên không cần có ECO hay AVAX. Khoản đảm bảo do quỹ ứng trước khóa; khi hoàn tất, người bán nhận ECO theo số cân và phần dư quay về quỹ.')}</p></div>
               :<>{canFulfillRewards
                 ?<p role="status">{tr('Quỹ ứng trước đang không đủ hoặc bạn đã nhận tối đa 3 đơn ứng trước. Hoàn tất bớt đơn hoặc liên hệ quản trị viên.')}</p>
-                :<p role="status">{tr('Ví chưa có đủ {eco} ECO để ký quỹ. Đơn miễn phí (ứng trước) chỉ dành cho trạm thu gom đã xác minh: liên hệ quản trị viên để được xác minh, hoặc đổi AVAX lấy ECO.',{eco:eco(depositWei-balanceAtomic)})}</p>}
-                {swap&&<EcoExchange {...swap} needed={depositWei-balanceAtomic}/>}</>)}
+                :<div className="pickup-callout"><strong>{tr('Trở thành trạm thu gom đã xác minh để nhận đơn miễn phí')}</strong>
+                  <p>{tr('Trạm đã xác minh nhận đơn bằng quỹ ứng trước của EcoLoop, không cần ECO hay AVAX. Gửi yêu cầu, quản trị viên sẽ kiểm tra và duyệt.')}</p>
+                  {verifyRequested
+                    ?<p role="status"><CheckCircle2 size={15}/> {tr('Đã gửi yêu cầu xác minh. Vui lòng chờ quản trị viên duyệt.')}</p>
+                    :<button type="button" className="secondary" disabled={busy} onClick={()=>run(async()=>{await requestCollectorVerification(account!);setVerifyRequested(true);setMessage(tr('Đã gửi yêu cầu xác minh. Vui lòng chờ quản trị viên duyệt.'));})}>{tr('Gửi yêu cầu xác minh trạm thu gom')}</button>}
+                </div>}</>)}
             {collectorMarket&&(!account||actions.claimLot)&&<button className="primary full-width" disabled={busy||paused||!!account&&(depositWei===undefined||(balanceAtomic<depositWei&&!canSponsor))} onClick={()=>account?run(()=>change('claimLot',[BigInt(current.id)])):onConnect()}>{!account?tr('Kết nối ví'):tr('Nhận đơn đi thu gom ngay')} <ArrowRight size={16}/></button>}
             {current.status===1&&isOwner&&<button className="secondary" disabled={busy} onClick={()=>run(()=>change('cancelLot',[BigInt(current.id)]))}>{tr('Hủy bài đăng')}{freeGas}</button>}
             {isAssignedCollector&&current.status===2&&<form onSubmit={e=>{e.preventDefault();run(async()=>{const weights=actual.map(s=>Math.round(Number(s)*1000));if(weights.some(n=>!Number.isSafeInteger(n)||n<0)||total(weights)<=0||total(weights)>1000)throw new Error(tr('Tổng khối lượng thực tế từ 0,001 đến 1.000 kg.'));await change('proposeLot',[BigInt(current.id),weights.map(BigInt)]);});}}><h4>{tr('Kết quả cân thực tế tại điểm bàn giao')}</h4><WeightInputs values={actual} onChange={setActual}/><p>{tr('Nhập số cân thực tế sau khi cân tại nhà để gửi cho người bán kiểm tra và xác nhận.')}</p><button className="primary" disabled={busy||paused}>{tr('Gửi số cân')}</button></form>}
@@ -858,6 +871,16 @@ export default function Pickup({account,admin,onConnect,page='home',role='seller
       {page==='wallet'&&!walletSlot&&<div className="pickup-callout wallet-live"><span>{tr('VÍ ĐIỂM THU GOM ECOLOOP')}</span><h2>{fmt(effectiveBalance)} ECO</h2><p>{account?tr('Ví đã kết nối: {wallet} · Số dư ECO on-chain trên contract V4.',{wallet:short(account)}):tr('Kết nối ví để xem số dư ECO on-chain của bạn.')}</p>{address&&<code>{address}</code>}<p>{tr('Bạn nhận ECO khi hoàn tất bàn giao phế liệu.')}</p></div>}
       {page==='wallet'&&<DummyWalletWidget account={account} role={role} admin={admin}/>}
       {page==='wallet'&&swap&&<EcoExchange {...swap}/>}
+      {page==='admin'&&address&&account&&admin&&<section className="pickup-callout">
+        <h3><ShieldCheck size={18}/> {tr('Yêu cầu xác minh trạm thu gom')}</h3>
+        <button type="button" className="secondary" disabled={busy} onClick={loadVerifyQueue}><RefreshCw size={15}/> {tr('Tải danh sách')}</button>
+        {verifyQueue.length===0?<p>{tr('Chưa có yêu cầu nào.')}</p>:verifyQueue.map(r=><p key={r.account}>
+          <code>{r.account}</code> · {dateTime(r.requestedAt)}{' '}
+          <button type="button" className="secondary" disabled={busy} onClick={()=>run(async()=>{
+            setHash(await pickupWrite(address,account,'grantRole',[keccak256(stringToHex('COLLECTOR_ROLE')),r.account]));
+            await refresh();setMessage(tr('Đã cấp quyền trạm thu gom cho {a}.',{a:short(r.account)}));
+          })}>{tr('Cấp quyền trạm')}</button></p>)}
+      </section>}
       {page==='admin'&&address&&account&&admin&&exchange&&<ExchangeSettings exchange={exchange} busy={busy} submit={(fn,value)=>void run(async()=>{
         if(fn==='withdrawExchangeProceeds'){
           setHash(await pickupWrite(address,account,'withdrawExchangeProceeds',[account,value]));

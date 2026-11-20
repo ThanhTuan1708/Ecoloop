@@ -357,6 +357,29 @@ export async function createApp({dataDir=path.resolve(process.env.DATA_DIR||'.da
           await writeJsonState('user-state.json',userStateFile,state);
           send(200,{ok:true,state});return;
         }
+        // Collectors ask to become a verified station (COLLECTOR_ROLE). The request is signed by the wallet;
+        // the admin grants the role on-chain (admin panel or scripts/grant-collectors.mjs).
+        if(url.pathname==='/api/collector/verify-request'){
+          const requestsFile=path.join(dataDir,'collector-requests.json');
+          const current=await readJsonState('collector-requests.json',requestsFile,{requests:{}});
+          if(!current.requests||typeof current.requests!=='object')current.requests={};
+          if(req.method==='GET'){
+            const account=String(url.searchParams.get('account')||'').toLowerCase();
+            if(account){if(!isAddress(account))fail(400,'Địa chỉ ví không hợp lệ.');send(200,{requested:!!current.requests[account]});return;}
+            send(200,{requests:Object.values(current.requests).sort((a,b)=>a.requestedAt-b.requestedAt)});return;
+          }
+          if(req.method==='POST'){
+            const body=JSON.parse((await readBody(req,4096)).toString());
+            const account=String(body.account||'').toLowerCase();
+            const message=`EcoLoop Collector Verification Request\nAccount: ${account}\nTimestamp: ${body.timestamp}`;
+            await verifySignedAction(account,message,body.signature,body.timestamp);
+            if(!current.requests[account]&&Object.keys(current.requests).length>=500)fail(429,'Danh sách chờ xác minh đã đầy. Liên hệ quản trị viên.');
+            current.requests[account]={account,requestedAt:current.requests[account]?.requestedAt||Date.now()};
+            await writeJsonState('collector-requests.json',requestsFile,current);
+            send(200,{requested:true});return;
+          }
+          fail(405,'Phương thức không được hỗ trợ.');
+        }
         if(url.pathname==='/api/admin/catalog'&&(req.method==='GET'||req.method==='POST')){
           const catalogFile=path.join(dataDir,'admin-catalog.json');
           const currentCatalog=await readJsonState('admin-catalog.json',catalogFile,{});
