@@ -1,6 +1,6 @@
 # EcoLoop · Doorstep recycling marketplace on Avalanche
 
-[![CI](https://github.com/ThanhTuan1708/Ecoloop/actions/workflows/ci.yml/badge.svg)](https://github.com/ThanhTuan1708/Ecoloop/actions/workflows/ci.yml)
+**Test:** `npm test` → 119/119 pass (Hardhat EDR, không cần node riêng) · **Contract:** 5/5 verify trên Snowtrace · **ICM:** 5/5 chứng nhận đã tới Dispatch L1
 
 > **EN:** EcoLoop connects households, informal waste collectors and EPR-obligated brands. A collector locks **120% ECO escrow** to claim a pickup, weighs the scrap at the door, the household accepts on-chain, and the contract pays from escrow and mints an **on-chain SVG recycling certificate (ECOREC NFT)**. Household actions are **gasless (ERC-2771)**, and certificates can be attested to another Avalanche L1 through **Avalanche ICM (Teleporter)**. Built for Team1 Vietnam UniHack 2026.
 
